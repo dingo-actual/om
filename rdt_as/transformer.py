@@ -20,6 +20,7 @@ class ReDoTransformer(nn.Module):
         num_heads: int,
         activation: str,
         segment_len: int,
+        state_len: int,
         position_embedder_1: Optional[RoPEEmbeddings] = None,
         position_embedder_2: Optional[RoPEEmbeddings] = None,
         dropout: float = 0.0
@@ -34,6 +35,7 @@ class ReDoTransformer(nn.Module):
             num_heads (int): Number of attention heads for the memory module.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory module.
+            state_len (int): Length of the state (i.e., number of tokens) for the memory module.
             position_embedder_1 (Optional[RoPEEmbeddings], optional): First position embedding module for the memory module. Defaults to None.
             position_embedder_1 (Optional[RoPEEmbeddings], optional): Second position embedding module for the memory module. Defaults to None.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
@@ -50,6 +52,10 @@ class ReDoTransformer(nn.Module):
             position_embedder_1=position_embedder_1, 
             position_embedder_2=position_embedder_2, 
         )
+        
+        # Set learnable initial state
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / dim_input ** 0.5)
+        
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
@@ -76,7 +82,7 @@ class ReDoTransformer(nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, seq_len, dim_input).
         """
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_ = self.attn(x)
+        x_, _ = self.attn(x, self.init_state)
         x_ = self.layer_norm(x_ + x)
         x_ = self.mlp(x_)
 

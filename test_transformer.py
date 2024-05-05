@@ -10,19 +10,20 @@ def test_redo_transformer():
     dim_value = 64
     num_heads = 8
     activation = "ffngeglu"
-    segment_len = 2056
+    segment_len = 2048
+    state_len = 4
     
     dropout = 0.1
     
-    positional_embedder_1 = RoPEEmbeddings(
+    position_embedder_1 = RoPEEmbeddings(
         dim=dim_key,
-        seq_len=segment_len,
+        seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.5,
         base=10000
     )
-    positional_embedder_2 = RoPEEmbeddings(
+    position_embedder_2 = RoPEEmbeddings(
         dim=dim_key // 2,
-        seq_len=segment_len,
+        seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.5,
         base=10000
     )
@@ -36,8 +37,8 @@ def test_redo_transformer():
         activation=activation,
         segment_len=segment_len,
         state_len=4,
-        positional_embedder_1=positional_embedder_1,
-        positional_embedder_2=positional_embedder_2,
+        position_embedder_1=position_embedder_1,
+        position_embedder_2=position_embedder_2,
         dropout=dropout
     )
 

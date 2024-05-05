@@ -26,7 +26,9 @@ class RoPEEmbeddings(torch.nn.Module):
         self.seq_len = seq_len
         self.dim_embedding_pct = dim_embedding_pct
         self.base = base
-        self.last_offset = -1
+        self.last_offset = 0
+        
+        self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
         # Indices for rearranging the input follow the pattern [1, 0, 3, 2, 5, 4, ...]
@@ -54,7 +56,7 @@ class RoPEEmbeddings(torch.nn.Module):
         if offset < 0:
             mults = torch.cat([torch.ones(-offset), torch.arange(1, self.seq_len + 1 + offset)], dim=0)
         else:
-            mults = torch.arange(1, self.seq_len + 1 + offset)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset)
         thetas *= mults.unsqueeze(0)
         self.thetas = thetas.transpose(0, 1).unsqueeze(0).unsqueeze(0)
         

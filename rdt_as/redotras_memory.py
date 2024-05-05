@@ -109,15 +109,15 @@ class ReDoTrAS(nn.Module):
         """
         # If position embedder is specified, add positional embeddings to q and k
         if position_embedder is not None:
-            k = position_embedder(k, total_seq_len=k.size(2), offset=offset)
-            q = position_embedder(q, total_seq_len=q.size(2), offset=offset)
+            k = position_embedder(k, offset=offset)
+            q = position_embedder(q, offset=offset)
         
         # Calculate attention scores using the projected key, and query tensors
         scores = q @ k.transpose(-2, -1) / self.dim_key ** 0.5
 
         # Calculate and apply causal attention mask
         mask = torch.tril(torch.ones((k.size(2), k.size(2)), dtype=torch.bool), diagonal=0)
-        mask = mask.unsqueeze(0).unsqueeze(0).repeat((k.size(1), self.num_heads, 1, 1))
+        mask = mask.unsqueeze(0).unsqueeze(0).repeat((k.size(0), self.num_heads, 1, 1))
         scores.masked_fill_(torch.logical_not(mask), float('-inf'))
 
         # Calculate SDP attention
@@ -141,7 +141,7 @@ class ReDoTrAS(nn.Module):
                 - x: Tensor of shape (batch_size, num_heads, seq_len, dim_embedding)
                 - state_end: Tensor of shape (batch_size, num_heads, state_len, dim_embedding)
         """
-        return x[...,state_len:,:], x[...,state_len:-state_len,:], x[...,:-state_len,:]
+        return x[...,:state_len,:], x[...,state_len:-state_len,:], x[...,-state_len:,:]
 
 
     def forward(self, x: torch.Tensor, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -152,7 +152,7 @@ class ReDoTrAS(nn.Module):
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim_input).
             state (torch.Tensor): Initial state tensor of shape (1, state_len, dim_input).
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: Output tensor of shape (batch_size, seq_len, dim_input) and terminal state tensor of shape (1, state_len, dim_input).
+            Tuple[torch.Tensor, torch.Tensor]: Output tensor of shape (batch_size, seq_len, dim_input) and terminal state tensor of shape (batch_size, state_len, dim_input).
         """
         batch_size, seq_len, _ = x.shape
         state_len = state.size(1)
@@ -255,11 +255,11 @@ class ReDoTrAS(nn.Module):
             _, att_final, att_state_end_final = self.extract_state(att_final, state_len)
             
             # Reshape before final projections
-            att_final = att_final.view((batch_size, seg_len, -1))
-            att_state_end_final = att_state_end_final.view((batch_size, state_len, -1))
+            att_final = att_final.reshape((batch_size, seg_len, -1))
+            att_state_end_final = att_state_end_final.reshape((batch_size, state_len, -1))
             
             # Get next state
-            state = self.proj_out_state(att_state_end_final)
+            state = self.proj_out_state(att_state_end_final).unsqueeze(1)
             
             # Append output to buffer
             out.append(self.proj_out(att_final))
@@ -267,4 +267,4 @@ class ReDoTrAS(nn.Module):
         # Return concatenated full sequence from buffer
         out = torch.concat(out, dim=1)
 
-        return out
+        return out, state.squeeze(1)
