@@ -49,3 +49,15 @@ class StackedLinear(torch.nn.Module):
             return (x @ self.weights.repeat(batch_size, 1, seq_len, 1, 1)).squeeze(-2)
         else:
             return (x @ self.weights.repeat(batch_size, 1, seq_len, 1, 1)).squeeze(-2) + self.biases
+
+
+def count_optimized_parameters(model: torch.nn.Module) -> int:
+    """
+    Count the number of optimized parameters in a PyTorch model.
+
+    Args:
+        model (torch.nn.Module): The PyTorch model to count the optimized parameters for.
+    Returns:
+        int: The number of optimized parameters in the model.
+    """
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
