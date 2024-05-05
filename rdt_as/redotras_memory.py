@@ -16,8 +16,7 @@ class ReDoTrAS(nn.Module):
         dim_value: int, 
         num_heads: int, 
         segment_len: int, 
-        position_embedder_1: Optional[RoPEEmbeddings] = None,
-        position_embedder_2: Optional[RoPEEmbeddings] = None
+        position_embedder: Optional[RoPEEmbeddings] = None
     ):
         """Initialize module.
 
@@ -27,8 +26,7 @@ class ReDoTrAS(nn.Module):
             dim_value (int): Value dimension.
             num_heads (int): Number of attention heads.
             segment_len (int): Segment length (must be a factor of the input sequence length).
-            position_embedder_1 (Optional[RoPEEmbeddings], optional): Position embedding module for first memory layer. Defaults to None.
-            position_embedder_2 (Optional[RoPEEmbeddings], optional): Position embedding module for second memory layer. Defaults to None.
+            position_embedder (Optional[RoPEEmbeddings], optional): Position embedding module. Defaults to None.
         """
         super(ReDoTrAS, self).__init__()
 
@@ -41,8 +39,7 @@ class ReDoTrAS(nn.Module):
         self.dim_value = dim_value
         
         # Save position embedders (if given)
-        self.position_embedder_1 = position_embedder_1
-        self.position_embedder_2 = position_embedder_2
+        self.position_embedder = position_embedder
         
         # Projections from input to first attention layer
         self.proj_k = StackedLinear(dim_input, dim_key, 1, num_heads, bias=False)
@@ -50,14 +47,9 @@ class ReDoTrAS(nn.Module):
         self.proj_q = StackedLinear(dim_input, dim_key, 1, num_heads, bias=False)
         
         # Projections from first attention layer to the second attention layer
-        self.proj_down_k = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_q = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_v = StackedLinear(dim_value, dim_value // 2, num_heads, num_heads, bias=False)
-        
-        # Projections from the second attention layer to the first attention layer
-        self.proj_up_k = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_q = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_v = StackedLinear(dim_value // 2, dim_value, num_heads, num_heads, bias=False)
+        self.proj_2_k = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_q = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_v = StackedLinear(dim_value, dim_value, num_heads, num_heads, bias=False)
 
         # Projection for output
         self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False)
@@ -68,20 +60,12 @@ class ReDoTrAS(nn.Module):
         self.proj_q_state = StackedLinear(dim_input, dim_key, 1, num_heads, bias=False)
         
         # State projections from first attention layer to the second attention layer
-        self.proj_down_k_state_start = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_q_state_start = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_v_state_start = StackedLinear(dim_value, dim_value // 2, num_heads, num_heads, bias=False)
-        self.proj_down_k_state_end = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_q_state_end = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
-        self.proj_down_v_state_end = StackedLinear(dim_value, dim_value // 2, num_heads, num_heads, bias=False)
-        
-        # State projections from the second attention layer to the first attention layer
-        self.proj_up_k_state_start = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_q_state_start = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_v_state_start = StackedLinear(dim_value // 2, dim_value, num_heads, num_heads, bias=False)
-        self.proj_up_k_state_end = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_q_state_end = StackedLinear(dim_value // 2, dim_key, num_heads, num_heads, bias=False)
-        self.proj_up_v_state_end = StackedLinear(dim_value // 2, dim_value, num_heads, num_heads, bias=False)
+        self.proj_2_k_state_start = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_q_state_start = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_v_state_start = StackedLinear(dim_value, dim_value, num_heads, num_heads, bias=False)
+        self.proj_2_k_state_end = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_q_state_end = StackedLinear(dim_value, dim_key, num_heads, num_heads, bias=False)
+        self.proj_2_v_state_end = StackedLinear(dim_value, dim_value, num_heads, num_heads, bias=False)
         
         # State projection for output
         self.proj_out_state = nn.Linear(num_heads * dim_value, dim_input, bias=False)
@@ -91,7 +75,6 @@ class ReDoTrAS(nn.Module):
         q: torch.Tensor, 
         k: torch.Tensor, 
         v: torch.Tensor, 
-        position_embedder: Optional[RoPEEmbeddings] = None, 
         offset: Optional[int] = None
     ) -> torch.Tensor:
         """
@@ -101,16 +84,15 @@ class ReDoTrAS(nn.Module):
             q (torch.Tensor): Query tensor of shape (batch_size, num_heads, seq_len, dim_key).
             k (torch.Tensor): Key tensor of shape (batch_size, num_heads, seq_len, dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, num_heads, seq_len, dim_value).
-            position_embedder (Optional[RoPEEmbeddings]): Optional position embedder to apply to the query and key tensors.
             offset (Optional[int]): Optional offset to apply to the position embeddings.
             
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, num_heads, seq_len, dim_value).
         """
         # If position embedder is specified, add positional embeddings to q and k
-        if position_embedder is not None:
-            k = position_embedder(k, offset=offset)
-            q = position_embedder(q, offset=offset)
+        if self.position_embedder is not None:
+            k = self.position_embedder(k, offset=offset)
+            q = self.position_embedder(q, offset=offset)
         
         # Calculate attention scores using the projected key, and query tensors
         scores = q @ k.transpose(-2, -1) / self.dim_key ** 0.5
@@ -175,7 +157,7 @@ class ReDoTrAS(nn.Module):
             ix_hi = min(ix_lo + self.segment_len, x.size(2))
             seg_len = ix_hi - ix_lo
             
-            # FIRST OUTER ATTENTION PASS
+            # FIRST ATTENTION PASS
 
             # Extract segment from key, value and query tensors
             k = k_full[:, :, ix_lo:ix_hi, :]
@@ -193,76 +175,48 @@ class ReDoTrAS(nn.Module):
             q = torch.cat([q_state, q, q_state], dim=2)
             
             # Calculate SDP attention with the concatenated tensors
-            att = self.apply_attention(q, k, v, self.position_embedder_1, ix_lo - state.size(1))
+            att = self.apply_attention(q, k, v, ix_lo - state.size(1))
             
             # Extract state from result
             att_state_start, att, att_state_end = self.extract_state(att, state_len)
             
-            # INNER ATTENTION PASS
+            # SECOND ATTENTION PASS
             
             # Project attention result to get new key, value and query tensors
-            k_inner = self.proj_down_k(att)
-            q_inner = self.proj_down_k(att)
-            v_inner = self.proj_down_k(att)
+            k2 = self.proj_2_k(att)
+            q2 = self.proj_2_k(att)
+            v2 = self.proj_2_k(att)
             
             # Project start state tensors for key, value and query tensors
-            k_state_start = self.proj_down_k_state_start(att_state_start)
-            q_state_start = self.proj_down_q_state_start(att_state_start)
-            v_state_start = self.proj_down_v_state_start(att_state_start)
+            k2_state_start = self.proj_2_k_state_start(att_state_start)
+            q2_state_start = self.proj_2_q_state_start(att_state_start)
+            v2_state_start = self.proj_2_v_state_start(att_state_start)
             
             # Project end state tensors for key, value and query tensors
-            k_state_end = self.proj_down_k_state_end(att_state_end)
-            q_state_end = self.proj_down_q_state_end(att_state_end)
-            v_state_end = self.proj_down_v_state_end(att_state_end)
+            k2_state_end = self.proj_2_k_state_end(att_state_end)
+            q2_state_end = self.proj_2_q_state_end(att_state_end)
+            v2_state_end = self.proj_2_v_state_end(att_state_end)
             
             # Concatenate state tensors with the key, value and query tensors
-            k_inner = torch.cat([k_state_start, k_inner, k_state_end], dim=2)
-            q_inner = torch.cat([q_state_start, q_inner, q_state_end], dim=2)
-            v_inner = torch.cat([v_state_start, v_inner, v_state_end], dim=2)
+            k2 = torch.cat([k2_state_start, k2, k2_state_end], dim=2)
+            q2 = torch.cat([q2_state_start, q2, q2_state_end], dim=2)
+            v2 = torch.cat([v2_state_start, v2, v2_state_end], dim=2)
             
             # Calculate SDP attention with the concatenated tensors
-            att_inner = self.apply_attention(q_inner, k_inner, v_inner, self.position_embedder_2, ix_lo - state.size(1))
+            att2 = self.apply_attention(q2, k2, v2, ix_lo - state.size(1))
             
             # Extract state from result
-            att_inner_state_start, att_inner, att_inner_state_end = self.extract_state(att_inner, state_len)
-            
-            # SECOND OUTER ATTENTION PASS
-            
-            # Project outer attention result to get new key, value and query tensors
-            k_final = self.proj_up_k(att_inner)
-            q_final = self.proj_up_q(att_inner)
-            v_final = self.proj_up_v(att_inner)
-            
-            # Project start state tensors for key, value and query tensors
-            k_state_start_final = self.proj_up_k_state_start(att_inner_state_start)
-            q_state_start_final = self.proj_up_q_state_start(att_inner_state_start)
-            v_state_start_final = self.proj_up_v_state_start(att_inner_state_start)
-            
-            # Project end state tensors for key, value and query tensors
-            k_state_end_final = self.proj_up_k_state_end(att_inner_state_end)
-            q_state_end_final = self.proj_up_q_state_end(att_inner_state_end)
-            v_state_end_final = self.proj_up_v_state_end(att_inner_state_end)
-            
-            # Concatenate state tensors with the key, value and query tensors
-            k_final = torch.cat([k_state_start_final, k_final, k_state_end_final], dim=2)
-            q_final = torch.cat([q_state_start_final, q_final, q_state_end_final], dim=2)
-            v_final = torch.cat([v_state_start_final, v_final, v_state_end_final], dim=2)
-            
-            # Calculate SDP attention with the concatenated tensors
-            att_final = self.apply_attention(q_final, k_final, v_final, self.position_embedder_1, ix_lo - state.size(1))
-            
-            # Extract next state from result
-            _, att_final, att_state_end_final = self.extract_state(att_final, state_len)
+            _, att2, att2_state_end = self.extract_state(att2, state_len)
             
             # Reshape before final projections
-            att_final = att_final.reshape((batch_size, seg_len, -1))
-            att_state_end_final = att_state_end_final.reshape((batch_size, state_len, -1))
+            att2 = att2.reshape((batch_size, seg_len, -1))
+            att2_state_end = att2_state_end.reshape((batch_size, state_len, -1))
             
             # Get next state
-            state = self.proj_out_state(att_state_end_final).unsqueeze(1)
+            state = self.proj_out_state(att2_state_end).unsqueeze(1)
             
             # Append output to buffer
-            out.append(self.proj_out(att_final))
+            out.append(self.proj_out(att2))
 
         # Return concatenated full sequence from buffer
         out = torch.concat(out, dim=1)
