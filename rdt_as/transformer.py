@@ -21,8 +21,7 @@ class ReDoTransformer(nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        position_embedder_1: Optional[RoPEEmbeddings] = None,
-        position_embedder_2: Optional[RoPEEmbeddings] = None,
+        position_embedder: Optional[RoPEEmbeddings] = None,
         dropout: float = 0.0
     ):
         """Initializes the module.
@@ -49,8 +48,7 @@ class ReDoTransformer(nn.Module):
             dim_value=dim_value, 
             num_heads=num_heads, 
             segment_len=segment_len, 
-            position_embedder_1=position_embedder_1, 
-            position_embedder_2=position_embedder_2, 
+            position_embedder=position_embedder, 
         )
         
         # Set learnable initial state
