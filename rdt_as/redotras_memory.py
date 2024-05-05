@@ -65,7 +65,7 @@ class ReDoTrAS(nn.Module):
         # State projections from input to first attention layer
         self.proj_k_state = StackedLinear(dim_input, dim_key, 1, num_heads, bias=False)
         self.proj_v_state = StackedLinear(dim_input, dim_value, 1, num_heads, bias=False)
-        self.proj_q_state = StackedLinear(dim_input, dim_key, 1, bias=False)
+        self.proj_q_state = StackedLinear(dim_input, dim_key, 1, num_heads, bias=False)
         
         # State projections from first attention layer to the second attention layer
         self.proj_down_k_state_start = StackedLinear(dim_value, dim_key // 2, num_heads, num_heads, bias=False)
@@ -163,7 +163,7 @@ class ReDoTrAS(nn.Module):
         out = []
         
         x = x.unsqueeze(1)
-        state = state.repeat(batch_size, 1, 1)
+        state = state.unsqueeze(1).repeat(batch_size, 1, 1, 1)
         
         # Project the input tensor to get the key, value, and query tensors
         k_full = self.proj_k(x)
@@ -172,7 +172,7 @@ class ReDoTrAS(nn.Module):
         
         for ix in range(num_segments):
             ix_lo = ix * self.segment_len
-            ix_hi = min(ix_lo + self.segment_len, x.size(1))
+            ix_hi = min(ix_lo + self.segment_len, x.size(2))
             seg_len = ix_hi - ix_lo
             
             # FIRST OUTER ATTENTION PASS
