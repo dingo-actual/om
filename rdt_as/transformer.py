@@ -8,7 +8,6 @@ from .redotras_memory import ReDoTrAS
 from .positional_embeddings import RoPEEmbeddings
 
 
-# TODO: make any necessary changes for compatibility for ReDoTRAS
 class ReDoTransformer(nn.Module):
     """Transformer layer with ReDoTrAS memory."""
 
@@ -21,46 +20,36 @@ class ReDoTransformer(nn.Module):
         num_heads: int,
         activation: str,
         segment_len: int,
-        update: str = "linear",
-        causal: bool = False,
-        position_embedder: Optional[RoPEEmbeddings] = None,
-        init_state_learnable: bool = False,
-        dropout: float = 0.0,
-        **kwargs
+        position_embedder_1: Optional[RoPEEmbeddings] = None,
+        position_embedder_2: Optional[RoPEEmbeddings] = None,
+        dropout: float = 0.0
     ):
         """Initializes the module.
 
         Args:
             dim_input (int): Input dimension.
             dim_hidden (int): Hidden dimension for the MLP.
-            dim_key (int): Key dimension for the CompressiveMemory.
-            dim_value (int): Value dimension for the CompressiveMemory.
-            num_heads (int): Number of attention heads for the CompressiveMemory.
+            dim_key (int): Key dimension for the memory module.
+            dim_value (int): Value dimension for the memory module.
+            num_heads (int): Number of attention heads for the memory module.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
-            segment_len (int): Segment length for the CompressiveMemory.
-            update (str, optional): Type of memory update rule to use for the CompressiveMemory ("linear" or "delta"). Defaults to "linear".
-            causal (bool, optional): Whether to use causal attention masking for the CompressiveMemory. Defaults to False.
-            position_embedder (Optional[PositionEmbeddings], optional): Position embedding module for the CompressiveMemory. Defaults to None.
-            init_state_learnable (bool, optional): Whether the initial state of the CompressiveMemory should be learnable. Defaults to False.
+            segment_len (int): Segment length for the memory module.
+            position_embedder_1 (Optional[RoPEEmbeddings], optional): First position embedding module for the memory module. Defaults to None.
+            position_embedder_1 (Optional[RoPEEmbeddings], optional): Second position embedding module for the memory module. Defaults to None.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
         """
         super(ReDoTransformer, self).__init__()
-        
-        # If sampling_factor passed to kwargs, use it, otherwise set to None
-        sampling_factor = kwargs.get("sampling_factor", None)
-        
+
         # Multi-head attention
-        self.attn = CompressiveMemory(
+        self.attn = ReDoTrAS(
             dim_input=dim_input, 
             dim_key=dim_key, 
             dim_value=dim_value, 
             num_heads=num_heads, 
             segment_len=segment_len, 
-            sampling_factor=sampling_factor,
-            update=update, 
-            causal=causal, 
-            position_embedder=position_embedder, 
-            init_state_learnable=init_state_learnable)
+            position_embedder_1=position_embedder_1, 
+            position_embedder_2=position_embedder_2, 
+        )
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
@@ -88,6 +77,7 @@ class ReDoTransformer(nn.Module):
         """
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
         x_ = self.attn(x)
+        x_ = self.layer_norm(x_ + x)
         x_ = self.mlp(x_)
 
         return self.layer_norm(x_ + x)
