@@ -61,3 +61,39 @@ def count_optimized_parameters(model: torch.nn.Module) -> int:
         int: The number of optimized parameters in the model.
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+if __name__ == "__main__":
+    # Run unit tests
+
+    def test_count_optimized_parameters():
+        class TestModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.param1 = torch.nn.Parameter(torch.randn(10, 20))
+                self.param2 = torch.nn.Parameter(torch.randn(5, 5))
+                self.param3 = torch.nn.Parameter(torch.randn(3, 3))
+                self.param3.requires_grad = False
+
+        model = TestModel()
+        assert count_optimized_parameters(model) == 10 * 20 + 5 * 5
+
+    def test_count_optimized_parameters_no_params():
+        class EmptyModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+
+        model = EmptyModel()
+        assert count_optimized_parameters(model) == 0
+
+    def test_count_optimized_parameters_all_frozen():
+        class FrozenModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.param1 = torch.nn.Parameter(torch.randn(10, 20))
+                self.param2 = torch.nn.Parameter(torch.randn(5, 5))
+                self.param1.requires_grad = False
+                self.param2.requires_grad = False
+
+        model = FrozenModel()
+        assert count_optimized_parameters(model) == 0
