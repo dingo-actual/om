@@ -21,7 +21,8 @@ class ReDoTransformer(nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        position_embedder: Optional[RoPEEmbeddings] = None,
+        position_embedder_1: Optional[RoPEEmbeddings] = None,
+        position_embedder_2: Optional[RoPEEmbeddings] = None,
         dropout: float = 0.0
     ):
         """Initializes the module.
@@ -35,7 +36,8 @@ class ReDoTransformer(nn.Module):
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory module.
             state_len (int): Length of the state (i.e., number of tokens) for the memory module.
-            position_embedder (Optional[RoPEEmbeddings], optional): Position embedding module for the memory module. Defaults to None.
+            position_embedder_1 (Optional[RoPEEmbeddings], optional): First position embedding module for the memory module. Defaults to None.
+            position_embedder_2 (Optional[RoPEEmbeddings], optional): Second position embedding module for the memory module. Defaults to None.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
         """
         super(ReDoTransformer, self).__init__()
@@ -47,7 +49,8 @@ class ReDoTransformer(nn.Module):
             dim_value=dim_value, 
             num_heads=num_heads, 
             segment_len=segment_len, 
-            position_embedder=position_embedder, 
+            position_embedder_1=position_embedder_1, 
+            position_embedder_2=position_embedder_2
         )
         
         # Set learnable initial state
