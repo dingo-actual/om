@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 
 
@@ -97,3 +99,20 @@ if __name__ == "__main__":
 
         model = FrozenModel()
         assert count_optimized_parameters(model) == 0
+
+
+def extract_state(x: torch.Tensor, state_len: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Extracts the state from the input tensor x.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len + 2 * state_len, dim).
+        state_len (int): Length of the state.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            - state_start: Tensor of shape (batch_size, num_heads, state_len, dim)
+            - x: Tensor of shape (batch_size, num_heads, seq_len, dim)
+            - state_end: Tensor of shape (batch_size, num_heads, state_len, dim)
+    """
+    return x[...,:state_len,:], x[...,state_len:-state_len,:], x[...,-state_len:,:]
