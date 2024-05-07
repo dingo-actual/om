@@ -6,8 +6,8 @@ from torch import nn
 from .positional_embeddings import RoPEEmbeddings
 from .util import extract_state, StackedLinear
 
-class ReDoTrAS(nn.Module):
-    """Implements Recurrent Double Transformer with Attentive State (ReDoTrAS) memory module."""
+class ReMMTAS(nn.Module):
+    """Implements Recurrent Multiple Memory Transformer with Attentive State (ReMMTAS) memory module."""
 
     def __init__(
         self, 
@@ -30,7 +30,7 @@ class ReDoTrAS(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens).
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
-        super(ReDoTrAS, self).__init__()
+        super(ReMMTAS, self).__init__()
 
         # Record input parameters
         self.num_heads = num_heads
@@ -46,7 +46,7 @@ class ReDoTrAS(nn.Module):
         dim_value_last = dim_input
         for ix, (dim_key, dim_value, position_embedder) in enumerate(zip(self.dims_key[:-1], self.dims_value[:-1], position_embedders[:-1])):
             attn_modules.append(
-                CausalMHAWithState(
+                StatefulCausalMHA(
                     dim_in=dim_value_last,
                     dim_key=dim_key,
                     dim_value=dim_value,
@@ -116,7 +116,7 @@ class ReDoTrAS(nn.Module):
 
         return out, state.squeeze(1)
 
-class CausalMHAWithState(nn.Module):
+class StatefulCausalMHA(nn.Module):
     def __init__(
         self,  
         dim_in: int, 

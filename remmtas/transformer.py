@@ -1,28 +1,27 @@
-from typing import Optional
+from typing import List, Optional
 
 import torch
 from torch import nn
 
 from .activations import ACTIVATIONS
-from .redotras_memory import ReDoTrAS
+from .remmtas_memory import ReMMTAS
 from .positional_embeddings import RoPEEmbeddings
 
 
-class ReDoTransformer(nn.Module):
-    """Transformer layer with ReDoTrAS memory."""
+class ReMMTASformer(nn.Module):
+    """Transformer layer with ReMMTAS memory."""
 
     def __init__(
         self,
         dim_input: int,
         dim_hidden: int,
-        dim_key: int,
-        dim_value: int,
+        dims_key: List[int],
+        dims_value: List[int],
         num_heads: int,
         activation: str,
         segment_len: int,
         state_len: int,
-        position_embedder_1: Optional[RoPEEmbeddings] = None,
-        position_embedder_2: Optional[RoPEEmbeddings] = None,
+        position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0
     ):
         """Initializes the module.
@@ -30,27 +29,26 @@ class ReDoTransformer(nn.Module):
         Args:
             dim_input (int): Input dimension.
             dim_hidden (int): Hidden dimension for the MLP.
-            dim_key (int): Key dimension for the memory module.
-            dim_value (int): Value dimension for the memory module.
-            num_heads (int): Number of attention heads for the memory module.
+            dims_key (int): Key dimensions for the memory modules.
+            dims_value (int): Value dimensions for the memory modules.
+            num_heads (int): Number of attention heads for the memory modules.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
-            segment_len (int): Segment length for the memory module.
-            state_len (int): Length of the state (i.e., number of tokens) for the memory module.
-            position_embedder_1 (Optional[RoPEEmbeddings], optional): First position embedding module for the memory module. Defaults to None.
-            position_embedder_2 (Optional[RoPEEmbeddings], optional): Second position embedding module for the memory module. Defaults to None.
+            segment_len (int): Segment length for the memory modules.
+            state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
+            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
         """
-        super(ReDoTransformer, self).__init__()
+        super(ReMMTASformer, self).__init__()
 
         # Multi-head attention
-        self.attn = ReDoTrAS(
+        self.attn = ReMMTAS(
             dim_input=dim_input, 
-            dim_key=dim_key, 
-            dim_value=dim_value, 
+            dims_key=dims_key, 
+            dims_value=dims_value, 
             num_heads=num_heads, 
             segment_len=segment_len, 
-            position_embedder_1=position_embedder_1, 
-            position_embedder_2=position_embedder_2
+            state_len=state_len, 
+            position_embedders=position_embedders, 
         )
         
         # Set learnable initial state

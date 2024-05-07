@@ -1,9 +1,10 @@
 # tests/test_transformer.py
 
 import torch
-from rdt_as import ReDoTransformer, RoPEEmbeddings
+from remmtas import ReMMTASformer, RoPEEmbeddings
 
-def test_redo_transformer():
+#TODO: rewrite this
+def test_remmtas_transformer():
     dim_input = 512
     dim_hidden = 2048
     dim_key = 64
@@ -27,10 +28,10 @@ def test_redo_transformer():
         base=10000
     )
 
-    layer = ReDoTransformer(
+    layer = ReMMTASformer(
         dim_input=dim_input,
-        dim_hidden=dim_hidden,
-        dim_key=dim_key,
+        dims_hidden=[dim_hidden, dim_hidden],
+        dim_key=[dim_key, dim_key],
         dim_value=dim_value,
         num_heads=num_heads,
         activation=activation,
