@@ -51,9 +51,6 @@ class ReMMTASformer(nn.Module):
             position_embedders=position_embedders, 
         )
         
-        # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / dim_input ** 0.5)
-        
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
@@ -80,7 +77,7 @@ class ReMMTASformer(nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, seq_len, dim_input).
         """
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_, _ = self.attn(x, self.init_state)
+        x_, _ = self.attn(x)
         x_ = self.layer_norm(x_ + x)
         x_ = self.mlp(x_)
 

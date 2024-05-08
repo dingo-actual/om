@@ -41,16 +41,20 @@ class ReMMTAS(nn.Module):
         self.dims_key = dims_key
         self.dims_value = dims_value
         
+        # Set learnable initial state
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / dim_input ** 0.5)
+        
         # Build attention modules
         attn_modules = []
         dim_value_last = dim_input
-        for ix, (dim_key, dim_value, position_embedder) in enumerate(zip(self.dims_key[:-1], self.dims_value[:-1], position_embedders[:-1])):
+        for ix, (dim_key, dim_value, position_embedder) in enumerate(zip(self.dims_key, self.dims_value, position_embedders)):
             attn_modules.append(
                 StatefulCausalMHA(
                     dim_in=dim_value_last,
                     dim_key=dim_key,
                     dim_value=dim_value,
                     num_heads_in=1 if ix == 0 else num_heads,
+                    num_heads_out=num_heads,
                     state_len=state_len,
                     position_embedder=position_embedder
                 )
@@ -60,13 +64,13 @@ class ReMMTAS(nn.Module):
         self.attn_modules = nn.ModuleList(attn_modules)
         
         # Projection for next state
-        self.proj_out_state = nn.Linear(num_heads * dim_value, dim_input, bias=False)
+        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
         
         # Projection for output
         self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False)
 
 
-    def forward(self, x: torch.Tensor, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent dual-attention to the input tensor x.
 
@@ -84,7 +88,7 @@ class ReMMTAS(nn.Module):
         out = []
         
         x = x.unsqueeze(1)
-        state = state.unsqueeze(1).repeat(batch_size, 1, 1, 1)
+        state = self.init_state.unsqueeze(1).repeat(batch_size, 1, 1, 1)
         
         for ix in range(num_segments):
             ix_lo = ix * self.segment_len
@@ -94,6 +98,9 @@ class ReMMTAS(nn.Module):
             # Extract segment from x
             x_seg = x[:, :, ix_lo:ix_hi, :]
             
+            # Prepend and append state to x_seg
+            x_seg = torch.cat([state, x_seg, state], dim=2)
+            
             # Apply attention passes
             for attn_module in self.attn_modules:
                 x_seg = attn_module(x_seg, offset=ix_lo - self.state_len)
@@ -102,7 +109,7 @@ class ReMMTAS(nn.Module):
             _, att_end, state_end = extract_state(x_seg, self.state_len)
             
             # Reshape before final projections
-            att_end = out.reshape((batch_size, seg_len, -1))
+            att_end = att_end.reshape((batch_size, seg_len, -1))
             state_end = state_end.reshape((batch_size, self.state_len, -1))
             
             # Get next state
@@ -127,6 +134,8 @@ class StatefulCausalMHA(nn.Module):
         state_len: int,
         position_embedder: Optional[RoPEEmbeddings] = None
     ):
+        super(StatefulCausalMHA, self).__init__()
+        
         self.dim_in = dim_in
         self.dim_key = dim_key
         self.dim_value = dim_value
@@ -180,7 +189,7 @@ class StatefulCausalMHA(nn.Module):
 
         # Calculate and apply causal attention mask
         mask = torch.tril(torch.ones((k.size(2), k.size(2)), dtype=torch.bool), diagonal=0)
-        mask = mask.unsqueeze(0).unsqueeze(0).repeat((k.size(0), self.num_heads, 1, 1))
+        mask = mask.unsqueeze(0).unsqueeze(0).repeat((k.size(0), self.num_heads_out, 1, 1))
         scores.masked_fill_(torch.logical_not(mask), float('-inf'))
 
         # Calculate SDP attention
