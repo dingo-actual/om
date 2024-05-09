@@ -92,9 +92,11 @@ class ReMMTASformer(nn.Module):
         """
         # If initial convolution is defined, use it
         if self.conv is not None:
-            x = self.conv(x.transpose(1, 2)).transpose(1, 2)
+            x_ = self.conv(x.transpose(1, 2)).transpose(1, 2) + x[:, 2:, :]
+        else:
+            x_ = x
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_, _ = self.attn(x)
+        x_, _ = self.attn(x_)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
 
