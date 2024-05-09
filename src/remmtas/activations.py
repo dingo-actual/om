@@ -1,4 +1,3 @@
-import math
 from typing import Optional
 
 import torch
@@ -40,8 +39,8 @@ class SwiGLU(torch.nn.Module):
         """
         super(SwiGLU, self).__init__()
         self.swish = Swish()
-        self.W = torch.nn.Parameter(torch.randn(dim, dim) / dim ** 0.5)
-        self.V = torch.nn.Parameter(torch.randn(dim, dim) / dim ** 0.5)
+        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim) - 1.) / dim ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim) - 1.) / dim ** 0.5)
         self.b = torch.nn.Parameter(torch.zeros(dim))
         self.c = torch.nn.Parameter(torch.zeros(dim))
     
@@ -66,8 +65,8 @@ class GEGLU(torch.nn.Module):
             dim (int): Dimension of the input tensor.
         """
         super(GEGLU, self).__init__()
-        self.W = torch.nn.Parameter(torch.randn(dim, dim) / dim ** 0.5)
-        self.V = torch.nn.Parameter(torch.randn(dim, dim) / dim ** 0.5)
+        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim) - 1.) / dim ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim) - 1.) / dim ** 0.5)
         self.b = torch.nn.Parameter(torch.zeros(dim))
         self.c = torch.nn.Parameter(torch.zeros(dim))
         
@@ -84,17 +83,16 @@ class GEGLU(torch.nn.Module):
     
 class FFNGLU(torch.nn.Module):
     """FFN GLU activation module."""
-    def __init__(self, dim: int):
+    def __init__(self, dim_in: int, dim_hidden: int):
         """Initialize the module.
 
         Args:
             dim (int): Dimension of the input tensor.
         """
         super(FFNGLU, self).__init__()
-        inner_dim = math.ceil(dim * 2 / 3)
-        self.W1 = torch.nn.Parameter(torch.randn(dim, inner_dim) /  inner_dim ** 0.5)
-        self.W2 = torch.nn.Parameter(torch.randn(inner_dim, dim) / dim ** 0.5)
-        self.V = torch.nn.Parameter(torch.randn(dim, inner_dim) / inner_dim ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -109,17 +107,16 @@ class FFNGLU(torch.nn.Module):
     
 class FFNGEGLU(torch.nn.Module):
     """FFN GELU activation module."""
-    def __init__(self, dim: int):
+    def __init__(self, dim_in: int, dim_hidden: int):
         """Initialize the module.
 
         Args:
             dim (int): Dimension of the input tensor.
         """
         super(FFNGEGLU, self).__init__()
-        inner_dim = math.ceil(dim * 2 / 3)
-        self.W1 = torch.nn.Parameter(torch.randn(dim, inner_dim) /  inner_dim ** 0.5)
-        self.W2 = torch.nn.Parameter(torch.randn(inner_dim, dim) / dim ** 0.5)
-        self.V = torch.nn.Parameter(torch.randn(dim, inner_dim) / inner_dim ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -134,18 +131,17 @@ class FFNGEGLU(torch.nn.Module):
     
 class FFNSwiGLU(torch.nn.Module):
     """FFN SwiGLU activation module."""
-    def __init__(self, dim: int):
+    def __init__(self, dim_in: int, dim_hidden: int):
         """Initialize the module.
 
         Args:
             dim (int): Dimension of the input tensor.
         """
         super(FFNSwiGLU, self).__init__()
-        inner_dim = math.ceil(dim * 2 / 3)
         self.swish = Swish(beta=1)
-        self.W1 = torch.nn.Parameter(torch.randn(dim, inner_dim) /  inner_dim ** 0.5)
-        self.W2 = torch.nn.Parameter(torch.randn(inner_dim, dim) / dim ** 0.5)
-        self.V = torch.nn.Parameter(torch.randn(dim, inner_dim) / inner_dim ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.

@@ -68,8 +68,10 @@ class ReMMTASformer(nn.Module):
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
-        if activation in ["swiglu", "geglu", "ffnglu", "ffngeglu", "ffnswiglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_hidden)
+        elif activation in ["swiglu", "geglu"]:
+            self.mlp = ACTIVATIONS[activation](dim_input)
+        elif activation in ["ffnglu", "ffngeglu", "ffnswiglu"]:
+            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden)
         else:
             act = ACTIVATIONS[activation]()
             self.mlp = nn.Sequential(

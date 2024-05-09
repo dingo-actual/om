@@ -13,7 +13,7 @@ def test_remmtas_transformer():
     dims_value = [64, 128, 64]
     mem_iters = [1, 3, 1]
     num_heads = 8
-    activation = "gelu"
+    activation = "ffngeglu"
     segment_len = 128
     normalize_qkv = True
     state_len = segment_len // 8
