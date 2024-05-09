@@ -14,9 +14,11 @@ class ReMMTAS(nn.Module):
         dim_input: int, 
         dims_key: List[int], 
         dims_value: List[int], 
+        iters: List[int],
         num_heads: int, 
         segment_len: int, 
         state_len: int,
+        normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]]
     ):
         """Initialize module.
@@ -25,9 +27,11 @@ class ReMMTAS(nn.Module):
             dim_input (int): Input dimension.
             dims_key (List[int]): Key dimensions.
             dims_value (List[int]): Value dimensions.
+            iters (List[int]): Number of iterations for each memory module.
             num_heads (int): Number of attention heads.
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
+            normalize (bool): Whether to normalize the attention inputs.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
         super(ReMMTAS, self).__init__()
@@ -36,26 +40,31 @@ class ReMMTAS(nn.Module):
         self.num_heads = num_heads
         self.segment_len = segment_len
         self.state_len = state_len
+        self.normalize = normalize
 
         self.dim_input = dim_input
         self.dims_key = dims_key
         self.dims_value = dims_value
         
+        self.iters = iters
+        
         # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / dim_input ** 0.5)
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2.0 / (5 * dim_input)) ** 0.5)
         
         # Build attention modules
         attn_modules = []
         dim_value_last = dim_input
-        for ix, (dim_key, dim_value, position_embedder) in enumerate(zip(self.dims_key, self.dims_value, position_embedders)):
+        for ix, (dim_key, dim_value, n_iter, position_embedder) in enumerate(zip(self.dims_key, self.dims_value, self.iters, position_embedders)):
             attn_modules.append(
                 StatefulCausalMHA(
                     dim_in=dim_value_last,
                     dim_key=dim_key,
                     dim_value=dim_value,
+                    iters=n_iter,
                     num_heads_in=1 if ix == 0 else num_heads,
                     num_heads_out=num_heads,
                     state_len=state_len,
+                    normalize=normalize,
                     position_embedder=position_embedder
                 )
             )
@@ -70,13 +79,13 @@ class ReMMTAS(nn.Module):
         self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False)
 
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Optional[torch.Tuple] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent dual-attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim_input).
-            state (torch.Tensor): Initial state tensor of shape (1, state_len, dim_input).
+            state (Optional[torch.Tensor], optional): Initial state tensor of shape (batch_size, state_len, dim_input). Default is None.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Output tensor of shape (batch_size, seq_len, dim_input) and terminal state tensor of shape (batch_size, state_len, dim_input).
         """
@@ -88,7 +97,10 @@ class ReMMTAS(nn.Module):
         out = []
         
         x = x.unsqueeze(1)
-        state = self.init_state.unsqueeze(1).repeat(batch_size, 1, 1, 1)
+        if state is None:
+            state = self.init_state.unsqueeze(1).repeat(batch_size, 1, 1, 1)
+        else:
+            state = state.unsqueeze(1)
         
         for ix in range(num_segments):
             ix_lo = ix * self.segment_len
@@ -132,7 +144,9 @@ class StatefulCausalMHA(nn.Module):
         num_heads_in: int, 
         num_heads_out: int, 
         state_len: int,
-        position_embedder: Optional[RoPEEmbeddings] = None
+        normalize: bool = False,
+        position_embedder: Optional[RoPEEmbeddings] = None,
+        iters: int = 1
     ):
         super(StatefulCausalMHA, self).__init__()
         
@@ -145,12 +159,22 @@ class StatefulCausalMHA(nn.Module):
         
         self.state_len = state_len
         
+        self.normalize = normalize
+        
         self.position_embedder = position_embedder
+        
+        self.iters = iters
         
         # Projections from the attention layer to the next attention layer
         self.proj_k = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
         self.proj_q = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
         self.proj_v = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False)
+        
+        # If normalize is True, define qkv normalizations
+        if self.normalize:
+            self.norm_q = nn.LayerNorm(self.dim_key)
+            self.norm_k = nn.LayerNorm(self.dim_key)
+            self.norm_v = nn.LayerNorm(self.dim_value)
         
         # State projections from attention layer to the next attention layer
         self.proj_k_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
@@ -159,6 +183,20 @@ class StatefulCausalMHA(nn.Module):
         self.proj_k_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
         self.proj_q_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
         self.proj_v_state_end = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False)
+        
+        # If normalize is True, define qkv normalization for state
+        if self.normalize:
+            self.norm_k_state_start = nn.LayerNorm(self.dim_key)
+            self.norm_q_state_start = nn.LayerNorm(self.dim_key)
+            self.norm_v_state_start = nn.LayerNorm(self.dim_value)
+            self.norm_k_state_end = nn.LayerNorm(self.dim_key)
+            self.norm_q_state_end = nn.LayerNorm(self.dim_key)
+            self.norm_v_state_end = nn.LayerNorm(self.dim_value)
+            
+        if iters > 1:
+            self.proj_inv = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
+            self.proj_inv_state_begin = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
+            self.proj_inv_state_end = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
     
     def apply_attention(
         self, 
@@ -209,19 +247,60 @@ class StatefulCausalMHA(nn.Module):
             Output tensor of shape (batch_size, num_heads_out, seq_len, dim_value).
                 
         """
+        if self.iters > 1:
+            for _ in range(self.iters - 1):
+                x = self.forward_(x, offset)
+                x_state_start, x, x_state_end = extract_state(x, self.state_len)
+                x = self.proj_inv(x)
+                x_state_start = self.proj_inv_state_begin(x_state_start)
+                x_state_end = self.proj_inv_state_end(x_state_end)
+                x = torch.cat([x_state_start, x, x_state_end], dim=-2)
+            x = self.forward_(x, offset)
+        else:
+            x = self.forward_(x, offset)
+            
+        return x
+    
+    def forward_(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+        """
+        Applies the CausalMHAWithState layer to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, num_heads_in, seq_len, dim_in).
+            offset (int): Offset for the position embeddings.
+
+        Returns:
+            Output tensor of shape (batch_size, num_heads_out, seq_len, dim_value).
+                
+        """
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         k = self.proj_k(x)
         q = self.proj_q(x)
         v = self.proj_v(x)
         
+        if self.normalize:
+            k = self.norm_k(k)
+            q = self.norm_q(q)
+            v = self.norm_q(v)
+        
         k_state_start = self.proj_k_state_start(x_state_start)
         q_state_start = self.proj_q_state_start(x_state_start)
         v_state_start = self.proj_v_state_start(x_state_start)
         
+        if self.normalize:
+            k_state_start = self.norm_k_state_start(k_state_start)
+            q_state_start = self.norm_q_state_start(q_state_start)
+            v_state_start = self.norm_v_state_start(v_state_start)
+        
         k_state_end = self.proj_k_state_end(x_state_end)
         q_state_end = self.proj_q_state_end(x_state_end)
         v_state_end = self.proj_v_state_end(x_state_end)
+        
+        if self.normalize:
+            k_state_end = self.norm_k_state_end(k_state_end)
+            q_state_end = self.norm_q_state_end(q_state_end)
+            v_state_end = self.norm_v_state_end(v_state_end)
         
         k = torch.cat([k_state_start, k, k_state_end], dim=2)
         q = torch.cat([q_state_start, q, q_state_end], dim=2)

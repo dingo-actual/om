@@ -2,18 +2,21 @@
 
 import torch
 
-from remmtas import ReMMTASformer, RoPEEmbeddings
+from ..remmtas import ReMMTASformer, RoPEEmbeddings
+from ..remmtas.util import count_optimized_parameters
 
 
 def test_remmtas_transformer():
-    dim_input = 32
-    dim_hidden = 256
-    dims_key = [16, 32, 64]
-    dims_value = [16, 32, 64]
-    num_heads = 2
-    activation = "ffngeglu"
+    dim_input = 512
+    dim_hidden = 2048
+    dims_key = [64, 128, 64]
+    dims_value = [64, 128, 64]
+    mem_iters = [1, 3, 1]
+    num_heads = 8
+    activation = "gelu"
     segment_len = 128
-    state_len = 2
+    normalize_qkv = True
+    state_len = segment_len // 8
     
     dropout = 0.1
     
@@ -21,7 +24,7 @@ def test_remmtas_transformer():
         RoPEEmbeddings(
             dim=dim_key,
             seq_len=segment_len + 2 * state_len,
-            dim_embedding_pct=0.5,
+            dim_embedding_pct=0.25,
             base=10000
         ) for dim_key in dims_key
     ]
@@ -31,10 +34,12 @@ def test_remmtas_transformer():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
+        mem_iters=mem_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
+        normalize_qkv=normalize_qkv,
         position_embedders=position_embedders,
         dropout=dropout
     )
@@ -47,6 +52,9 @@ def test_remmtas_transformer():
     x_att = layer(x)
 
     assert x_att.shape == (batch_size, seq_len, dim_input)
+    
+    param_ct = count_optimized_parameters(layer)
+    print(f"Total optimized parameters: {param_ct:,d}")
 
-if __name__=="__main__":
+def main():
     test_remmtas_transformer()
