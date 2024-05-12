@@ -19,7 +19,8 @@ class ReMMTAS(nn.Module):
         segment_len: int, 
         state_len: int,
         normalize: bool,
-        position_embedders: List[Optional[RoPEEmbeddings]]
+        position_embedders: List[Optional[RoPEEmbeddings]],
+        device: Optional[str] = None
     ):
         """Initialize module.
 
@@ -33,6 +34,7 @@ class ReMMTAS(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens).
             normalize (bool): Whether to normalize the attention inputs.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
+            device (Optional[str], optional): Device to use. Defaults to None.
         """
         super(ReMMTAS, self).__init__()
 
@@ -48,8 +50,10 @@ class ReMMTAS(nn.Module):
         
         self.iters = iters
         
+        self.device = device
+        
         # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2.0 / (5 * dim_input)) ** 0.5)
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input, device=device) / (2.0 / (5 * dim_input)) ** 0.5)
         
         # Build attention modules
         attn_modules = []
@@ -65,7 +69,8 @@ class ReMMTAS(nn.Module):
                     num_heads_out=num_heads,
                     state_len=state_len,
                     normalize=normalize,
-                    position_embedder=position_embedder
+                    position_embedder=position_embedder,
+                    device=device
                 )
             )
             dim_value_last = dim_value
@@ -73,10 +78,10 @@ class ReMMTAS(nn.Module):
         self.attn_modules = nn.ModuleList(attn_modules)
         
         # Projection for next state
-        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
+        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False, device=device)
         
         # Projection for output
-        self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False)
+        self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False, device=device)
 
 
     def forward(self, x: torch.Tensor, state: Optional[torch.Tuple] = None) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -146,8 +151,23 @@ class StatefulCausalMHA(nn.Module):
         state_len: int,
         normalize: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
-        iters: int = 1
+        iters: int = 1,
+        device: Optional[str] = None
     ):
+        """Initializes the module
+
+        Args:
+            dim_in (int): The input dimension.
+            dim_key (int): The key dimension.
+            dim_value (int): The value dimension.
+            num_heads_in (int): The number of input attention heads.
+            num_heads_out (int): The number of output attention heads.
+            state_len (int): The length of the state tensor.
+            normalize (bool, optional): Whether to normalize the attention weights. Defaults to False.
+            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            iters (int, optional): The number of attention iterations to perform. Defaults to 1.
+            device (Optional[str], optional): The device to use for the module. Defaults to None.
+        """
         super(StatefulCausalMHA, self).__init__()
         
         self.dim_in = dim_in
@@ -165,38 +185,40 @@ class StatefulCausalMHA(nn.Module):
         
         self.iters = iters
         
+        self.device = device
+        
         # Projections from the attention layer to the next attention layer
-        self.proj_k = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_q = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_v = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False)
+        self.proj_k = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_q = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_v = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False, device=device)
         
         # If normalize is True, define qkv normalizations
         if self.normalize:
-            self.norm_q = nn.LayerNorm(self.dim_key)
-            self.norm_k = nn.LayerNorm(self.dim_key)
-            self.norm_v = nn.LayerNorm(self.dim_value)
+            self.norm_q = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_k = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_v = nn.LayerNorm(self.dim_value, device=device)
         
         # State projections from attention layer to the next attention layer
-        self.proj_k_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_q_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_v_state_start = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False)
-        self.proj_k_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_q_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False)
-        self.proj_v_state_end = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False)
+        self.proj_k_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_q_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_v_state_start = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_k_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_q_state_end = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
+        self.proj_v_state_end = StackedLinear(dim_in, dim_value, num_heads_in, num_heads_out, bias=False, device=device)
         
         # If normalize is True, define qkv normalization for state
         if self.normalize:
-            self.norm_k_state_start = nn.LayerNorm(self.dim_key)
-            self.norm_q_state_start = nn.LayerNorm(self.dim_key)
-            self.norm_v_state_start = nn.LayerNorm(self.dim_value)
-            self.norm_k_state_end = nn.LayerNorm(self.dim_key)
-            self.norm_q_state_end = nn.LayerNorm(self.dim_key)
-            self.norm_v_state_end = nn.LayerNorm(self.dim_value)
+            self.norm_k_state_start = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_q_state_start = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_v_state_start = nn.LayerNorm(self.dim_value, device=device)
+            self.norm_k_state_end = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_q_state_end = nn.LayerNorm(self.dim_key, device=device)
+            self.norm_v_state_end = nn.LayerNorm(self.dim_value, device=device)
             
         if iters > 1:
-            self.proj_inv = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
-            self.proj_inv_state_begin = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
-            self.proj_inv_state_end = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False)
+            self.proj_inv = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False, device=device)
+            self.proj_inv_state_begin = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False, device=device)
+            self.proj_inv_state_end = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False, device=device)
     
     def apply_attention(
         self, 
@@ -226,7 +248,7 @@ class StatefulCausalMHA(nn.Module):
         scores = q @ k.transpose(-2, -1) / self.dim_key ** 0.5
 
         # Calculate and apply causal attention mask
-        mask = torch.tril(torch.ones((k.size(2), k.size(2)), dtype=torch.bool), diagonal=0)
+        mask = torch.tril(torch.ones((k.size(2), k.size(2)), dtype=torch.bool, device=self.device), diagonal=0)
         mask = mask.unsqueeze(0).unsqueeze(0).repeat((k.size(0), self.num_heads_out, 1, 1))
         scores.masked_fill_(torch.logical_not(mask), float('-inf'))
 

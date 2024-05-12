@@ -7,10 +7,10 @@ from ..remmtas.util import count_optimized_parameters
 
 
 def test_remmtas_transformer():
-    dim_input = 512
+    dim_input = 1024
     dim_hidden = 2048
-    dims_key = [64, 128, 64]
-    dims_value = [64, 128, 64]
+    dims_key = [128, 256, 128]
+    dims_value = [128, 256, 128]
     mem_iters = [1, 3, 1]
     num_heads = 8
     activation = "ffngeglu"
@@ -20,12 +20,15 @@ def test_remmtas_transformer():
     
     dropout = 0.1
     
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
     position_embedders = [
         RoPEEmbeddings(
             dim=dim_key,
             seq_len=segment_len + 2 * state_len,
             dim_embedding_pct=0.25,
-            base=10000
+            base=10000,
+            device=device
         ) for dim_key in dims_key
     ]
 
@@ -41,12 +44,13 @@ def test_remmtas_transformer():
         state_len=state_len,
         normalize_qkv=normalize_qkv,
         position_embedders=position_embedders,
-        dropout=dropout
+        dropout=dropout,
+        device=device
     )
 
     batch_size = 2
     seq_len = 256
-    x = torch.randn(batch_size, seq_len, dim_input)
+    x = torch.randn(batch_size, seq_len, dim_input, device=device)
 
     layer.eval()  # Set the layer to evaluation mode
     x_att = layer(x)

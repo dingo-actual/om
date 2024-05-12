@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 
@@ -6,13 +6,14 @@ import torch
 class StackedLinear(torch.nn.Module):
     """Implements a stacked linear layer"""
     
-    def __init__(self, dim_in: int, dim_out: int, layers_in: int, layers_out: int, bias: bool = True):
+    def __init__(self, dim_in: int, dim_out: int, layers_in: int, layers_out: int, bias: bool = True, device: Optional[str] = None):
         super(StackedLinear, self).__init__()
         
         self.dim_in = dim_in
         self.dim_out = dim_out
         self.layers_in = layers_in
         self.layers_out = layers_out
+        self.device = device
         
         repeats, rem = divmod(layers_out, layers_in)
         if rem != 0:
@@ -21,11 +22,11 @@ class StackedLinear(torch.nn.Module):
         self.layer_repeats = repeats
         
         self.weights = torch.nn.Parameter(
-            (2. * torch.rand(1, layers_out, 1, dim_in, dim_out) - 1.) / dim_out ** 0.5,
+            (2. * torch.rand(1, layers_out, 1, dim_in, dim_out, device=device) - 1.) / dim_out ** 0.5,
         )
         if bias:
             self.biases = torch.nn.Parameter(
-                torch.zeros(1, layers_out, 1, dim_out)
+                torch.zeros(1, layers_out, 1, dim_out, device=device)
             )
         else:
             self.biases = None
@@ -65,6 +66,23 @@ def count_optimized_parameters(model: torch.nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+def extract_state(x: torch.Tensor, state_len: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Extracts the state from the input tensor x.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len + 2 * state_len, dim).
+        state_len (int): Length of the state.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            - state_start: Tensor of shape (batch_size, num_heads, state_len, dim)
+            - x: Tensor of shape (batch_size, num_heads, seq_len, dim)
+            - state_end: Tensor of shape (batch_size, num_heads, state_len, dim)
+    """
+    return x[...,:state_len,:], x[...,state_len:-state_len,:], x[...,-state_len:,:]
+
+
 if __name__ == "__main__":
     # Run unit tests
 
@@ -99,20 +117,3 @@ if __name__ == "__main__":
 
         model = FrozenModel()
         assert count_optimized_parameters(model) == 0
-
-
-def extract_state(x: torch.Tensor, state_len: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Extracts the state from the input tensor x.
-
-    Args:
-        x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len + 2 * state_len, dim).
-        state_len (int): Length of the state.
-
-    Returns:
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-            - state_start: Tensor of shape (batch_size, num_heads, state_len, dim)
-            - x: Tensor of shape (batch_size, num_heads, seq_len, dim)
-            - state_end: Tensor of shape (batch_size, num_heads, state_len, dim)
-    """
-    return x[...,:state_len,:], x[...,state_len:-state_len,:], x[...,-state_len:,:]

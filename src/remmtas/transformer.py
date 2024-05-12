@@ -25,7 +25,8 @@ class ReMMTASformer(nn.Module):
         normalize_qkv: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False
+        init_conv: bool = False,
+        device: Optional[str] = None
     ):
         """Initializes the module.
 
@@ -43,11 +44,12 @@ class ReMMTASformer(nn.Module):
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             init_conv (bool, optional): Whether to use an initial convolution layer. Defaults to False.
+            device (Optional[str], optional): Device to use. Defaults to None.
         """
         super(ReMMTASformer, self).__init__()
         
         if init_conv:
-            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3)
+            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3, device=device)
         else:
             self.conv = None
 
@@ -61,27 +63,31 @@ class ReMMTASformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             normalize=normalize_qkv,
-            position_embedders=position_embedders, 
+            position_embedders=position_embedders,
+            device=device
         )
-        self.attn_norm = nn.LayerNorm(dim_input)
+        self.attn_norm = nn.LayerNorm(dim_input, device=device)
         
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
         elif activation in ["swiglu", "geglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_input)
+            self.mlp = ACTIVATIONS[activation](dim_input, device=device)
         elif activation in ["ffnglu", "ffngeglu", "ffnswiglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden)
+            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden, device=device)
         else:
-            act = ACTIVATIONS[activation]()
+            if activation != "abs":
+                act = ACTIVATIONS[activation]()
+            else:
+                act = ACTIVATIONS[activation](device=device)
             self.mlp = nn.Sequential(
-                nn.Linear(dim_input, dim_hidden),
-                nn.Dropout(dropout),
+                nn.Linear(dim_input, dim_hidden, device=device),
+                nn.Dropout(dropout, device=device),
                 act,
-                nn.Linear(dim_hidden, dim_input),
-                nn.Dropout(dropout)
+                nn.Linear(dim_hidden, dim_input, device=device),
+                nn.Dropout(dropout, device=device)
             )
-        self.mlp_norm = nn.LayerNorm(dim_input)
+        self.mlp_norm = nn.LayerNorm(dim_input, device=device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.

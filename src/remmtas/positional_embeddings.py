@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import torch
 
@@ -8,8 +9,8 @@ class RoPEEmbeddings(torch.nn.Module):
     "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Su et al.
     (https://arxiv.org/abs/2104.09864).
     
-    Modifications have been made to make it compatible with RDTAS."""
-    def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000):
+    Modifications have been made to make it compatible with ReMMTAS."""
+    def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000, device: Optional[str] = None):
         """Instantiate the module.
 
         Args:
@@ -17,6 +18,7 @@ class RoPEEmbeddings(torch.nn.Module):
             seq_len (int): Maximum sequence length.
             dim_embedding_pct (float): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
             base (int, optional): Base used for calculating thetas. Defaults to 10000.
+            device (Optional[str], optional): Device to use for the positional embeddings. Defaults to None.
         """
         super(RoPEEmbeddings, self).__init__()
         
@@ -27,14 +29,15 @@ class RoPEEmbeddings(torch.nn.Module):
         self.dim_embedding_pct = dim_embedding_pct
         self.base = base
         self.last_offset = 0
+        self.device = device
         
         self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
         # Indices for rearranging the input follow the pattern [1, 0, 3, 2, 5, 4, ...]
         # Indices that need to be negated in calculating the positional embeddings are [0, 2, 4, ...]
-        self.ixs_sin = torch.empty(self.effective_dim, dtype=torch.long)
-        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2)
+        self.ixs_sin = torch.empty(self.effective_dim, dtype=torch.long, device=device)
+        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2, device=device)
         self.ixs_sin[self.ixs_sin_neg] = self.ixs_sin_neg + 1
         self.ixs_sin[self.ixs_sin_neg + 1] = self.ixs_sin_neg
         
@@ -48,15 +51,15 @@ class RoPEEmbeddings(torch.nn.Module):
         """
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
         thetas = torch.repeat_interleave(
-            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1))).unsqueeze(-1).repeat((1, self.seq_len)), 
+            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=self.device))).unsqueeze(-1).repeat((1, self.seq_len)), 
             repeats=2, 
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
         if offset < 0:
-            mults = torch.cat([torch.ones(-offset), torch.arange(1, self.seq_len + 1 + offset)], dim=0)
+            mults = torch.cat([torch.ones(-offset, device=self.device), torch.arange(1, self.seq_len + 1 + offset, device=self.device)], dim=0)
         else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=self.device)
         thetas *= mults.unsqueeze(0)
         self.thetas = thetas.transpose(0, 1).unsqueeze(0).unsqueeze(0)
         
