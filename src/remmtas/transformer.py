@@ -49,7 +49,7 @@ class ReMMTASformer(nn.Module):
         super(ReMMTASformer, self).__init__()
         
         if init_conv:
-            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3, device=device)
+            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3, device=device, dtype=torch.bfloat16)
         else:
             self.conv = None
 
@@ -66,7 +66,7 @@ class ReMMTASformer(nn.Module):
             position_embedders=position_embedders,
             device=device
         )
-        self.attn_norm = nn.LayerNorm(dim_input, device=device)
+        self.attn_norm = nn.LayerNorm(dim_input, device=device, dtype=torch.bfloat16)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -87,7 +87,7 @@ class ReMMTASformer(nn.Module):
                 nn.Linear(dim_hidden, dim_input, device=device),
                 nn.Dropout(dropout, device=device)
             )
-        self.mlp_norm = nn.LayerNorm(dim_input, device=device)
+        self.mlp_norm = nn.LayerNorm(dim_input, device=device, dtype=torch.bfloat16)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.

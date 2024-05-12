@@ -14,7 +14,7 @@ class Swish(torch.nn.Module):
         super(Swish, self).__init__()
         # If beta is None, make it a learnable parameter
         if beta is None:
-            self.beta = torch.nn.Parameter(torch.ones(1, device=device))
+            self.beta = torch.nn.Parameter(torch.ones(1, device=device, dtype=torch.bfloat16))
         # Otherwise, set it to a fixed constant
         else:
             self.beta = beta
@@ -41,10 +41,10 @@ class SwiGLU(torch.nn.Module):
         """
         super(SwiGLU, self).__init__()
         self.swish = Swish()
-        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device) - 1.) / dim ** 0.5)
-        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device) - 1.) / dim ** 0.5)
-        self.b = torch.nn.Parameter(torch.zeros(dim, device=device))
-        self.c = torch.nn.Parameter(torch.zeros(dim, device=device))
+        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device, dtype=torch.bfloat16) - 1.) / dim ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device, dtype=torch.bfloat16) - 1.) / dim ** 0.5)
+        self.b = torch.nn.Parameter(torch.zeros(dim, device=device, dtype=torch.bfloat16))
+        self.c = torch.nn.Parameter(torch.zeros(dim, device=device, dtype=torch.bfloat16))
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -68,10 +68,10 @@ class GEGLU(torch.nn.Module):
             device (Optional[str], optional): Device to store the parameters on. Defaults to None.
         """
         super(GEGLU, self).__init__()
-        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device) - 1.) / dim ** 0.5)
-        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device) - 1.) / dim ** 0.5)
-        self.b = torch.nn.Parameter(torch.zeros(dim, device=device))
-        self.c = torch.nn.Parameter(torch.zeros(dim, device=device))
+        self.W = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device, dtype=torch.bfloat16) - 1.) / dim ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim, dim, device=device, dtype=torch.bfloat16) - 1.) / dim ** 0.5)
+        self.b = torch.nn.Parameter(torch.zeros(dim, device=device, dtype=torch.bfloat16))
+        self.c = torch.nn.Parameter(torch.zeros(dim, device=device, dtype=torch.bfloat16))
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -94,9 +94,9 @@ class FFNGLU(torch.nn.Module):
             device (Optional[str], optional): Device to store the parameters on. Defaults to None.
         """
         super(FFNGLU, self).__init__()
-        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) /  dim_hidden ** 0.5)
-        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device) - 1.) / dim_in ** 0.5)
-        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) / dim_hidden ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device, dtype=torch.bfloat16) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -119,9 +119,9 @@ class FFNGEGLU(torch.nn.Module):
             device (Optional[str], optional): Device to store the parameters on. Defaults to None.
         """
         super(FFNGEGLU, self).__init__()
-        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) /  dim_hidden ** 0.5)
-        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device) - 1.) / dim_in ** 0.5)
-        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) / dim_hidden ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device, dtype=torch.bfloat16) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
@@ -145,9 +145,9 @@ class FFNSwiGLU(torch.nn.Module):
         """
         super(FFNSwiGLU, self).__init__()
         self.swish = Swish(beta=1)
-        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) /  dim_hidden ** 0.5)
-        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device) - 1.) / dim_in ** 0.5)
-        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device) - 1.) / dim_hidden ** 0.5)
+        self.W1 = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) /  dim_hidden ** 0.5)
+        self.W2 = torch.nn.Parameter((2. * torch.rand(dim_hidden, dim_in, device=device, dtype=torch.bfloat16) - 1.) / dim_in ** 0.5)
+        self.V = torch.nn.Parameter((2. * torch.rand(dim_in, dim_hidden, device=device, dtype=torch.bfloat16) - 1.) / dim_hidden ** 0.5)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.

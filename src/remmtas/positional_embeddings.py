@@ -51,15 +51,15 @@ class RoPEEmbeddings(torch.nn.Module):
         """
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
         thetas = torch.repeat_interleave(
-            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=self.device))).unsqueeze(-1).repeat((1, self.seq_len)), 
+            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=self.device, dtype=torch.bfloat16))).unsqueeze(-1).repeat((1, self.seq_len)), 
             repeats=2, 
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
         if offset < 0:
-            mults = torch.cat([torch.ones(-offset, device=self.device), torch.arange(1, self.seq_len + 1 + offset, device=self.device)], dim=0)
+            mults = torch.cat([torch.ones(-offset, device=self.device, dtype=torch.bfloat16), torch.arange(1, self.seq_len + 1 + offset, device=self.device, dtype=torch.bfloat16)], dim=0)
         else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=self.device)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=self.device, dtype=torch.bfloat16)
         thetas *= mults.unsqueeze(0)
         self.thetas = thetas.transpose(0, 1).unsqueeze(0).unsqueeze(0)
         
@@ -69,7 +69,7 @@ class RoPEEmbeddings(torch.nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len, dim).
-            offset (int, optional): Position offset for ReDoTAS compatibility. Defaults to 0.
+            offset (int, optional): Position offset for ReMMTAS compatibility. Defaults to 0.
 
         Returns:
             torch.Tensor: Transformed input tensor with rotary positional embeddings applied.

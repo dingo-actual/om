@@ -22,11 +22,11 @@ class StackedLinear(torch.nn.Module):
         self.layer_repeats = repeats
         
         self.weights = torch.nn.Parameter(
-            (2. * torch.rand(1, layers_out, 1, dim_in, dim_out, device=device) - 1.) / dim_out ** 0.5,
+            (2. * torch.rand(1, layers_out, 1, dim_in, dim_out, device=device, dtype=torch.bfloat16) - 1.) / dim_out ** 0.5,
         )
         if bias:
             self.biases = torch.nn.Parameter(
-                torch.zeros(1, layers_out, 1, dim_out, device=device)
+                torch.zeros(1, layers_out, 1, dim_out, device=device, dtype=torch.bfloat16)
             )
         else:
             self.biases = None

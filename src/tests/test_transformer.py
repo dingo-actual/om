@@ -7,7 +7,7 @@ from ..remmtas.util import count_optimized_parameters
 
 
 def test_remmtas_transformer():
-    dim_input = 1024
+    dim_input = 2048
     dim_hidden = 2048
     dims_key = [128, 256, 128]
     dims_value = [128, 256, 128]
@@ -50,7 +50,7 @@ def test_remmtas_transformer():
 
     batch_size = 2
     seq_len = 256
-    x = torch.randn(batch_size, seq_len, dim_input, device=device)
+    x = torch.randn(batch_size, seq_len, dim_input, device=device, dtype=torch.bfloat16)
 
     layer.eval()  # Set the layer to evaluation mode
     x_att = layer(x)

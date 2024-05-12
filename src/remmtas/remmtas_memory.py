@@ -53,7 +53,7 @@ class ReMMTAS(nn.Module):
         self.device = device
         
         # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input, device=device) / (2.0 / (5 * dim_input)) ** 0.5)
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input, device=device, dtype=torch.bfloat16) / (2.0 / (5 * dim_input)) ** 0.5)
         
         # Build attention modules
         attn_modules = []
@@ -78,10 +78,10 @@ class ReMMTAS(nn.Module):
         self.attn_modules = nn.ModuleList(attn_modules)
         
         # Projection for next state
-        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False, device=device)
+        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False, device=device, dtype=torch.bfloat16)
         
         # Projection for output
-        self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False, device=device)
+        self.proj_out = nn.Linear(num_heads * dim_value, dim_input, bias=False, device=device, dtype=torch.bfloat16)
 
 
     def forward(self, x: torch.Tensor, state: Optional[torch.Tuple] = None) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -194,9 +194,9 @@ class StatefulCausalMHA(nn.Module):
         
         # If normalize is True, define qkv normalizations
         if self.normalize:
-            self.norm_q = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_k = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_v = nn.LayerNorm(self.dim_value, device=device)
+            self.norm_q = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_k = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_v = nn.LayerNorm(self.dim_value, device=device, dtype=torch.bfloat16)
         
         # State projections from attention layer to the next attention layer
         self.proj_k_state_start = StackedLinear(dim_in, dim_key, num_heads_in, num_heads_out, bias=False, device=device)
@@ -208,12 +208,12 @@ class StatefulCausalMHA(nn.Module):
         
         # If normalize is True, define qkv normalization for state
         if self.normalize:
-            self.norm_k_state_start = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_q_state_start = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_v_state_start = nn.LayerNorm(self.dim_value, device=device)
-            self.norm_k_state_end = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_q_state_end = nn.LayerNorm(self.dim_key, device=device)
-            self.norm_v_state_end = nn.LayerNorm(self.dim_value, device=device)
+            self.norm_k_state_start = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_q_state_start = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_v_state_start = nn.LayerNorm(self.dim_value, device=device, dtype=torch.bfloat16)
+            self.norm_k_state_end = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_q_state_end = nn.LayerNorm(self.dim_key, device=device, dtype=torch.bfloat16)
+            self.norm_v_state_end = nn.LayerNorm(self.dim_value, device=device, dtype=torch.bfloat16)
             
         if iters > 1:
             self.proj_inv = StackedLinear(dim_value, dim_in, num_heads_out, num_heads_in, bias=False, device=device)
