@@ -2,17 +2,18 @@
 
 import torch
 
-from ..remmtas import ReMMTASformer, RoPEEmbeddings
-from ..remmtas.util import count_optimized_parameters
+from ..arcformer import ARCformer, RoPEEmbeddings
+from ..arcformer.util import count_optimized_parameters
 
 
-def test_remmtas_transformer():
+def test_arc_transformer():
     dim_input = 2048
-    dim_hidden = 2048
-    dims_key = [128, 256, 128]
-    dims_value = [128, 256, 128]
-    mem_iters = [1, 3, 1]
     num_heads = 8
+    dim_hidden = int(8 * dim_input / 3)
+    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
+    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
+    mem_iters = [1, 3, 1]
+    
     activation = "ffngeglu"
     segment_len = 128
     normalize_qkv = True
@@ -32,7 +33,7 @@ def test_remmtas_transformer():
         ) for dim_key in dims_key
     ]
 
-    layer = ReMMTASformer(
+    layer = ARCformer(
         dim_input=dim_input,
         dim_hidden=dim_hidden,
         dims_key=dims_key,
@@ -61,4 +62,4 @@ def test_remmtas_transformer():
     print(f"Total optimized parameters: {param_ct:,d}")
 
 def main():
-    test_remmtas_transformer()
+    test_arc_transformer()

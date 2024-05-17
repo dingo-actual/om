@@ -6,7 +6,7 @@ from torch import nn
 from .positional_embeddings import RoPEEmbeddings
 from .util import extract_state, StackedLinear
 
-class ReMMTAS(nn.Module):
+class ARC(nn.Module):
     """Implements Recurrent Multiple Memory Transformer with Attentive State (ReMMTAS) memory module."""
 
     def __init__(
@@ -36,7 +36,7 @@ class ReMMTAS(nn.Module):
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
             device (Optional[str], optional): Device to use. Defaults to None.
         """
-        super(ReMMTAS, self).__init__()
+        super(ARC, self).__init__()
 
         # Record input parameters
         self.num_heads = num_heads

@@ -4,12 +4,12 @@ import torch
 from torch import nn
 
 from .activations import ACTIVATIONS
-from .remmtas_memory import ReMMTAS
+from .arc_memory import ARC
 from .positional_embeddings import RoPEEmbeddings
 
 
-class ReMMTASformer(nn.Module):
-    """Transformer layer with ReMMTAS memory."""
+class ARCformer(nn.Module):
+    """Transformer layer with ARC memory."""
 
     def __init__(
         self,
@@ -46,7 +46,7 @@ class ReMMTASformer(nn.Module):
             init_conv (bool, optional): Whether to use an initial convolution layer. Defaults to False.
             device (Optional[str], optional): Device to use. Defaults to None.
         """
-        super(ReMMTASformer, self).__init__()
+        super(ARCformer, self).__init__()
         
         if init_conv:
             self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3, device=device, dtype=torch.bfloat16)
@@ -54,7 +54,7 @@ class ReMMTASformer(nn.Module):
             self.conv = None
 
         # Multi-head attention
-        self.attn = ReMMTAS(
+        self.attn = ARC(
             dim_input=dim_input, 
             dims_key=dims_key, 
             dims_value=dims_value, 
