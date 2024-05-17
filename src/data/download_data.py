@@ -28,7 +28,7 @@ def save_starcoder_data(save_path: str) -> None:
     sample_num = 0
     total_tokens = 0
     for sample in dataset_starcoder["train"]:
-        with open(join(save_path, f"starcoder_data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
+        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
             encoded = enc.encode(sample["text"], allowed_special="all")
             json.dump(encoded, f)
             f.write("\n")
@@ -41,7 +41,7 @@ def save_starcoder_data(save_path: str) -> None:
             print(f"Saved 1000 samples to file: slimpajama_data_{file_num:10d}.jsonl")
             
     if sample_num > 0:
-        with open(join(save_path, f"starcoder_data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
+        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
             encoded = enc.encode(sample["text"], allowed_special="all")
             json.dump(encoded, f)
             f.write("\n")
@@ -56,7 +56,7 @@ def save_slimpajama_data(save_path: str) -> None:
     sample_num = 0
     total_tokens = 0
     for sample in dataset_starcoder["train"]:
-        with open(join(save_path, f"slimpajama_data_{file_num:10d}.json"), "a", encoding="utf-8") as f:
+        with open(join(save_path, f"data_{file_num:10d}.json"), "a", encoding="utf-8") as f:
             encoded = enc.encode(sample["text"], allowed_special="all")
             json.dump(encoded, f)
             f.write("\n")
@@ -69,7 +69,7 @@ def save_slimpajama_data(save_path: str) -> None:
             print(f"Saved 1000 samples to file: starcoder_data_{file_num:10d}.json")
     
     if sample_num > 0:
-        with open(join(save_path, f"starcoder_data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
+        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
             encoded = enc.encode(sample["text"], allowed_special="all")
             json.dump(encoded, f)
             f.write("\n")
