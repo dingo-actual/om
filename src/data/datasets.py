@@ -214,14 +214,15 @@ def get_datasets_stages(
     for dir in dirs:
         with open(join(dir, "total_tokens.txt"), "r") as fp:
             dataset_total_tokens.append(int(fp.read().strip()))
+    total_tokens = sum(dataset_total_tokens)
     
     # Calculate number of tokens for each stage for each respective dataset
     tokens_per_stage = []
     for proportion in stage_proportions:
-        tokens_per_stage.append(int(sum(dataset_total_tokens) * proportion))
+        tokens_per_stage.append(int(total_tokens * proportion))
         
-    if sum(tokens_per_stage) != sum(dataset_total_tokens):
-        tokens_per_stage[-1] += sum(dataset_total_tokens) - sum(tokens_per_stage)
+    if sum(tokens_per_stage) != total_tokens:
+        tokens_per_stage[-1] += total_tokens - sum(tokens_per_stage)
     
     # Initialize file skip numbers to zero, output to empty list
     file_skip_cts = [0] * num_datasets
