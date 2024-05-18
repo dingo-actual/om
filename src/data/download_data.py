@@ -26,10 +26,10 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
     # Iterate over full dataset
     for sample in dataset["train"]:
         # Write tokenized sample to current file
-        with open(join(save_path, f"{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
+        with open(join(save_path, f"{file_num:10d}.jsonl"), "a", encoding="utf-8") as fp:
             encoded = enc.encode(sample[dataset_key], allowed_special="all")
-            json.dump(encoded, f)
-            f.write("\n")
+            json.dump(encoded, fp)
+            fp.write("\n")
             
             # Increment file_tokens and total_tokens
             file_tokens += len(encoded)
@@ -41,8 +41,8 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
         # When 1000 samples have been written to current file, increment file
         if sample_num >= 1000:
             # Write token count for current file to token counts file
-            with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as f:
-                f.write(f"{file_tokens}\n")
+            with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as fp:
+                fp.write(f"{file_tokens}\n")
                 
             # Print progress
             print(f"Saved 1000 samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
@@ -56,14 +56,14 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
     
     # If there are any remaining samples, update token counts and print progress message
     if sample_num > 0:
-        with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as f:
-            f.write(f"{file_tokens}\n")
+        with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as fp:
+            fp.write(f"{file_tokens}\n")
 
         print(f"Saved {sample_num} samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
     
     # Write total token count to disk
-    with open(join(save_path, "total_tokens.txt"), "w", encoding="utf-8") as f:
-        f.write(str(total_tokens))
+    with open(join(save_path, "total_tokens.txt"), "w", encoding="utf-8") as fp:
+        fp.write(str(total_tokens))
     
     # Print final progress message
     print(f"\nProcessing complete. Total tokens saved: {total_tokens:,d}\n\n")
