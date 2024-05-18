@@ -27,7 +27,7 @@ class OmLLM(torch.nn.Module):
     ):
         super(OmLLM, self).__init__()
         
-        self.embedder = torch.nn.Embedding(vocab_size, dim_input, device=device)
+        self.embedder = torch.nn.Embedding(vocab_size, dim_input, device=device, dtype=torch.bfloat16)
         
         layers = [
             ARCformer(
@@ -67,7 +67,7 @@ class OmLLM(torch.nn.Module):
                 )
             )
         self.layers = torch.nn.ModuleList(layers).to(device=device)
-        self.proj_out = torch.nn.Linear(dim_input, vocab_size, device=device)
+        self.proj_out = torch.nn.Linear(dim_input, vocab_size, device=device, dtype=torch.bfloat16)
         
     def get_logits(self, x: torch.Tensor) -> torch.Tensor:
         x = self.embedder(x)

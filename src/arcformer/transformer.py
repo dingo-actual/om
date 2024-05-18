@@ -81,11 +81,11 @@ class ARCformer(nn.Module):
             else:
                 act = ACTIVATIONS[activation](device=device)
             self.mlp = nn.Sequential(
-                nn.Linear(dim_input, dim_hidden, device=device),
-                nn.Dropout(dropout, device=device),
+                nn.Linear(dim_input, dim_hidden, device=device, dtype=torch.bfloat16),
+                nn.Dropout(dropout),
                 act,
-                nn.Linear(dim_hidden, dim_input, device=device),
-                nn.Dropout(dropout, device=device)
+                nn.Linear(dim_hidden, dim_input, device=device, dtype=torch.bfloat16),
+                nn.Dropout(dropout)
             )
         self.mlp_norm = nn.LayerNorm(dim_input, device=device, dtype=torch.bfloat16)
 
