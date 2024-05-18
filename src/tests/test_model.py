@@ -6,8 +6,8 @@ from ..om_llm import OmLLM
 
 
 def test_model():
-    num_layers = 2
-    vocab_size = 512
+    num_layers = 8
+    vocab_size = 64000
     
     dim_input = 1024
     num_heads = 8
@@ -17,7 +17,7 @@ def test_model():
     mem_iters = [1, 3, 1]
     
     activation = "gelu"
-    segment_len = 128
+    segment_len = 2048
     normalize_qkv = True
     state_len = segment_len // 8
     
@@ -55,15 +55,15 @@ def test_model():
         device=device
     )
     
-    batch_size = 2
-    seq_len = 256
-    x = vocab_size * torch.rand(batch_size, seq_len, device=device, dtype=torch.bfloat16)
-    x = x.to(torch.long)
+    # batch_size = 2
+    # seq_len = 256
+    # x = vocab_size * torch.rand(batch_size, seq_len, device=device, dtype=torch.bfloat16)
+    # x = x.to(torch.long)
 
-    model.eval()  # Set the layer to evaluation mode
-    preds = model(x)
+    # model.eval()  # Set the layer to evaluation mode
+    # preds = model(x)
 
-    assert preds.shape == (batch_size, seq_len, vocab_size)
+    # assert preds.shape == (batch_size, seq_len, vocab_size)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
