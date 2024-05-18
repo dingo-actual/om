@@ -1,82 +1,91 @@
 import json
 from os.path import join
 from pathlib import Path
+from typing import Any
 
 import tiktoken
 
 from datasets import load_dataset
 
-enc_base = tiktoken.get_encoding("cl100k_base")
-enc = tiktoken.Encoding(
-    name="cl100k_base",
-    pat_str=enc_base._pat_str,
-    mergeable_ranks=enc_base._mergeable_ranks
-)
 
-dataset_starcoder = load_dataset("bigcode/starcoderdata", streaming=True)
-dataset_slimpajama = load_dataset("cerebras/SlimPajama-627B", streaming=True)
+def save_dataset(dataset: Any, enc: tiktoken.Encoding, save_path: str) -> None:
+    """Save a dataset to disk, along with token counts per file.
 
-
-def save_starcoder_data(save_path: str) -> None:
+    Args:
+        dataset (Any): Iterable dataset.
+        enc (tiktoken.Encoding): Tokenizer.
+        save_path (str): Path to save the dataset.
+    """
+    
+    # Initialize counters
     file_num = 0
     sample_num = 0
     total_tokens = 0
-    for sample in dataset_starcoder["train"]:
-        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
+    file_tokens = 0
+    
+    # Iterate over full dataset
+    for sample in dataset["train"]:
+        # Write tokenized sample to current file
+        with open(join(save_path, f"{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
             encoded = enc.encode(sample["text"], allowed_special="all")
             json.dump(encoded, f)
             f.write("\n")
+            
+            # Increment file_tokens and total_tokens
+            file_tokens += len(encoded)
             total_tokens += len(encoded)
+            
+        # Increment sample_num
         sample_num += 1
         
+        # When 1000 samples have been written to current file, increment file
         if sample_num >= 1000:
+            # Write token count for current file to token counts file
+            with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as f:
+                f.write(f"{file_tokens}\n")
+                
+            # Print progress
+            print(f"Saved 1000 samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
+            
+            # Reset counters
+            file_tokens = 0
             sample_num = 0
+            
+            # Increment file counter
             file_num += 1
-            print(f"Saved 1000 samples to file: slimpajama_data_{file_num:10d}.jsonl")
-            
+    
+    # If there are any remaining samples, update token counts and print progress message
     if sample_num > 0:
-        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
-            encoded = enc.encode(sample["text"], allowed_special="all")
-            json.dump(encoded, f)
-            f.write("\n")
-            total_tokens += len(encoded)
-        print(f"Saved {sample_num} samples to file: starcoder_data_{file_num:10d}.json")
-            
+        with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as f:
+            f.write(f"{file_tokens}\n")
+
+        print(f"Saved {sample_num} samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
+    
+    # Write total token count to disk
     with open(join(save_path, "total_tokens.txt"), "w", encoding="utf-8") as f:
         f.write(str(total_tokens))
-        
-def save_slimpajama_data(save_path: str) -> None:
-    file_num = 0
-    sample_num = 0
-    total_tokens = 0
-    for sample in dataset_starcoder["train"]:
-        with open(join(save_path, f"data_{file_num:10d}.json"), "a", encoding="utf-8") as f:
-            encoded = enc.encode(sample["text"], allowed_special="all")
-            json.dump(encoded, f)
-            f.write("\n")
-            total_tokens += len(encoded)
-        sample_num += 1
-        
-        if sample_num >= 1000:
-            sample_num = 0
-            file_num += 1
-            print(f"Saved 1000 samples to file: starcoder_data_{file_num:10d}.json")
     
-    if sample_num > 0:
-        with open(join(save_path, f"data_{file_num:10d}.jsonl"), "a", encoding="utf-8") as f:
-            encoded = enc.encode(sample["text"], allowed_special="all")
-            json.dump(encoded, f)
-            f.write("\n")
-            total_tokens += len(encoded)
-        print(f"Saved {sample_num} samples to file: starcoder_data_{file_num:10d}.json")
-    
-    with open(join(save_path, "total_tokens.txt"), "w", encoding="utf-8") as f:
-        f.write(str(total_tokens))
+    # Print final progress message
+    print(f"\nProcessing complete. Total tokens saved: {total_tokens:,d}\n\n")
 
 
 if __name__ == "__main__":
+    # Instantiate tokenizer
+    enc_base = tiktoken.get_encoding("cl100k_base")
+    enc = tiktoken.Encoding(
+        name="cl100k_base",
+        pat_str=enc_base._pat_str,
+        mergeable_ranks=enc_base._mergeable_ranks
+    )
+
+    # Load datasets
+    dataset_slimpajama = load_dataset("cerebras/SlimPajama-627B", streaming=True)
+    dataset_starcoder = load_dataset("bigcode/starcoderdata", streaming=True)
+    
+    # Define dataset save paths
     save_path_slimpajama = join(Path(__file__).parent, "slimpajama")
     save_path_starcoder = join(Path(__file__).parent, "starcoder")
     
-    save_slimpajama_data(save_path=save_path_slimpajama)
-    save_starcoder_data(save_path=save_path_starcoder)
+    # Save datasets to disk
+    save_dataset(dataset=dataset_slimpajama, enc=enc, save_path=save_path_slimpajama)
+    save_dataset(dataset=dataset_starcoder, enc=enc, save_path=save_path_starcoder)
