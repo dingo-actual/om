@@ -3,6 +3,7 @@ import json
 from os.path import join
 from typing import List, Tuple
 
+import torch
 from torch.utils.data import Dataset
 
 
@@ -34,7 +35,7 @@ class TokenizedFilesDataset(Dataset):
         """Iterate over the dataset."""
         return self
     
-    def __next__(self) -> List[int]:
+    def __next__(self) -> torch.Tensor:
         """Return the next sample in the dataset.
         
         Returns:
@@ -58,7 +59,7 @@ class TokenizedFilesDataset(Dataset):
                 self.buffer = self.buffer + self.current_file[self.current_line_ix]
                 self.current_line_ix += 1
                 
-        out = self.buffer[:self.segment_len]
+        out = torch.tensor(self.buffer[:self.segment_len])
         self.buffer = self.buffer[self.segment_len:]
                 
         return out
@@ -83,7 +84,7 @@ class ProportionalDataset(Dataset):
         """Iterate over the dataset."""
         return self
     
-    def __next__(self) -> List[int]:
+    def __next__(self) -> torch.Tensor:
         """Return the next sample in the dataset.
 
         Returns:
