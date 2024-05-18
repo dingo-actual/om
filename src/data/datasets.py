@@ -208,6 +208,9 @@ def get_datasets_stages(
     for proportions in dataset_proportions:
         if not len(proportions) == num_datasets:
             raise ValueError("Number of dataset proportions must equal number of datasets.")
+    for batch_size, proportions in zip(batch_sizes, dataset_proportions):
+        if not sum(proportions) == batch_size:
+            raise ValueError("Sum of dataset proportions must equal batch size.")
     
     # Get total tokens for each dataset
     dataset_total_tokens = []
