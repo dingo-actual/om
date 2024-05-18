@@ -179,7 +179,7 @@ def get_dataset_stage(
 def get_datasets_stages(
     dirs: List[str], 
     segment_lens: List[int], 
-    batch_size: int, 
+    batch_sizes: List[int], 
     dataset_proportions: List[List[int]],
     stage_proportions: List[float]
 ) -> List[ProportionalDataset]:
@@ -188,11 +188,55 @@ def get_datasets_stages(
     Args:
         dirs (List[str]): Directories for each dataset.
         segment_lens (List[int]): Segment length for each stage.
-        separator (List[int]): Separator tokens.
-        batch_size (int): Batch size.
+        batch_size (List[int]): Batch size for each stage.
         dataset_proportions (List[List[int]]): List of dataset proportions for each stage.
         stage_proportions (List[float]): Proportions of total dataset to use for each stage.
 
     Returns:
         List[ProportionalDataset]: Datasets for each stage.
     """
+    # Input validation
+    num_stages = len(stage_proportions)
+    num_datasets = len(dirs)
+    
+    if not len(dataset_proportions) == num_stages:
+        raise ValueError("Number of dataset proportions must equal number of stages.")
+    if not len(batch_sizes) == num_stages:
+        raise ValueError("Number of batch sizes must equal number of stages.")
+    if not len(segment_lens) == num_stages:
+        raise ValueError("Number of segment lengths must equal number of stages.")
+    for proportions in dataset_proportions:
+        if not len(proportions) == num_datasets:
+            raise ValueError("Number of dataset proportions must equal number of datasets.")
+    
+    # Get total tokens for each dataset
+    dataset_total_tokens = []
+    for dir in dirs:
+        with open(join(dir, "total_tokens.txt"), "r") as fp:
+            dataset_total_tokens.append(int(fp.read().strip()))
+    
+    # Calculate number of tokens for each stage for each respective dataset
+    tokens_per_stage = []
+    for proportion in stage_proportions:
+        tokens_per_stage.append(int(sum(dataset_total_tokens) * proportion))
+        
+    if sum(tokens_per_stage) != sum(dataset_total_tokens):
+        tokens_per_stage[-1] += sum(dataset_total_tokens) - sum(tokens_per_stage)
+    
+    # Initialize file skip numbers to zero, output to empty list
+    file_skip_cts = [0] * num_datasets
+    
+    # Loop through stages and create each dataset
+    out = []
+    for (max_tokens, segment_len, batch_size, dataset_proportions_stage) in zip(tokens_per_stage, segment_lens, batch_sizes, dataset_proportions):
+        dataset, file_skip_cts = get_dataset_stage(
+            dirs=dirs,
+            segment_len=segment_len,
+            max_tokens=max_tokens,
+            batch_size=batch_size,
+            file_skip_cts=file_skip_cts,
+            dataset_proportions=dataset_proportions_stage
+        )
+        out.append(dataset)
+        
+    return out
