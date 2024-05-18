@@ -1,1 +1,1 @@
-# Recurrent Double Transformer with Attentive State
+# Attentive Recurrent Cell (ARC) Transformer with Multi-Pass Memory
