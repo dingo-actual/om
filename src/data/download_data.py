@@ -27,7 +27,8 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
     for sample in dataset["train"]:
         # Write tokenized sample to current file
         with open(join(save_path, f"{file_num:10d}.jsonl"), "a", encoding="utf-8") as fp:
-            encoded = enc.encode(sample[dataset_key], allowed_special="all")
+            sample_padded = f"<|im_start|>{sample[dataset_key]}<|im_end|>"
+            encoded = enc.encode(sample_padded, allowed_special="all")
             json.dump(encoded, fp)
             fp.write("\n")
             
@@ -39,13 +40,13 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
         sample_num += 1
         
         # When 1000 samples have been written to current file, increment file
-        if sample_num >= 1000:
+        if sample_num >= 100:
             # Write token count for current file to token counts file
             with open(join(save_path, "token_counts.txt"), "a", encoding="utf-8") as fp:
                 fp.write(f"{file_tokens}\n")
                 
             # Print progress
-            print(f"Saved 1000 samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
+            print(f"Saved 100 samples ({file_tokens} tokens) to file: {file_num:10d}.jsonl")
             
             # Reset counters
             file_tokens = 0
@@ -75,7 +76,12 @@ if __name__ == "__main__":
     enc = tiktoken.Encoding(
         name="cl100k_base",
         pat_str=enc_base._pat_str,
-        mergeable_ranks=enc_base._mergeable_ranks
+        mergeable_ranks=enc_base._mergeable_ranks,
+        special_tokens={
+            **enc_base._special_tokens,
+            "<|im_start|>": 100264,
+            "<|im_end|>": 100265,
+        }
     )
 
     # Load datasets
