@@ -39,7 +39,7 @@ class TokenizedFilesDataset(Dataset):
         """Return the next sample in the dataset.
         
         Returns:
-            List[int]: Current sample.
+            torch.Tensor: Current sample.
         """
         # Fill the buffer if necessary
         while len(self.buffer) < self.segment_len:
@@ -80,6 +80,8 @@ class ProportionalDataset(Dataset):
         self.current_dataset_ix = 0
         self.current_sample_ix = 0
         
+        self.skip = [False if p > 0 else True for p in self.proportions]
+        
     def __iter__(self):
         """Iterate over the dataset."""
         return self
@@ -88,12 +90,12 @@ class ProportionalDataset(Dataset):
         """Return the next sample in the dataset.
 
         Returns:
-            List[int]: Current sample.
+            torch.Tensor: Current sample.
         """
         # If the current sample index is equal to the proportion for the current dataset,
         # increment the current dataset index and reset the current sample index
-        if self.current_sample_ix == self.proportions[self.current_dataset_ix]:
-            self.current_dataset_ix += 1
+        if self.current_sample_ix == self.proportions[self.current_dataset_ix] or self.skip[self.current_dataset_ix]:
+            self.current_dataset_ix = (self.current_dataset_ix + 1) % len(self.datasets)
             self.current_sample_ix = 0
 
             if self.current_dataset_ix == len(self.datasets):
@@ -105,8 +107,8 @@ class ProportionalDataset(Dataset):
         # If the dataset is empty, set its proportion to 0 (so it'll get skipped)
         # If all datasets are empty, raise StopIteration
         except StopIteration:
-            self.proportions[self.current_dataset_ix] = 0
-            if all([proportion == 0 for proportion in self.proportions]):
+            self.skip[self.current_dataset_ix] = True
+            if all(self.skip):
                 raise StopIteration
             else:
                 return self.__next__()
