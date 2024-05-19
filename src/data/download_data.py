@@ -8,11 +8,12 @@ import tiktoken
 from datasets import load_dataset
 
 
-def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_path: str) -> None:
+def save_dataset(dataset: Any, split: str, dataset_key: str, enc: tiktoken.Encoding, save_path: str) -> None:
     """Save a dataset to disk, along with token counts per file.
 
     Args:
         dataset (Any): Iterable dataset.
+        split (str): Split of the dataset to save.
         enc (tiktoken.Encoding): Tokenizer.
         save_path (str): Path to save the dataset.
     """
@@ -24,7 +25,7 @@ def save_dataset(dataset: Any, dataset_key: str, enc: tiktoken.Encoding, save_pa
     file_tokens = 0
     
     # Iterate over full dataset
-    for sample in dataset["train"]:
+    for sample in dataset[split]:
         # Write tokenized sample to current file
         with open(join(save_path, f"{file_num:10d}.jsonl"), "a", encoding="utf-8") as fp:
             sample_padded = f"<|im_start|>{sample[dataset_key]}<|im_end|>"
