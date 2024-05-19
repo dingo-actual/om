@@ -10,7 +10,7 @@ class RoPEEmbeddings(torch.nn.Module):
     (https://arxiv.org/abs/2104.09864).
     
     Modifications have been made to make it compatible with ARC."""
-    def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000, device: Optional[str] = None):
+    def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000):
         """Instantiate the module.
 
         Args:
@@ -18,7 +18,6 @@ class RoPEEmbeddings(torch.nn.Module):
             seq_len (int): Maximum sequence length.
             dim_embedding_pct (float): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
             base (int, optional): Base used for calculating thetas. Defaults to 10000.
-            device (Optional[str], optional): Device to use for the positional embeddings. Defaults to None.
         """
         super(RoPEEmbeddings, self).__init__()
         
@@ -52,17 +51,18 @@ class RoPEEmbeddings(torch.nn.Module):
             offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
         """
         device = self.thetas.device
+        dtype = self.thetas.dtype
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
         thetas = torch.repeat_interleave(
-            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=device))).unsqueeze(-1).repeat((1, self.seq_len)), 
+            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=device, dtype=dtype))).unsqueeze(-1).repeat((1, self.seq_len)), 
             repeats=2, 
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
         if offset < 0:
-            mults = torch.cat([torch.ones(-offset, device=device), torch.arange(1, self.seq_len + 1 + offset, device=device)], dim=0)
+            mults = torch.cat([torch.ones(-offset, device=device, dtype=dtype), torch.arange(1, self.seq_len + 1 + offset, device=device, dtype=dtype)], dim=0)
         else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=device)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=device, dtype=dtype)
         thetas *= mults.unsqueeze(0)
         self.thetas.data = thetas.transpose(0, 1).unsqueeze(0)
         
