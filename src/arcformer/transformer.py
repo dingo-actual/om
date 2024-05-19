@@ -43,7 +43,6 @@ class ARCformer(nn.Module):
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             init_conv (bool, optional): Whether to use an initial convolution layer. Defaults to False.
-            device (Optional[str], optional): Device to use. Defaults to None.
         """
         super(ARCformer, self).__init__()
         
