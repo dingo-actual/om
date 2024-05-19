@@ -17,7 +17,7 @@ def test_model():
     mem_iters = [1, 3, 1]
     
     activation = "gelu"
-    segment_len = 2048
+    segment_len = 128
     normalize_qkv = True
     state_len = segment_len // 8
     
@@ -52,7 +52,7 @@ def test_model():
     )
     
     batch_size = 2
-    seq_len = 256
+    seq_len = 512
     x = vocab_size * torch.rand(batch_size, seq_len)
     x = x.to(torch.long)
 
