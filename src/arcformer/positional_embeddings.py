@@ -9,7 +9,7 @@ class RoPEEmbeddings(torch.nn.Module):
     "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Su et al.
     (https://arxiv.org/abs/2104.09864).
     
-    Modifications have been made to make it compatible with ReMMTAS."""
+    Modifications have been made to make it compatible with ARC."""
     def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000, device: Optional[str] = None):
         """Instantiate the module.
 
@@ -29,15 +29,14 @@ class RoPEEmbeddings(torch.nn.Module):
         self.dim_embedding_pct = dim_embedding_pct
         self.base = base
         self.last_offset = 0
-        self.device = device
         
         self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
         # Indices for rearranging the input follow the pattern [1, 0, 3, 2, 5, 4, ...]
         # Indices that need to be negated in calculating the positional embeddings are [0, 2, 4, ...]
-        self.ixs_sin = torch.empty(self.effective_dim, dtype=torch.long, device=device)
-        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2, device=device)
+        self.ixs_sin = torch.empty(self.effective_dim, dtype=torch.long)
+        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2)
         self.ixs_sin[self.ixs_sin_neg] = self.ixs_sin_neg + 1
         self.ixs_sin[self.ixs_sin_neg + 1] = self.ixs_sin_neg
         
@@ -47,29 +46,29 @@ class RoPEEmbeddings(torch.nn.Module):
         from the RoFormer paper
 
         Args:
-            offset (int, optional): Position offset for ReDoTAS compatibility. Defaults to 0.
+            offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
         """
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
         thetas = torch.repeat_interleave(
-            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=self.device, dtype=torch.bfloat16))).unsqueeze(-1).repeat((1, self.seq_len)), 
+            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1))).unsqueeze(-1).repeat((1, self.seq_len)), 
             repeats=2, 
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
         if offset < 0:
-            mults = torch.cat([torch.ones(-offset, device=self.device, dtype=torch.bfloat16), torch.arange(1, self.seq_len + 1 + offset, device=self.device, dtype=torch.bfloat16)], dim=0)
+            mults = torch.cat([torch.ones(-offset), torch.arange(1, self.seq_len + 1 + offset)], dim=0)
         else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=self.device, dtype=torch.bfloat16)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset)
         thetas *= mults.unsqueeze(0)
-        self.thetas = thetas.transpose(0, 1).unsqueeze(0).unsqueeze(0)
+        self.thetas = thetas.transpose(0, 1).unsqueeze(0)
         
     def forward(self, x: torch.Tensor, offset: int = 0) -> torch.Tensor:
         """Applies rotary positional embeddings to the input tensor. Uses a multidimensional
         extension of equation (34) of the RoFormer paper.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len, dim).
-            offset (int, optional): Position offset for ReMMTAS compatibility. Defaults to 0.
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim).
+            offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
 
         Returns:
             torch.Tensor: Transformed input tensor with rotary positional embeddings applied.
@@ -86,17 +85,17 @@ class RoPEEmbeddings(torch.nn.Module):
         
         # If the sequence length is less than the maximum sequence length, perform calculations
         # with truncated cos_component and sin_component, along the sequence axis
-        if x.size(2) < self.seq_len:
-            x_cos = self.thetas.cos()[:, :, :x_pos.size(2), :].repeat(x_pos.size(0), x_pos.size(1), 1, 1) * x_pos
+        if x.size(1) < self.seq_len:
+            x_cos = self.thetas.cos()[:, :x_pos.size(1), :].repeat(x_pos.size(0), 1, 1) * x_pos
             x_sin = x_pos[..., self.ixs_sin]
             x_sin[..., self.ixs_sin_neg] = -x_sin[...,self.ixs_sin_neg]
-            x_sin *= self.thetas.sin()[:, :, :x_pos.size(2), :].repeat(x_pos.size(0), x_pos.size(1), 1, 1)
+            x_sin *= self.thetas.sin()[:, :x_pos.size(1), :].repeat(x_pos.size(0), 1, 1)
         # Otherwise, perform calculations with the full cos_component and sin_component
         else:
-            x_cos = self.thetas.cos().repeat(x_pos.size(0), x_pos.size(1), 1, 1) * x_pos
+            x_cos = self.thetas.cos().repeat(x_pos.size(0), 1, 1) * x_pos
             x_sin = x_pos[..., self.ixs_sin]
             x_sin[..., self.ixs_sin_neg] = -x_sin[...,self.ixs_sin_neg]
-            x_sin *= self.thetas.sin().repeat(x_pos.size(0), x_pos.size(1), 1, 1)
+            x_sin *= self.thetas.sin().repeat(x_pos.size(0), 1, 1)
     
             
         # If the sequence length is less than the maximum sequence length, concatenate positionally embedded

@@ -1,4 +1,2 @@
-# tests/__init__.py
-
-# This file is intentionally left empty.
-# It is required to make the 'tests' directory a Python package.
+from .test_model import test_model
+from .test_transformer import test_arc_transformer

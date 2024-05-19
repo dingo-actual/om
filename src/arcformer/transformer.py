@@ -25,8 +25,7 @@ class ARCformer(nn.Module):
         normalize_qkv: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False,
-        device: Optional[str] = None
+        init_conv: bool = False
     ):
         """Initializes the module.
 
@@ -49,7 +48,7 @@ class ARCformer(nn.Module):
         super(ARCformer, self).__init__()
         
         if init_conv:
-            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3, device=device, dtype=torch.bfloat16)
+            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3)
         else:
             self.conv = None
 
@@ -63,31 +62,27 @@ class ARCformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             normalize=normalize_qkv,
-            position_embedders=position_embedders,
-            device=device
+            position_embedders=position_embedders
         )
-        self.attn_norm = nn.LayerNorm(dim_input, device=device, dtype=torch.bfloat16)
+        self.attn_norm = nn.LayerNorm(dim_input)
         
         # MLP
         if activation not in ACTIVATIONS:
             raise ValueError(f"Invalid activation function: {activation}")
         elif activation in ["swiglu", "geglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_input, device=device)
+            self.mlp = ACTIVATIONS[activation](dim_input)
         elif activation in ["ffnglu", "ffngeglu", "ffnswiglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden, device=device)
+            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden)
         else:
-            if activation != "abs":
-                act = ACTIVATIONS[activation]()
-            else:
-                act = ACTIVATIONS[activation](device=device)
+            act = ACTIVATIONS[activation]()
             self.mlp = nn.Sequential(
-                nn.Linear(dim_input, dim_hidden, device=device, dtype=torch.bfloat16),
+                nn.Linear(dim_input, dim_hidden),
                 nn.Dropout(dropout),
                 act,
-                nn.Linear(dim_hidden, dim_input, device=device, dtype=torch.bfloat16),
+                nn.Linear(dim_hidden, dim_input),
                 nn.Dropout(dropout)
             )
-        self.mlp_norm = nn.LayerNorm(dim_input, device=device, dtype=torch.bfloat16)
+        self.mlp_norm = nn.LayerNorm(dim_input)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.

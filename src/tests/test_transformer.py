@@ -21,15 +21,12 @@ def test_arc_transformer():
     
     dropout = 0.1
     
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    
     position_embedders = [
         RoPEEmbeddings(
             dim=dim_key,
             seq_len=segment_len + 2 * state_len,
             dim_embedding_pct=0.25,
             base=10000,
-            device=device
         ) for dim_key in dims_key
     ]
 
@@ -45,13 +42,12 @@ def test_arc_transformer():
         state_len=state_len,
         normalize_qkv=normalize_qkv,
         position_embedders=position_embedders,
-        dropout=dropout,
-        device=device
+        dropout=dropout
     )
 
     batch_size = 2
     seq_len = 256
-    x = torch.randn(batch_size, seq_len, dim_input, device=device, dtype=torch.bfloat16)
+    x = torch.randn(batch_size, seq_len, dim_input)
 
     layer.eval()  # Set the layer to evaluation mode
     x_att = layer(x)
@@ -60,6 +56,3 @@ def test_arc_transformer():
     
     param_ct = count_optimized_parameters(layer)
     print(f"Total optimized parameters: {param_ct:,d}")
-
-def main():
-    test_arc_transformer()

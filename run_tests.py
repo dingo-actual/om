@@ -1,6 +1,5 @@
-from src.tests.test_transformer import main
-from src.tests.test_model import test_model
+from src.tests import test_arc_transformer, test_model
 
 if __name__ == "__main__":
-    #main()
-    test_model()
+    test_arc_transformer()
+    #test_model()

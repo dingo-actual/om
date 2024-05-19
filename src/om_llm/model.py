@@ -22,12 +22,11 @@ class OmLLM(torch.nn.Module):
         normalize_qkv: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False,
-        device: Optional[str] = None
+        init_conv: bool = False
     ):
         super(OmLLM, self).__init__()
         
-        self.embedder = torch.nn.Embedding(vocab_size, dim_input, device=device, dtype=torch.bfloat16)
+        self.embedder = torch.nn.Embedding(vocab_size, dim_input)
         
         layers = [
             ARCformer(
@@ -43,8 +42,7 @@ class OmLLM(torch.nn.Module):
                 normalize_qkv=normalize_qkv,
                 position_embedders=position_embedders,
                 dropout=dropout,
-                init_conv=init_conv,
-                device=device
+                init_conv=init_conv
             )
         ]
         for _ in range(num_layers - 1):
@@ -62,12 +60,11 @@ class OmLLM(torch.nn.Module):
                     normalize_qkv=normalize_qkv,
                     position_embedders=position_embedders,
                     dropout=dropout,
-                    init_conv=False,
-                    device=device
+                    init_conv=False
                 )
             )
-        self.layers = torch.nn.ModuleList(layers).to(device=device)
-        self.proj_out = torch.nn.Linear(dim_input, vocab_size, device=device, dtype=torch.bfloat16)
+        self.layers = torch.nn.ModuleList(layers)
+        self.proj_out = torch.nn.Linear(dim_input, vocab_size)
         
     def get_logits(self, x: torch.Tensor) -> torch.Tensor:
         x = self.embedder(x)
