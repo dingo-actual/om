@@ -94,12 +94,9 @@ class ProportionalDataset(Dataset):
         """
         # If the current sample index is equal to the proportion for the current dataset,
         # increment the current dataset index and reset the current sample index
-        if self.current_sample_ix == self.proportions[self.current_dataset_ix] or self.skip[self.current_dataset_ix]:
+        if self.current_sample_ix >= self.proportions[self.current_dataset_ix] or self.skip[self.current_dataset_ix]:
             self.current_dataset_ix = (self.current_dataset_ix + 1) % len(self.datasets)
             self.current_sample_ix = 0
-
-            if self.current_dataset_ix == len(self.datasets):
-                self.current_dataset_ix = 0
 
         # Try to sample from the current dataset
         try:
