@@ -2,8 +2,7 @@ import argparse
 
 from datasets import load_dataset
 
-from src.data.download_data import save_dataset
-from src.data.tokenizer import enc
+from src.data import enc, save_dataset
 
 
 parser = argparse.ArgumentParser(
