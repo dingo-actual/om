@@ -27,6 +27,8 @@ class OmLLM(torch.nn.Module):
         super(OmLLM, self).__init__()
         
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
+        for p in self.embedder.parameters():
+            torch.nn.init.normal_(p, mean=0, std=(2.0 / (5 * dim_input)) ** 0.5)
         
         layers = [
             ARCformer(

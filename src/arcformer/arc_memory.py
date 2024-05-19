@@ -103,7 +103,6 @@ class ARC(nn.Module):
         for ix in range(num_segments):
             ix_lo = ix * self.segment_len
             ix_hi = min(ix_lo + self.segment_len, x.size(1))
-            seg_len = ix_hi - ix_lo
 
             # Extract segment from x
             x_seg = x[:, ix_lo:ix_hi, :]
