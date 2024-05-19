@@ -30,15 +30,18 @@ class RoPEEmbeddings(torch.nn.Module):
         self.base = base
         self.last_offset = 0
         
+        self.thetas = torch.nn.Parameter(torch.empty((1, seq_len, self.effective_dim)), requires_grad=False)
         self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
         # Indices for rearranging the input follow the pattern [1, 0, 3, 2, 5, 4, ...]
         # Indices that need to be negated in calculating the positional embeddings are [0, 2, 4, ...]
-        self.ixs_sin = torch.empty(self.effective_dim, dtype=torch.long)
-        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2)
+        self.ixs_sin = torch.nn.Parameter(torch.empty(self.effective_dim, dtype=torch.long), requires_grad=False)
+        self.ixs_sin_neg = torch.nn.Parameter(2 * torch.arange(self.effective_dim // 2), requires_grad=False)
         self.ixs_sin[self.ixs_sin_neg] = self.ixs_sin_neg + 1
         self.ixs_sin[self.ixs_sin_neg + 1] = self.ixs_sin_neg
+        
+        
         
     def _calculate_thetas(self, offset: int = 0) -> None:
         """Calculate the cosine and sine component matrices for the rotary positional embeddings.
@@ -48,19 +51,20 @@ class RoPEEmbeddings(torch.nn.Module):
         Args:
             offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
         """
+        device = self.thetas.device
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
         thetas = torch.repeat_interleave(
-            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1))).unsqueeze(-1).repeat((1, self.seq_len)), 
+            (self.base ** (-2. * torch.arange(1, self.effective_dim//2 + 1, device=device))).unsqueeze(-1).repeat((1, self.seq_len)), 
             repeats=2, 
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
         if offset < 0:
-            mults = torch.cat([torch.ones(-offset), torch.arange(1, self.seq_len + 1 + offset)], dim=0)
+            mults = torch.cat([torch.ones(-offset, device=device), torch.arange(1, self.seq_len + 1 + offset, device=device)], dim=0)
         else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset)
+            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=device)
         thetas *= mults.unsqueeze(0)
-        self.thetas = thetas.transpose(0, 1).unsqueeze(0)
+        self.thetas.data = thetas.transpose(0, 1).unsqueeze(0)
         
     def forward(self, x: torch.Tensor, offset: int = 0) -> torch.Tensor:
         """Applies rotary positional embeddings to the input tensor. Uses a multidimensional

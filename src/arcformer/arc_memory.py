@@ -54,15 +54,14 @@ class ARC(nn.Module):
         # Build attention modules
         attn_modules = []
         dim_value_last = dim_input
-        for ix, (dim_key, dim_value, n_iter, position_embedder) in enumerate(zip(self.dims_key, self.dims_value, self.iters, position_embedders)):
+        for dim_key, dim_value, n_iter, position_embedder in zip(self.dims_key, self.dims_value, self.iters, position_embedders):
             attn_modules.append(
                 StatefulCausalMHA(
                     dim_in=dim_value_last,
                     dim_key=dim_key,
                     dim_value=dim_value,
                     iters=n_iter,
-                    num_heads_in=1 if ix == 0 else num_heads,
-                    num_heads_out=num_heads,
+                    num_heads=num_heads,
                     state_len=state_len,
                     normalize=normalize,
                     position_embedder=position_embedder
@@ -107,7 +106,7 @@ class ARC(nn.Module):
             seg_len = ix_hi - ix_lo
 
             # Extract segment from x
-            x_seg = x[:, :, ix_lo:ix_hi, :]
+            x_seg = x[:, ix_lo:ix_hi, :]
             
             # Prepend and append state to x_seg
             x_seg = torch.cat([state, x_seg, state], dim=1)
@@ -122,11 +121,6 @@ class ARC(nn.Module):
             # Consolidated state and attention
             att_end = torch.concat(att_end, dim=-1)
             state_end = torch.concat(state_end, dim=-1)
-            
-            # TODO: check that this step is necessary
-            # Reshape before final projections
-            att_end = att_end.reshape((batch_size, seg_len, -1))
-            state_end = state_end.reshape((batch_size, self.state_len, -1))
             
             # Get next state
             state = self.proj_out_state(state_end)
@@ -175,37 +169,37 @@ class StatefulCausalMHA(nn.Module):
         self.iters = iters
         
         # Projections from the attention layer to the next attention layer
-        self.proj_k = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_q = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_v = [nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)]
+        self.proj_k = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_q = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_v = torch.nn.ModuleList([nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)])
         
         # If normalize is True, define qkv normalizations
         if self.normalize:
-            self.norm_q = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_k = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_v = [nn.LayerNorm(self.dim_value) for _ in range(num_heads)]
+            self.norm_q = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_k = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_v = torch.nn.ModuleList([nn.LayerNorm(self.dim_value) for _ in range(num_heads)])
         
         # State projections from attention layer to the next attention layer
-        self.proj_k_state_start = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_q_state_start = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_v_state_start = [nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)]
-        self.proj_k_state_end = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_q_state_end = [nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)]
-        self.proj_v_state_end = [nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)]
+        self.proj_k_state_start = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_q_state_start = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_v_state_start = torch.nn.ModuleList([nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)])
+        self.proj_k_state_end = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_q_state_end = torch.nn.ModuleList([nn.Linear(dim_in, dim_key, bias=False) for _ in range(num_heads)])
+        self.proj_v_state_end = torch.nn.ModuleList([nn.Linear(dim_in, dim_value, bias=False) for _ in range(num_heads)])
         
         # If normalize is True, define qkv normalization for state
         if self.normalize:
-            self.norm_k_state_start = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_q_state_start = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_v_state_start = [nn.LayerNorm(self.dim_value) for _ in range(num_heads)]
-            self.norm_k_state_end = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_q_state_end = [nn.LayerNorm(self.dim_key) for _ in range(num_heads)]
-            self.norm_v_state_end = [nn.LayerNorm(self.dim_value) for _ in range(num_heads)]
+            self.norm_k_state_start = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_q_state_start = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_v_state_start = torch.nn.ModuleList([nn.LayerNorm(self.dim_value) for _ in range(num_heads)])
+            self.norm_k_state_end = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_q_state_end = torch.nn.ModuleList([nn.LayerNorm(self.dim_key) for _ in range(num_heads)])
+            self.norm_v_state_end = torch.nn.ModuleList([nn.LayerNorm(self.dim_value) for _ in range(num_heads)])
             
         if iters > 1:
-            self.proj_inv = [nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)]
-            self.proj_inv_state_begin = [nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)]
-            self.proj_inv_state_end = [nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)]
+            self.proj_inv = torch.nn.ModuleList([nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)])
+            self.proj_inv_state_begin = torch.nn.ModuleList([nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)])
+            self.proj_inv_state_end = torch.nn.ModuleList([nn.Linear(dim_value, dim_in, bias=False) for _ in range(num_heads)])
     
     def apply_attention(
         self, 
@@ -231,7 +225,9 @@ class StatefulCausalMHA(nn.Module):
             ks = [self.position_embedder(k, offset=offset) for k in ks]
             qs = [self.position_embedder(q, offset=offset) for q in ks]
         
-        mask = torch.tril(torch.ones((ks[0].size(1), ks[0].size(1)), dtype=torch.bool, device=self.device), diagonal=0)
+        device = qs[0].device
+        
+        mask = torch.tril(torch.ones((ks[0].size(1), ks[0].size(1)), device=device), diagonal=0)
         att = [torch.nn.functional.scaled_dot_product_attention(q, k, v, mask) for q, k, v in zip(qs, ks, vs)]
 
         return att

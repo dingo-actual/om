@@ -24,15 +24,12 @@ def test_model():
     init_conv = False
     dropout = 0.1
     
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    
     position_embedders = [
         RoPEEmbeddings(
             dim=dim_key,
             seq_len=segment_len + 2 * state_len,
             dim_embedding_pct=0.25,
-            base=10000,
-            device=device
+            base=10000
         ) for dim_key in dims_key
     ]
     
@@ -51,19 +48,22 @@ def test_model():
         normalize_qkv=normalize_qkv,
         position_embedders=position_embedders,
         dropout=dropout,
-        init_conv=init_conv,
-        device=device
+        init_conv=init_conv
     )
     
-    # batch_size = 2
-    # seq_len = 256
-    # x = vocab_size * torch.rand(batch_size, seq_len, device=device, dtype=torch.bfloat16)
-    # x = x.to(torch.long)
+    batch_size = 2
+    seq_len = 256
+    x = vocab_size * torch.rand(batch_size, seq_len)
+    x = x.to(torch.long)
 
-    # model.eval()  # Set the layer to evaluation mode
-    # preds = model(x)
+    if torch.cuda.is_available():
+        model = model.to("cuda:0")
+        x = x.to("cuda:0")
+    
+    model.eval()  # Set the model to evaluation mode
+    preds = model(x)
 
-    # assert preds.shape == (batch_size, seq_len, vocab_size)
+    assert preds.shape == (batch_size, seq_len, vocab_size)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
