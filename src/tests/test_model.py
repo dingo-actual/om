@@ -7,7 +7,7 @@ from ..om_llm import OmLLM
 
 def test_model():
     num_layers = 8
-    vocab_size = 64000
+    vocab_size = 100260
     
     dim_input = 1024
     num_heads = 8
@@ -52,7 +52,7 @@ def test_model():
     )
     
     batch_size = 2
-    seq_len = 512
+    seq_len = 2048
     x = vocab_size * torch.rand(batch_size, seq_len)
     x = x.to(torch.long)
 
