@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import torch
 from torch import nn
@@ -83,7 +83,7 @@ class ARCformer(nn.Module):
             )
         self.mlp_norm = nn.LayerNorm(dim_input)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
@@ -91,6 +91,7 @@ class ARCformer(nn.Module):
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, dim_input).
+            torch.Tensor: State tensor of shape (batch_size, state_len, dim_input).
         """
         # If initial convolution is defined, use it
         if self.conv is not None:
@@ -98,8 +99,8 @@ class ARCformer(nn.Module):
         else:
             x_ = x
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_, _ = self.attn(x_)
+        x_, state = self.attn(x_)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
 
-        return self.mlp_norm(x_ + x)
+        return self.mlp_norm(x_ + x), state

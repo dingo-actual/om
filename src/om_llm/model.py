@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import torch
 
@@ -68,14 +68,16 @@ class OmLLM(torch.nn.Module):
         self.layers = torch.nn.ModuleList(layers)
         self.proj_out = torch.nn.Linear(dim_input, vocab_size)
         
-    def get_logits(self, x: torch.Tensor) -> torch.Tensor:
+    def get_logits(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        states = []
         x = self.embedder(x)
         for layer in self.layers:
-            x = layer(x)
+            x, state = layer(x)
+            states.append(state)
         x = self.proj_out(x)
         
-        return x
+        return x, states
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        logits = self.get_logits(x)
-        return torch.nn.functional.sigmoid(logits)
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        logits, states = self.get_logits(x)
+        return torch.nn.functional.sigmoid(logits), states

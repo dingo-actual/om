@@ -61,9 +61,11 @@ def test_model():
         x = x.to("cuda:0")
     
     model.eval()  # Set the model to evaluation mode
-    preds = model(x)
+    preds, states = model(x)
 
     assert preds.shape == (batch_size, seq_len, vocab_size)
+    for state in states:
+        assert state.shape == (batch_size, state_len, dim_input)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
