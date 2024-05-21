@@ -18,10 +18,10 @@ def test_model():
     
     activation = "gelu"
     segment_len = 128
-    normalize_qkv = True
+    normalize = True
     state_len = segment_len // 8
     
-    init_conv = False
+    init_conv = True
     dropout = 0.1
     
     position_embedders = [
@@ -45,7 +45,7 @@ def test_model():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        normalize_qkv=normalize_qkv,
+        normalize=normalize,
         position_embedders=position_embedders,
         dropout=dropout,
         init_conv=init_conv
@@ -53,7 +53,7 @@ def test_model():
     
     batch_size = 2
     seq_len = 2048
-    x = vocab_size * torch.rand(batch_size, seq_len)
+    x = vocab_size * torch.rand(batch_size, seq_len + 2 if init_conv else 0)
     x = x.to(torch.long)
 
     if torch.cuda.is_available():
