@@ -56,12 +56,11 @@ class ARC(nn.Module):
             dim_input=dim_input,
             dims_key=dims_key,
             dims_value=dims_value,
-            iters=iters,
             num_heads=num_heads,
-            segment_len=segment_len,
             state_len=state_len,
             normalize=normalize,
-            position_embedders=position_embedders
+            position_embedders=position_embedders,
+            iters=iters,
         )
         
         # Projection for next state
@@ -123,10 +122,10 @@ class ARC(nn.Module):
 class StatefulCausalMMHA(nn.Module):
     def __init__(
         self,  
-        dim_in: int, 
+        dim_input: int, 
         dims_key: int, 
         dims_value: int, 
-        n_heads: int,
+        num_heads: int,
         state_len: int,
         normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
@@ -135,10 +134,10 @@ class StatefulCausalMMHA(nn.Module):
         """Initializes the module
 
         Args:
-            dim_in (int): The input dimension.
+            dim_input (int): The input dimension.
             dims_key (int): The key dimension.
             dims_value (int): The value dimension.
-            n_heads (int): Number of attention heads.
+            num_heads (int): Number of attention heads.
             state_len (int): The length of the state tensor.
             normalize (bool): Whether to normalize the input to the attention projections.
             position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
@@ -146,10 +145,10 @@ class StatefulCausalMMHA(nn.Module):
         """
         super(StatefulCausalMMHA, self).__init__()
         
-        self.dim_in = dim_in
+        self.dim_input = dim_input
         self.dims_key = dims_key
         self.dims_value = dims_value
-        self.n_heads = n_heads
+        self.num_heads = num_heads
         self.state_len = state_len
         self.normalize = normalize
         self.position_embedders = position_embedders
@@ -158,14 +157,14 @@ class StatefulCausalMMHA(nn.Module):
         self.attn_heads = nn.ModuleList(
             [
                 StatefulCausalMultiAttention(
-                    dim_in=dim_in,
+                    dim_input=dim_input,
                     dims_key=dims_key,
                     dims_value=dims_value,
                     state_len=state_len,
                     normalize=normalize,
                     position_embedders=position_embedders,
                     iters=iters
-                ) for _ in range(n_heads)
+                ) for _ in range(num_heads)
             ]
         )
         
@@ -190,7 +189,7 @@ class StatefulCausalMMHA(nn.Module):
 class StatefulCausalMultiAttention(nn.Module):
     def __init__(
         self,  
-        dim_in: int, 
+        dim_input: int, 
         dims_key: int, 
         dims_value: int, 
         state_len: int,
@@ -201,7 +200,7 @@ class StatefulCausalMultiAttention(nn.Module):
         """Initializes the module
 
         Args:
-            dim_in (int): The input dimension.
+            dim_input (int): The input dimension.
             dims_key (int): The key dimension.
             dims_value (int): The value dimension.
             state_len (int): The length of the state tensor.
@@ -211,7 +210,7 @@ class StatefulCausalMultiAttention(nn.Module):
         """
         super(StatefulCausalMultiAttention, self).__init__()
         
-        self.dim_in = dim_in
+        self.dim_input = dim_input
         self.dims_key = dims_key
         self.dims_value = dims_value
         self.state_len = state_len
@@ -221,7 +220,7 @@ class StatefulCausalMultiAttention(nn.Module):
         
         attn_modules = [
             StatefulCausalAttentionHead(
-                dim_in=dim_in,
+                dim_input=dim_input,
                 dim_key=dims_key[0],
                 dim_value=dims_value[0],
                 state_len=state_len,
@@ -233,7 +232,7 @@ class StatefulCausalMultiAttention(nn.Module):
         for ix in range(1, len(dims_key)):
             attn_modules.append(
                 StatefulCausalAttentionHead(
-                    dim_in=dims_value[ix-1],
+                    dim_input=dims_value[ix-1],
                     dim_key=dims_key[ix],
                     dim_value=dims_value[ix],
                     state_len=state_len,
@@ -264,7 +263,7 @@ class StatefulCausalMultiAttention(nn.Module):
 class StatefulCausalAttentionHead(nn.Module):
     def __init__(
         self,  
-        dim_in: int, 
+        dim_input: int, 
         dim_key: int, 
         dim_value: int, 
         state_len: int,
@@ -275,7 +274,7 @@ class StatefulCausalAttentionHead(nn.Module):
         """Initializes the module
 
         Args:
-            dim_in (int): The input dimension.
+            dim_input (int): The input dimension.
             dim_key (int): The key dimension.
             dim_value (int): The value dimension.
             state_len (int): The length of the state tensor.
@@ -285,7 +284,7 @@ class StatefulCausalAttentionHead(nn.Module):
         """
         super(StatefulCausalAttentionHead, self).__init__()
         
-        self.dim_in = dim_in
+        self.dim_input = dim_input
         self.dim_key = dim_key
         self.dim_value = dim_value
         self.state_len = state_len
@@ -294,28 +293,28 @@ class StatefulCausalAttentionHead(nn.Module):
         self.iters = iters
         
         # Projections from the attention layer to the next attention layer
-        self.proj_k = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_q = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_v = nn.Linear(dim_in, dim_value, bias=False)
+        self.proj_k = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_q = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_v = nn.Linear(dim_input, dim_value, bias=False)
         
         # If normalize is True, define qkv normalizations
         if self.normalize:
-            self.norm_in = nn.LayerNorm(self.dim_in)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_in)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_in)
+            self.norm_in = nn.LayerNorm(self.dim_input)
+            self.norm_in_state_start = nn.LayerNorm(self.dim_input)
+            self.norm_in_state_end = nn.LayerNorm(self.dim_input)
         
         # State projections from attention layer to the next attention layer
-        self.proj_k_state_start = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_q_state_start = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_v_state_start = nn.Linear(dim_in, dim_value, bias=False)
-        self.proj_k_state_end = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_q_state_end = nn.Linear(dim_in, dim_key, bias=False)
-        self.proj_v_state_end = nn.Linear(dim_in, dim_value, bias=False)
+        self.proj_k_state_start = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_q_state_start = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_v_state_start = nn.Linear(dim_input, dim_value, bias=False)
+        self.proj_k_state_end = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_q_state_end = nn.Linear(dim_input, dim_key, bias=False)
+        self.proj_v_state_end = nn.Linear(dim_input, dim_value, bias=False)
         
         if iters > 1:
-            self.proj_inv = nn.Linear(dim_value, dim_in, bias=False)
-            self.proj_inv_state_begin = nn.Linear(dim_value, dim_in, bias=False)
-            self.proj_inv_state_end = nn.Linear(dim_value, dim_in, bias=False)
+            self.proj_inv = nn.Linear(dim_value, dim_input, bias=False)
+            self.proj_inv_state_begin = nn.Linear(dim_value, dim_input, bias=False)
+            self.proj_inv_state_end = nn.Linear(dim_value, dim_input, bias=False)
     
     def apply_attention(
         self, 
