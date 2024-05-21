@@ -16,7 +16,7 @@ def test_arc_transformer():
     
     activation = "ffngeglu"
     segment_len = 128
-    normalize_qkv = True
+    normalize = True
     state_len = segment_len // 8
     
     dropout = 0.1
@@ -40,7 +40,7 @@ def test_arc_transformer():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        normalize_qkv=normalize_qkv,
+        normalize=normalize,
         position_embedders=position_embedders,
         dropout=dropout
     )
