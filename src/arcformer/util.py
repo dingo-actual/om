@@ -15,9 +15,9 @@ def count_optimized_parameters(model: torch.nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def extract_state(
-    x: Union[torch.Tensor, List[torch.Tensor]], 
+    x: torch.Tensor, 
     state_len: int
-) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor]]]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Extracts the state from the input tensor x.
 
@@ -31,15 +31,7 @@ def extract_state(
             - x: Tensor of shape (batch_size, seq_len, dim)
             - state_end: Tensor of shape (batch_size, state_len, dim)
     """
-    if isinstance(x, torch.Tensor):
-        out = x[:,:state_len,:], x[:,state_len:-state_len,:], x[:,-state_len:,:]
-    else:
-        splits = [(x_[:,:state_len,:], x_[:,state_len:-state_len,:], x_[:,-state_len:,:]) for x_ in x]
-        state_start = [split[0] for split in splits]
-        x_out = [split[1] for split in splits]
-        state_end = [split[2] for split in splits]
-        out = state_start, x_out, state_end
-    return out
+    return x[:,:state_len,:], x[:,state_len:-state_len,:], x[:,-state_len:,:]
 
 
 if __name__ == "__main__":
