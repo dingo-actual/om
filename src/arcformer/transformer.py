@@ -22,7 +22,7 @@ class ARCformer(nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        normalize_qkv: bool,
+        normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         init_conv: bool = False
@@ -60,7 +60,7 @@ class ARCformer(nn.Module):
             num_heads=num_heads, 
             segment_len=segment_len, 
             state_len=state_len, 
-            normalize=normalize_qkv,
+            normalize=normalize,
             position_embedders=position_embedders
         )
         self.attn_norm = nn.LayerNorm(dim_input)
@@ -83,11 +83,12 @@ class ARCformer(nn.Module):
             )
         self.mlp_norm = nn.LayerNorm(dim_input)
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim_input).
+            state (Optional[torch.Tensor]): Initial state tensor of shape (batch_size, state_len, dim_input).
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, dim_input).
@@ -95,11 +96,10 @@ class ARCformer(nn.Module):
         """
         # If initial convolution is defined, use it
         if self.conv is not None:
-            x_ = self.conv(x.transpose(1, 2)).transpose(1, 2) + x[:, 2:, :]
-        else:
-            x_ = x
+            x = self.conv(x.transpose(1, 2)).transpose(1, 2) + x[:, 2:, :]
+
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_, state = self.attn(x_)
+        x_, state = self.attn(x, state)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
 
