@@ -61,7 +61,8 @@ def test_model():
         x = x.to("cuda:0")
     
     model.eval()  # Set the model to evaluation mode
-    preds, states = model(x)
+    with torch.no_grad():
+        preds, states = model(x)
 
     assert preds.shape == (batch_size, seq_len, vocab_size)
     for state in states:
