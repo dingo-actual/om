@@ -19,7 +19,7 @@ class OmLLM(torch.nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        normalize_qkv: bool,
+        normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         init_conv: bool = False
@@ -41,7 +41,7 @@ class OmLLM(torch.nn.Module):
                 activation=activation,
                 segment_len=segment_len,
                 state_len=state_len,
-                normalize_qkv=normalize_qkv,
+                normalize=normalize,
                 position_embedders=position_embedders,
                 dropout=dropout,
                 init_conv=init_conv
@@ -59,7 +59,7 @@ class OmLLM(torch.nn.Module):
                     activation=activation,
                     segment_len=segment_len,
                     state_len=state_len,
-                    normalize_qkv=normalize_qkv,
+                    normalize=normalize,
                     position_embedders=position_embedders,
                     dropout=dropout,
                     init_conv=False
@@ -68,16 +68,18 @@ class OmLLM(torch.nn.Module):
         self.layers = torch.nn.ModuleList(layers)
         self.proj_out = torch.nn.Linear(dim_input, vocab_size)
         
-    def get_logits(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        states = []
+    def get_logits(self, x: torch.Tensor, states: Optional[List[torch.Tensor]] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        states_out = []
+        if states is None:
+            states = [None] * len(self.layers)
         x = self.embedder(x)
-        for layer in self.layers:
-            x, state = layer(x)
-            states.append(state)
+        for layer, state in zip(self.layers, states):
+            x, state = layer(x, state)
+            states_out.append(state)
         x = self.proj_out(x)
         
-        return x, states
+        return x, states_out
     
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        logits, states = self.get_logits(x)
+    def forward(self, x: torch.Tensor, states: Optional[List[torch.Tensor]] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        logits, states = self.get_logits(x, states)
         return torch.nn.functional.sigmoid(logits), states
