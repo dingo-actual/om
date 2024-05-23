@@ -25,7 +25,8 @@ class ARCformer(nn.Module):
         normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False
+        init_conv: bool = False,
+        mlp_multiplier: int = 1,
     ):
         """Initializes the module.
 
@@ -42,14 +43,17 @@ class ARCformer(nn.Module):
             normalize (bool): Whether to normalize attention inputs for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
-            init_conv (bool, optional): Whether to use an initial convolution layer. Defaults to False.
+            init_conv (bool, optional): Whether to use initial convolution layers. Defaults to False.
+            mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the MLP. Defaults to 1.
         """
         super(ARCformer, self).__init__()
         
         if init_conv:
-            self.conv = nn.Conv1d(dim_input, dim_input, kernel_size=3)
+            self.conv2 = nn.Conv1d(dim_input, dim_input, kernel_size=2)
+            self.conv3 = nn.Conv1d(dim_input, dim_input, kernel_size=3)
         else:
-            self.conv = None
+            self.conv2 = None
+            self.conv3 = None
 
         # Multi-head attention
         self.attn = ARC(
@@ -71,14 +75,14 @@ class ARCformer(nn.Module):
         elif activation in ["swiglu", "geglu"]:
             self.mlp = ACTIVATIONS[activation](dim_input)
         elif activation in ["ffnglu", "ffngeglu", "ffnswiglu"]:
-            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden)
+            self.mlp = ACTIVATIONS[activation](dim_input, dim_hidden * mlp_multiplier)
         else:
             act = ACTIVATIONS[activation]()
             self.mlp = nn.Sequential(
-                nn.Linear(dim_input, dim_hidden),
+                nn.Linear(dim_input, dim_hidden * mlp_multiplier),
                 nn.Dropout(dropout),
                 act,
-                nn.Linear(dim_hidden, dim_input),
+                nn.Linear(dim_hidden * mlp_multiplier, dim_input),
                 nn.Dropout(dropout)
             )
         self.mlp_norm = nn.LayerNorm(dim_input)
@@ -95,8 +99,10 @@ class ARCformer(nn.Module):
             torch.Tensor: State tensor of shape (batch_size, state_len, dim_input).
         """
         # If initial convolution is defined, use it
-        if self.conv is not None:
-            x = self.conv(x.transpose(1, 2)).transpose(1, 2) + x[:, 2:, :]
+        if self.conv3 is not None and self.conv2 is not None:
+            x_conv2 = self.conv2(x.transpose(1, 2)).transpose(1, 2)
+            x_conv3 = self.conv3(x.transpose(1, 2)).transpose(1, 2)
+            x = x[:, 2:, :] + x_conv2[:, 1:, :] + x_conv3
 
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
         x_, state = self.attn(x, state)
