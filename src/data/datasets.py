@@ -1,11 +1,7 @@
-import glob
 from io import TextIOWrapper
-import json
-from os.path import join
-import re
-from typing import Generator, List, Tuple
+from typing import Generator, List
 
-import numpy as np
+import orjson
 import polars as pl
 from tiktoken import Encoding
 import torch
@@ -13,25 +9,20 @@ from torch.utils.data import Dataset
 import zstandard as zstd
 
 
-# TODO: test the regex logic here
 class FilesDataset(Dataset):
-    def __init__(self, fpaths: List[str], segment_len: int, start_str: str, end_str: str):
+    def __init__(self, fpaths: List[str], segment_len: int):
         """Initialize dataset.
 
         Args:
             fpaths (List[str]): List of paths to the files.
             segment_len (int): Length of the segments for each sub-sample.
-            start_str (str): String to use at the beginning of a sample.
-            end_str (str): String to use at the end of a sample.
         """
         super(FilesDataset, self).__init__()
         
         self.fpaths = fpaths
         self.segment_len = segment_len
-        self.start_str = start_str
-        self.end_str = end_str
-        self.sep_str = f"{start_str}{end_str}"
-        self.buffer = ""
+
+        self.buffer = []
         
         self.current_file_ix = 0
         self.current_obs_ix = 0
@@ -39,18 +30,7 @@ class FilesDataset(Dataset):
         self.open_current_file()
         
         self.current_file_ix += 1
-        self.buffer = re.sub(f"^{self.format_token_re(self.start_str)}", "", self.buffer)
 
-    def format_token_re(self, st: str) -> str:
-        """Format a token for use in a regular expression.
-
-        Args:
-            st (str): Token to format.
-
-        Returns:
-            str: Regular expression for the token.
-        """
-        return st.replace("<", "\<").replace(">", "\>").replace("|", "\|")
     def open_current_file(self):
         raise NotImplementedError
             
@@ -58,7 +38,7 @@ class FilesDataset(Dataset):
         """Iterate over the dataset."""
         return self
     
-    def __next__(self) -> str:
+    def __next__(self) -> torch.Tensor:
         """Return the next sample in the dataset.
         
         Returns:
@@ -79,28 +59,42 @@ class FilesDataset(Dataset):
                     self.open_current_file()
             else:
                 # Add next line to buffer
-                self.buffer = self.buffer + self.sep_str + self.current_file[self.current_obs_ix]
+                self.buffer = self.buffer + self.current_file[self.current_obs_ix]
                 self.current_obs_ix += 1
                 
         out = self.buffer[:self.segment_len]
         self.buffer = self.buffer[self.segment_len:]
                 
-        return out
+        return torch.tensor(out)
 
 class ParquetFilesDataset(FilesDataset):
-    def __init__(self, fpaths: List[str], segment_len: int, column: str):
+    def __init__(
+        self, 
+        fpaths: List[str], 
+        segment_len: int, 
+        column: str, 
+        start_str: str, 
+        end_str: str, 
+        tokenizer: Encoding
+    ):
         """Initialize dataset.
 
         Args:
             fpaths (List[str]): List of paths to the parquet files.
             segment_len (int): Length of the segments for each sample.
             column (str): Name of column to use as input.
+            start_str (str): Start string for the tokenizer.
+            end_str (str): End string for the tokenizer.
+            tokenizer (Encoding): Tokenizer to use.
 
         Raises:
             StopIteration: Reached end of dataset.
         """
         super(ParquetFilesDataset, self).__init__(fpaths, segment_len)
         self.column = column
+        self.start_str = start_str
+        self.end_str = end_str
+        self.tokenizer = tokenizer
         
     def open_current_file(self):
         """Open the next parquet file."""
@@ -111,64 +105,67 @@ class ParquetFilesDataset(FilesDataset):
             .get_column(self.column)
             .to_list()
         )
+        self.current_file = [
+            self.tokenizer.encode(f"{self.start_str}{line}{self.end_str}")
+            for line in self.current_file
+        ]
         self.current_file_ix += 1
 
 class CompressedJSONLFilesDataset(FilesDataset):
-    def __init__(self, fpaths: List[str], segment_len: int, field: str):
+    def __init__(
+        self, 
+        fpaths: List[str], 
+        segment_len: int, 
+        field: str, 
+        start_str: str, 
+        end_str: str, 
+        tokenizer: Encoding
+    ):
         """Initialize dataset.
 
         Args:
             fpaths (List[str]): List of paths to the compressed JSONL files.
             segment_len (int): Length of the segments for each sample.
             field (str): Field to extract from JSONL.
+            start_str (str): Start string for the tokenizer.
+            end_str (str): End string for the tokenizer.
+            tokenizer (Encoding): Tokenizer to use.
 
         Raises:
             StopIteration: Reached end of dataset.
         """
         super(CompressedJSONLFilesDataset, self).__init__(fpaths, segment_len)
         self.field = field
+        self.start_str = start_str
+        self.end_str = end_str
+        self.tokenizer = tokenizer
         
     def open_current_file(self):
         """Open the next compressed JSONL file."""
-        self.current_file = list(read_zst_jsonl(self.fpaths[self.current_file_ix], self.field))
+        self.current_file = list(self.read_zst_jsonl(self.fpaths[self.current_file_ix], self.field))
+        self.current_file = [
+            self.tokenizer.encode(f"{self.start_str}{line}{self.end_str}")
+            for line in self.current_file
+        ]
         self.current_file_ix += 1
-
-# TODO: rewrite so TokenizedDataset is an subclass of FilesDataset then make the 
-# specific filetypes subclasses of that
-class TokenizedDataset(Dataset):
-    def __init__(self, dataset: Dataset, encoding: Encoding):
-        """Initialize dataset.
+        
+    @staticmethod
+    def read_zst_jsonl(fpath: str, field: str) -> Generator[str, None, None]:
+        """Reads a compressed JSONL file.
 
         Args:
-            dataset (Dataset): Base dataset.
-            encoding (Encoding): Tokenizer.
+            fpath (str): Path to the compressed JSONL file.
+            field (str): Field to extract from JSONL.
 
-        Raises:
-            StopIteration: Reached end of dataset.
+        Yields:
+            Generator[str]: Output strings.
         """
-        super(TokenizedDataset, self).__init__()
-
-        self.dataset = dataset
-        self.encoding = encoding
-        
-    def __iter__(self):
-        """Iterate over the dataset."""
-        return self
-    
-    def __next__(self) -> torch.Tensor:
-        """Return the next sample in the dataset.
-
-        Raises:
-            StopIteration: Reached end of dataset.
-        Returns:
-            torch.Tensor: Tensor of token IDs.
-        """
-        try:
-            out = torch.tensor(self.encoding.encode(next(self.dataset)))
-        except StopIteration:
-            raise StopIteration
-        
-        return out
+        with open(fpath, "rb") as file:
+            dctx = zstd.ZstdDecompressor()
+            stream_reader = dctx.stream_reader(file)
+            text_wrapper = TextIOWrapper(stream_reader, encoding="utf-8")
+            for line in text_wrapper:
+                yield orjson.loads(line)[field]
 
 class ProportionalDataset(Dataset):
     def __init__(self, datasets: List[Dataset], proportions: List[int]) -> None:
@@ -219,21 +216,3 @@ class ProportionalDataset(Dataset):
             self.current_sample_ix += 1
 
         return sample
-
-# TODO: make this a method of CompressedJSONLFilesDataset
-def read_zst_jsonl(fpath: str, field: str) -> Generator[str]:
-    """Reads a compressed JSONL file.
-
-    Args:
-        fpath (str): Path to the compressed JSONL file.
-        field (str): Field to extract from JSONL.
-
-    Yields:
-        Generator[str]: Output strings.
-    """
-    with open(fpath, "rb") as file:
-        dctx = zstd.ZstdDecompressor()
-        stream_reader = dctx.stream_reader(file)
-        text_wrapper = TextIOWrapper(stream_reader, encoding="utf-8")
-        for line in text_wrapper:
-            yield json.loads(line)[field]
