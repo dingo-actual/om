@@ -25,7 +25,6 @@ class ARCformer(nn.Module):
         normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False,
         mlp_multiplier: int = 1,
     ):
         """Initializes the module.
@@ -43,17 +42,9 @@ class ARCformer(nn.Module):
             normalize (bool): Whether to normalize attention inputs for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
-            init_conv (bool, optional): Whether to use initial convolution layers. Defaults to False.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the MLP. Defaults to 1.
         """
         super(ARCformer, self).__init__()
-        
-        if init_conv:
-            self.conv2 = nn.Conv1d(dim_input, dim_input, kernel_size=2)
-            self.conv3 = nn.Conv1d(dim_input, dim_input, kernel_size=3)
-        else:
-            self.conv2 = None
-            self.conv3 = None
 
         # Multi-head attention
         self.attn = ARC(
@@ -87,25 +78,20 @@ class ARCformer(nn.Module):
             )
         self.mlp_norm = nn.LayerNorm(dim_input)
 
-    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim_input).
-            state (Optional[torch.Tensor]): Initial state tensor of shape (batch_size, state_len, dim_input).
+            x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
+            state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
+            offset (int): Offset for position embeddings.
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_len, dim_input).
+            torch.Tensor: Output tensor of shape (batch_size, segment_len, dim_input).
             torch.Tensor: State tensor of shape (batch_size, state_len, dim_input).
         """
-        # If initial convolution is defined, use it
-        if self.conv3 is not None and self.conv2 is not None:
-            x_conv2 = self.conv2(x.transpose(1, 2)).transpose(1, 2)
-            x_conv3 = self.conv3(x.transpose(1, 2)).transpose(1, 2)
-            x = x[:, 2:, :] + x_conv2[:, 1:, :] + x_conv3
-
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
-        x_, state = self.attn(x, state)
+        x_, state = self.attn(x, state, offset)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
 

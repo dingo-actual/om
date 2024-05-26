@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import nn
+from xformers.ops import memory_efficient_attention, LowerTriangularMask
 
 from .positional_embeddings import RoPEEmbeddings
 from .util import extract_state
@@ -70,54 +71,35 @@ class ARC(nn.Module):
         self.proj_out = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
 
 
-    def forward(self, x: torch.Tensor, state: Optional[torch.Tuple] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: torch.Tuple, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent dual-attention to the input tensor x.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim_input).
-            state (Optional[torch.Tensor], optional): Initial state tensor of shape (batch_size, state_len, dim_input). Default is None.
+            x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
+            state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
+            offset (int): Offset for the position embeddings.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: 
-              - Output tensor of shape (batch_size, seq_len, dim_input)
-              - Terminal state tensor of shape (batch_size, state_len, dim_input)
+              - Output tensor of shape (batch_size, segment_len, dim_input)
+              - State tensor of shape (batch_size, state_len, dim_input)
         """
-        batch_size, seq_len, _ = x.shape
-
-        num_segments, rem = divmod(seq_len, self.segment_len)
-        num_segments += 1 if rem > 0 else 0
-
-        out = []
+        # Prepend and append state to x_seg
+        x = torch.cat([state, x, state], dim=1)
         
-        if state is None:
-            state = self.init_state.repeat(batch_size, 1, 1)
+        # Apply attention
+        x = self.attn(x, offset=offset - self.state_len)
         
-        for ix in range(num_segments):
-            ix_lo = ix * self.segment_len
-            ix_hi = min(ix_lo + self.segment_len, x.size(1))
+        # Extract state from result
+        _, att_end, state_end = extract_state(x, self.state_len)
+        
+        # Get next state
+        state = self.proj_out_state(state_end)
+        
+        # Append output to buffer
+        x = self.proj_out(att_end)
 
-            # Extract segment from x
-            x_seg = x[:, ix_lo:ix_hi, :]
-            
-            # Prepend and append state to x_seg
-            x_seg = torch.cat([state, x_seg, state], dim=1)
-            
-            # Apply attention
-            x_seg = self.attn(x_seg, offset=ix_lo - self.state_len)
-            
-            # Extract state from result
-            _, att_end, state_end = extract_state(x_seg, self.state_len)
-            
-            # Get next state
-            state = self.proj_out_state(state_end)
-            
-            # Append output to buffer
-            out.append(self.proj_out(att_end))
-
-        # Return concatenated full sequence from buffer
-        out = torch.concat(out, dim=1)
-
-        return out, state
+        return x, state
 
 class StatefulCausalMMHA(nn.Module):
     def __init__(
@@ -340,10 +322,12 @@ class StatefulCausalAttentionHead(nn.Module):
             k = self.position_embedder(k, offset=offset)
             q = self.position_embedder(q, offset=offset)
         
-        device = k.device
+        #device = k.device
         
-        mask = torch.tril(torch.ones((k.size(1), k.size(1)), device=device), diagonal=0)
-        att = torch.nn.functional.scaled_dot_product_attention(q, k, v, mask)
+        #mask = torch.tril(torch.ones((k.size(1), k.size(1)), device=device), diagonal=0)
+        #att = torch.nn.functional.scaled_dot_product_attention(q, k, v, mask)
+        
+        att = memory_efficient_attention(q, k, v, attn_bias=LowerTriangularMask())
 
         return att
     

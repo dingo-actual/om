@@ -47,28 +47,21 @@ class OmLLM(torch.nn.Module):
         """
         super(OmLLM, self).__init__()
         
+        self.segment_len = segment_len
+        
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
         for p in self.embedder.parameters():
             torch.nn.init.normal_(p, mean=0, std=(2.0 / (5 * dim_input)) ** 0.5)
+            
+        if init_conv:
+            self.conv2 = torch.nn.Conv1d(dim_input, dim_input, kernel_size=2)
+            self.conv3 = torch.nn.Conv1d(dim_input, dim_input, kernel_size=3)
+        else:
+            self.conv2 = None
+            self.conv3 = None
         
-        layers = [
-            ARCformer(
-                dim_input=dim_input,
-                dim_hidden=dim_hidden,
-                dims_key=dims_key,
-                dims_value=dims_value,
-                mem_iters=mem_iters,
-                num_heads=num_heads,
-                activation=activation,
-                segment_len=segment_len,
-                state_len=state_len,
-                normalize=normalize,
-                position_embedders=position_embedders,
-                dropout=dropout,
-                init_conv=init_conv
-            )
-        ]
-        for _ in range(num_layers - 2):
+        layers = []
+        for _ in range(num_layers - 1):
             layers.append(
                 ARCformer(
                     dim_input=dim_input,
@@ -82,8 +75,7 @@ class OmLLM(torch.nn.Module):
                     state_len=state_len,
                     normalize=normalize,
                     position_embedders=position_embedders,
-                    dropout=dropout,
-                    init_conv=False
+                    dropout=dropout
                 )
             )
         layers.append(
@@ -100,24 +92,48 @@ class OmLLM(torch.nn.Module):
                 normalize=normalize,
                 position_embedders=position_embedders,
                 dropout=dropout,
-                init_conv=False,
                 mlp_multiplier=final_mlp_multiplier
             )
         )
+        self.init_states = [
+            layer.attn.init_state for layer in layers
+        ]
         self.layers = torch.nn.ModuleList(layers)
+        
         self.proj_out = torch.nn.Linear(dim_input, vocab_size)
         
-    def get_logits(self, x: torch.Tensor, states: Optional[List[torch.Tensor]] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        states_out = []
-        if states is None:
-            states = [None] * len(self.layers)
-        x = self.embedder(x)
-        for layer, state in zip(self.layers, states):
-            x, state = layer(x, state)
-            states_out.append(state)
-        x = self.proj_out(x)
+    def get_logits(self, x: torch.Tensor, states: Optional[List[torch.Tensor]] = None, offset: Optional[int] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        batch_size, seq_len = x.shape
         
-        return x, states_out
+        if states is None:
+            states = [state.repeat(batch_size, 1, 1) for state in self.init_states]
+        x = self.embedder(x)
+                    # If initial convolution is defined, use it
+        if self.conv3 is not None and self.conv2 is not None:
+            x_conv2 = self.conv2(x.transpose(1, 2)).transpose(1, 2)
+            x_conv3 = self.conv3(x.transpose(1, 2)).transpose(1, 2)
+            x = x[:, 2:, :] + x_conv2[:, 1:, :] + x_conv3
+        
+        num_segments, rem = divmod(seq_len, self.segment_len)
+        if rem > 0:
+            num_segments += 1
+        
+        out = []
+        
+        for segment_num in range(num_segments):
+            ix_lo = segment_num * self.segment_len
+            ix_hi = min(ix_lo + self.segment_len, seq_len)
+            
+            x_seg = x[:, ix_lo:ix_hi, :]
+        
+            for layer, state in zip(self.layers, states):
+                x_seg, state = layer(x_seg, state, ix_lo)
+            
+            out.append(self.proj_out(x_seg))
+            
+        out = torch.cat(out, dim=1)
+        
+        return out, states
     
     def forward(self, x: torch.Tensor, states: Optional[List[torch.Tensor]] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         logits, states = self.get_logits(x, states)
