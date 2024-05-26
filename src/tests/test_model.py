@@ -7,7 +7,7 @@ from ..om_llm import OmLLM
 
 def test_model():
     num_layers = 8
-    vocab_size = 100260
+    vocab_size = 50284
     
     dim_input = 1024
     num_heads = 8
@@ -24,8 +24,8 @@ def test_model():
     init_conv = True
     dropout = 0.1
     
-    batch_size = 6
-    num_segments = 4
+    batch_size = 1
+    num_segments = 64
     
     position_embedder_1 = RoPEEmbeddings(
         dim=dims_key[0],
