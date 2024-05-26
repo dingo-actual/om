@@ -1,11 +1,14 @@
 import glob
-from os.path import join
+from io import TextIOWrapper
 from typing import Any, Dict, List, Tuple
 
+import orjson
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
+import polars as pl
+import zstandard as zstd
 
-from .datasets import ProportionalDataset, ParquetFilesDataset, CompressedJSONLFilesDataset, TokenizedDataset
+from .datasets import ProportionalDataset, ParquetFilesDataset, CompressedJSONLFilesDataset
 from .tokenizer import enc
 
 
@@ -19,7 +22,7 @@ def get_dataset_fpaths(dir: str, match: str) -> List[str]:
     Returns:
         List[str]: File paths.
     """
-    out = glob.glob(f"{dir}/**{match}", recursive=True)
+    out = glob.glob(f"{dir}/**/*{match}", recursive=True)
     rs = RandomState(MT19937(SeedSequence(3487)))
     np.random.set_state(rs.get_state())
     np.random.shuffle(out)
@@ -71,18 +74,17 @@ def get_dataset_stage(
         file_skip_cts_new.append(ix_hi)
         
         if match.endswith(".jsonl.zst"):
-            ds_base = CompressedJSONLFilesDataset(
+            ds = CompressedJSONLFilesDataset(
                 fpaths=fpaths,
                 segment_len=segment_len,
                 **kwargs
             )
         elif match.endswith(".parquet"):
-            ds_base = ParquetFilesDataset(
+            ds = ParquetFilesDataset(
                 fpaths=fpaths,
                 segment_len=segment_len,
                 **kwargs
             )
-        ds = TokenizedDataset(ds_base, enc)
         datasets.append(ds)
         
     return ProportionalDataset(datasets=datasets, proportions=batch_proportions), file_skip_cts_new
@@ -179,4 +181,44 @@ def get_datasets_stages(
         
     return out
 
-# TODO: write function to get number of files, characters per file from a dataset
+def get_dataset_statistics(dir: str, match: str, **kwargs) -> Dict[str, Any]:
+    """Get summary statistics for a dataset.
+
+    Args:
+        dir (str): Dataset directory.
+        match (str): Match expression for dataset files.
+
+    Returns:
+        Dict[str, Any]: Summary statistics for dataset.
+    """
+    fpaths = get_dataset_fpaths(dir, match)
+    
+    num_files = len(fpaths)
+    total_num_chars = 0
+    
+    for fpath in fpaths:
+        if fpath.endswith(".parquet"):
+            file = (
+                pl.read_parquet(fpath)
+                .get_column(kwargs["column"])
+                .to_list()
+            )
+            for line in file:
+                total_num_chars += len(line)
+        elif fpath.endswith(".jsonl.zst"):
+            with open(fpath, "rb") as file:
+                dctx = zstd.ZstdDecompressor()
+                stream_reader = dctx.stream_reader(file)
+                text_wrapper = TextIOWrapper(stream_reader, encoding="utf-8")
+                for line in text_wrapper:
+                    total_num_chars += len(orjson.loads(line)[kwargs["field"]])
+        else:
+            pass
+        
+        num_files += 1
+        
+    return {
+        "num_files": num_files,
+        "total_num_chars": total_num_chars,
+        "chars_per_file": total_num_chars / num_files
+    }
