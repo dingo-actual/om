@@ -17,15 +17,15 @@ def test_model():
     mem_iters = [1, 3, 1]
     
     activation = "gelu"
-    segment_len = 2048
+    segment_len = 1024
     normalize = True
     state_len = segment_len // 8
     
-    init_conv = True
     dropout = 0.1
     
-    batch_size = 1
-    num_segments = 64
+    batch_size = 48
+    num_segments = 1
+    next_token = False
     
     position_embedder_1 = RoPEEmbeddings(
         dim=dims_key[0],
@@ -61,12 +61,11 @@ def test_model():
         normalize=normalize,
         position_embedders=position_embedders,
         dropout=dropout,
-        init_conv=init_conv,
         final_mlp_multiplier=1
     )
     
     seq_len = segment_len * num_segments
-    x = vocab_size * torch.rand(batch_size, seq_len + 2 if init_conv else 0)
+    x = vocab_size * torch.rand(batch_size, seq_len)
     x = x.to(torch.long)
 
     if torch.cuda.is_available():
@@ -76,9 +75,13 @@ def test_model():
     model.eval()  # Set the model to evaluation mode
     model = model.to(torch.bfloat16)
     with torch.no_grad():
-        preds, states = model(x)
+        preds, states = model(x, next_token=next_token)
 
-    assert preds.shape == (batch_size, seq_len, vocab_size)
+    
+    if next_token:
+        assert preds.shape == (batch_size, vocab_size)
+    else:
+        assert preds.shape == (batch_size, seq_len, vocab_size)
     for state in states:
         assert state.shape == (batch_size, state_len, dim_input)
     
