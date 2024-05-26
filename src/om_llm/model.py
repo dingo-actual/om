@@ -23,6 +23,7 @@ class OmLLM(torch.nn.Module):
         normalize: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
+        init_conv: bool = False,
         final_mlp_multiplier: int = 1,
     ):
         """Initialize the model.
@@ -42,6 +43,7 @@ class OmLLM(torch.nn.Module):
             normalize (bool): Normalize the inputs to ARCformer memory projections.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): MLP dropout. Defaults to 0.0.
+            init_conv (bool, optional): Whether to use an initial convolutional layer. Defaults to False.
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
         """
         super(OmLLM, self).__init__()
@@ -51,6 +53,12 @@ class OmLLM(torch.nn.Module):
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
         for p in self.embedder.parameters():
             torch.nn.init.normal_(p, mean=0, std=(2.0 / (5 * dim_input)) ** 0.5)
+        
+        self.init_conv = init_conv
+        if init_conv:
+            self.conv2 = torch.nn.Conv1d(dim_input, dim_input, 2)
+            self.conv3 = torch.nn.Conv1d(dim_input, dim_input, 3)
+        
         
         layers = []
         for _ in range(num_layers - 1):
@@ -99,7 +107,7 @@ class OmLLM(torch.nn.Module):
                    states: List[torch.Tensor] = [], 
                    offset: int = 0,
                    next_token: bool = False
-                   ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+                   ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
         batch_size, seq_len = x.shape
         
         if len(states) == 0:
@@ -114,9 +122,21 @@ class OmLLM(torch.nn.Module):
         for segment_num in range(num_segments):
             ix_lo = segment_num * self.segment_len
             ix_hi = min(ix_lo + self.segment_len, seq_len)
+            seg_len_actual = ix_hi - ix_lo
             
-            x_seg = x[:, ix_lo:ix_hi]
+            if self.init_conv:
+                conv_offset_lo = 2 if segment_num > 0 else 0
+                conv_offset_hi = 0 if segment_num > 0 else 2
+            else:
+                conv_offset_lo = 0
+                conv_offset_hi = 0
+            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi + conv_offset_hi]
             x_seg = self.embedder(x_seg)
+            
+            if self.init_conv:
+                x_seg_conv2 = self.conv2(x_seg.transpose(1, 2)).transpose(1, 2)
+                x_seg_conv3 = self.conv3(x_seg.transpose(1, 2)).transpose(1, 2)
+                x_seg = x_seg[:, 2:, :] + x_seg_conv2[:, 1:, :] + x_seg_conv3
             
             states_next = []
         
@@ -125,7 +145,7 @@ class OmLLM(torch.nn.Module):
                 states_next.append(state_next)
             
             states = states_next
-            offset += self.segment_len
+            offset += seg_len_actual
             
             if next_token:
                 if segment_num == num_segments - 1:
@@ -136,13 +156,13 @@ class OmLLM(torch.nn.Module):
         if not next_token:
             out = torch.cat(out, dim=1)
         
-        return out, states
+        return out, states, offset
     
     def forward(self, 
                 x: torch.Tensor, 
                 states: List[torch.Tensor] = [],
                 offset: int = 0,
                 next_token: bool = False
-                ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        logits, states = self.get_logits(x, states, offset, next_token)
-        return torch.nn.functional.sigmoid(logits), states
+                ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
+        logits, states, offset = self.get_logits(x, states, offset, next_token)
+        return torch.nn.functional.sigmoid(logits), states, offset
