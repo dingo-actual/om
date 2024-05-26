@@ -61,7 +61,7 @@ def test_model():
         normalize=normalize,
         position_embedders=position_embedders,
         dropout=dropout,
-        final_mlp_multiplier=1
+        final_mlp_multiplier=8
     )
     
     seq_len = segment_len * num_segments
