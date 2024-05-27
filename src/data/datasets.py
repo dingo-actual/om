@@ -5,12 +5,20 @@ import orjson
 import polars as pl
 from tiktoken import Encoding
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import IterableDataset
 import zstandard as zstd
 
 
-class FilesDataset(Dataset):
-    def __init__(self, fpaths: List[str], segment_len: int):
+class FilesDataset(IterableDataset):
+    def __init__(
+        self, 
+        fpaths: List[str], 
+        segment_len: int, 
+        start_str: str,
+        end_str: str,
+        pad_str: str,
+        tokenizer: Encoding
+    ):
         """Initialize dataset.
 
         Args:
@@ -21,15 +29,20 @@ class FilesDataset(Dataset):
         
         self.fpaths = fpaths
         self.segment_len = segment_len
+        self.tokenizer = tokenizer
+        
+        self.start_str = start_str
+        self.end_str = end_str
+        self.pad_str = pad_str
 
         self.buffer = []
         
         self.current_file_ix = 0
         self.current_obs_ix = 0
         
-        self.open_current_file()
-        
         self.current_file_ix += 1
+        
+        self.initialized = False
 
     def open_current_file(self):
         raise NotImplementedError
@@ -44,6 +57,9 @@ class FilesDataset(Dataset):
         Returns:
             str: Current sample.
         """
+        if not self.initialized:
+            self.open_current_file()
+            self.initialized = True
         # Fill the buffer if necessary
         while len(self.buffer) < self.segment_len:
             # Read next line from current file
@@ -59,13 +75,20 @@ class FilesDataset(Dataset):
                     self.open_current_file()
             else:
                 # Add next line to buffer
-                self.buffer = self.buffer + self.current_file[self.current_obs_ix]
+                self.buffer = self.buffer + self.encode(self.current_file[self.current_obs_ix])
                 self.current_obs_ix += 1
                 
         out = self.buffer[:self.segment_len]
         self.buffer = self.buffer[self.segment_len:]
                 
         return torch.tensor(out)
+    
+    def encode(self, text: str) -> List[int]:
+        padding = f"{self.pad_str}{self.pad_str}"
+        return self.tokenizer.encode(
+            f"{padding}{self.start_str}{text}{self.end_str}",
+            allowed_special={self.start_str, self.pad_str, self.end_str}
+        )
 
 class ParquetFilesDataset(FilesDataset):
     def __init__(
@@ -75,7 +98,9 @@ class ParquetFilesDataset(FilesDataset):
         column: str, 
         start_str: str, 
         end_str: str, 
-        tokenizer: Encoding
+        pad_str: str,
+        tokenizer: Encoding,
+        **kwargs
     ):
         """Initialize dataset.
 
@@ -85,16 +110,14 @@ class ParquetFilesDataset(FilesDataset):
             column (str): Name of column to use as input.
             start_str (str): Start string for the tokenizer.
             end_str (str): End string for the tokenizer.
+            pad_str (str): Padding string for the tokenizer.
             tokenizer (Encoding): Tokenizer to use.
 
         Raises:
             StopIteration: Reached end of dataset.
         """
-        super(ParquetFilesDataset, self).__init__(fpaths, segment_len)
+        super(ParquetFilesDataset, self).__init__(fpaths, segment_len, start_str, end_str, pad_str, tokenizer)
         self.column = column
-        self.start_str = start_str
-        self.end_str = end_str
-        self.tokenizer = tokenizer
         
     def open_current_file(self):
         """Open the next parquet file."""
@@ -105,10 +128,6 @@ class ParquetFilesDataset(FilesDataset):
             .get_column(self.column)
             .to_list()
         )
-        self.current_file = [
-            self.tokenizer.encode(f"{self.start_str}{line}{self.end_str}")
-            for line in self.current_file
-        ]
         self.current_file_ix += 1
 
 class CompressedJSONLFilesDataset(FilesDataset):
@@ -119,7 +138,9 @@ class CompressedJSONLFilesDataset(FilesDataset):
         field: str, 
         start_str: str, 
         end_str: str, 
-        tokenizer: Encoding
+        pad_str: str,
+        tokenizer: Encoding,
+        **kwargs
     ):
         """Initialize dataset.
 
@@ -129,24 +150,18 @@ class CompressedJSONLFilesDataset(FilesDataset):
             field (str): Field to extract from JSONL.
             start_str (str): Start string for the tokenizer.
             end_str (str): End string for the tokenizer.
+            pad_str (str): Padding string for the tokenizer.
             tokenizer (Encoding): Tokenizer to use.
 
         Raises:
             StopIteration: Reached end of dataset.
         """
-        super(CompressedJSONLFilesDataset, self).__init__(fpaths, segment_len)
+        super(CompressedJSONLFilesDataset, self).__init__(fpaths, segment_len, start_str, end_str, pad_str, tokenizer)
         self.field = field
-        self.start_str = start_str
-        self.end_str = end_str
-        self.tokenizer = tokenizer
         
     def open_current_file(self):
         """Open the next compressed JSONL file."""
         self.current_file = list(self.read_zst_jsonl(self.fpaths[self.current_file_ix], self.field))
-        self.current_file = [
-            self.tokenizer.encode(f"{self.start_str}{line}{self.end_str}")
-            for line in self.current_file
-        ]
         self.current_file_ix += 1
         
     @staticmethod
@@ -167,12 +182,12 @@ class CompressedJSONLFilesDataset(FilesDataset):
             for line in text_wrapper:
                 yield orjson.loads(line)[field]
 
-class ProportionalDataset(Dataset):
-    def __init__(self, datasets: List[Dataset], proportions: List[int]) -> None:
+class ProportionalDataset(IterableDataset):
+    def __init__(self, datasets: List[IterableDataset], proportions: List[int]) -> None:
         """Initialize dataset.
 
         Args:
-            datasets (List[Dataset]): Datasets to sample from.
+            datasets (List[IterableDataset]): Datasets to sample from.
             proportions (List[int]): List of how many samples to take from each dataset.
         """
         super().__init__()

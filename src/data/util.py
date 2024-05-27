@@ -6,10 +6,10 @@ import orjson
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
 import polars as pl
+from tiktoken import Encoding
 import zstandard as zstd
 
 from .datasets import ProportionalDataset, ParquetFilesDataset, CompressedJSONLFilesDataset
-from .tokenizer import enc
 
 
 def get_dataset_fpaths(dir: str, match: str) -> List[str]:
@@ -28,65 +28,79 @@ def get_dataset_fpaths(dir: str, match: str) -> List[str]:
     np.random.shuffle(out)
     return out
 
+def partition_fpaths(fpaths: List[str], num_files: List[int]) -> List[List[str]]:
+    if sum(num_files) != len(fpaths):
+        raise ValueError("Sum of file counts must equal number of files.")
+    
+    fpaths_partitioned = []
+    ix_lo = 0
+    for offset in num_files:
+        ix_hi = min(ix_lo + offset, len(fpaths))
+        fpaths_partitioned.append(fpaths[ix_lo:ix_hi])
+        ix_lo = ix_hi
+        
+    return fpaths_partitioned
+
 def get_dataset_stage(
-    dirs: List[str], 
-    matches: List[str],
+    fpaths_partitioned: List[List[str]],
     segment_len: int, 
-    num_files: List[int], 
     batch_size: int, 
-    file_skip_cts: List[int], 
     batch_proportions: List[int],
+    dataset_types: List[str],
+    start_str: str,
+    end_str: str,
+    pad_str: str,
+    tokenizer: Encoding,
     **kwargs
-) -> Tuple[ProportionalDataset, List[int]]:
+) -> ProportionalDataset:
     """Create a dataset with correct proportions from the given directories.
 
     Args:
-        dirs (List[str]): Directories for each dataset.
-        matches (List[str]): File name match patterns for each dataset.
+        fpaths_partitioned (List[List[str]]): List of lists of file paths.
         segment_len (int): Segment length.
-        num_files (List[int]): Number of files for each component of the dataset.
         batch_size (int): Batch size.
-        file_skip_cts (List[int]): Number of files to skip for each dataset.
         batch_proportions (List[int]): Proportions of each dataset per batch.
+        dataset_types (List[str]): List of dataset types.
+        start_str (str): Start string for tokenizer.
+        end_str (str): End string for tokenizer.
+        pad_str (str): Padding string for tokenizer.
+        tokenizer (Encoding): Tokenizer.
 
     Returns:
         ProportionalDataset: Output dataset.
-        List[int]: List of updated file skip counts.
     """
     # Input checks
     if not sum(batch_proportions) == batch_size:
         raise ValueError("Sum of batch proportions must equal batch size.")
-    if not len(dirs) == len(matches) == len(num_files) == len(file_skip_cts) == len(batch_proportions):
-        raise ValueError("Number of directories, matches, max files, file skip counts, and dataset proportions must be equal.")
+    if not len(fpaths_partitioned) == len(batch_proportions):
+        raise ValueError("Number of filepath lists and dataset proportions must be equal.")
 
     datasets = []
-    file_skip_cts_new = []
     
-    # Load list of files for each dataset
-    for dir, match, max_file, file_skip_ct in zip(dirs, matches, num_files, file_skip_cts):
-        
-        fpaths = get_dataset_fpaths(dir, match)
-        ix_lo = file_skip_ct
-        ix_hi = min(ix_lo + max_file, len(fpaths))
-        
-        fpaths = fpaths[file_skip_ct:file_skip_ct+max_file]
-        file_skip_cts_new.append(ix_hi)
-        
-        if match.endswith(".jsonl.zst"):
+    for fpaths, dataset_type in zip(fpaths_partitioned, dataset_types):
+        if dataset_type == "jsonl":
             ds = CompressedJSONLFilesDataset(
                 fpaths=fpaths,
                 segment_len=segment_len,
+                start_str=start_str,
+                end_str=end_str,
+                pad_str=pad_str,
+                tokenizer=tokenizer,
                 **kwargs
             )
-        elif match.endswith(".parquet"):
+        elif dataset_type == "parquet":
             ds = ParquetFilesDataset(
                 fpaths=fpaths,
                 segment_len=segment_len,
+                start_str=start_str,
+                end_str=end_str,
+                pad_str=pad_str,
+                tokenizer=tokenizer,
                 **kwargs
             )
         datasets.append(ds)
         
-    return ProportionalDataset(datasets=datasets, proportions=batch_proportions), file_skip_cts_new
+    return ProportionalDataset(datasets=datasets, proportions=batch_proportions)
 
 def get_datasets_stages(
     dirs: List[str], 
@@ -95,6 +109,11 @@ def get_datasets_stages(
     segment_lens: List[int], 
     batch_sizes: List[int], 
     batch_proportions: List[List[int]],
+    dataset_types: List[str],
+    start_str: str,
+    end_str: str,
+    pad_str: str,
+    tokenizer: Encoding,
     **kwargs
 ) -> List[ProportionalDataset]:
     """Create datasets for each stage of optimization.
@@ -102,10 +121,15 @@ def get_datasets_stages(
     Args:
         dirs (List[str]): Directories for each dataset segment.
         matches (List[str]): File name match patterns for each dataset segment.
-        datasets_num_files (List[int]): Number of files for each dataset segment.
+        datasets_num_files (List[List[int]]): Number of files for each dataset segment.
         segment_lens (List[int]): Segment length for each stage.
-        batch_size (List[int]): Batch size for each stage.
+        batch_sizes (List[int]): Batch size for each stage.
         batch_proportions (List[List[int]]): List of batch proportions for each stage.
+        dataset_types (List[str]): List of dataset types.
+        start_str (str): Start string for tokenizer.
+        end_str (str): End string for tokenizer.
+        pad_str (str): Padding string for tokenizer.
+        tokenizer (Encoding): Tokenizer.
 
     Returns:
         List[ProportionalDataset]: Datasets for each stage.
@@ -114,39 +138,49 @@ def get_datasets_stages(
     num_stages = len(batch_proportions)
     num_datasets = len(dirs)
     
-    if not len(batch_proportions) == num_stages:
-        raise ValueError("Number of dataset proportions must equal number of stages.")
-    if not len(batch_sizes) == num_stages:
-        raise ValueError("Number of batch sizes must equal number of stages.")
-    if not len(segment_lens) == num_stages:
-        raise ValueError("Number of segment lengths must equal number of stages.")
-    for proportions in batch_proportions:
-        if not len(proportions) == num_datasets:
-            raise ValueError("Number of batch proportions must equal number of datasets.")
     if not len(matches) == num_datasets:
         raise ValueError("Number of match expressions must equal number of datasets.")
-    if not len(datasets_num_files) == num_datasets:
-        raise ValueError("Number of file counts must equal number of datasets.")
-    for batch_size, proportions in zip(batch_sizes, batch_proportions):
+    if not len(batch_sizes) == num_stages:
+        raise ValueError("Number of batch sizes must equal number of stages.")
+    if not len(datasets_num_files) == num_stages:
+        raise ValueError("Number of file counts per stage must equal number of stages.")
+    if not len(segment_lens) == num_stages:
+        raise ValueError("Number of segment lengths must equal number of stages.")
+    
+    for file_cts, batch_size, proportions in zip(datasets_num_files, batch_sizes, batch_proportions):
+        if not len(file_cts) == num_datasets:
+            raise ValueError("Number of file counts must equal number of datasets.")
         if not sum(proportions) == batch_size:
             raise ValueError("Sum of batch proportions must equal batch size.")
         if not len(proportions) == num_datasets:
             raise ValueError("Number of dataset proportions must equal number of datasets.")
 
-    # Initialize file skip numbers to zero, output to empty list
-    file_skip_cts = [0] * num_datasets
+    # Get file paths for each dataset
+    fpaths_all = [
+        get_dataset_fpaths(dir, match) for dir, match in zip(dirs, matches)
+    ]
+    # Partition file paths into stages
+    fpaths_partitioned = [[None for _ in range(num_datasets)] for _ in range(num_stages)]
+    for ix_dataset in range(num_datasets):
+        fpaths_dataset = fpaths_all[ix_dataset]
+        num_files_dataset = [num_files[ix_dataset] for num_files in datasets_num_files]
+        fpaths_dataset_partitioned = partition_fpaths(fpaths_dataset, num_files_dataset)
+        for ix_stage, fpaths in enumerate(fpaths_dataset_partitioned):
+            fpaths_partitioned[ix_stage][ix_dataset] = fpaths
     
     # Loop through stages and create each dataset
     out = []
-    for (segment_len, match, batch_size, batch_proportions_stage, files_stage) in zip(segment_lens, matches, batch_sizes, batch_proportions, datasets_num_files):
-        dataset, file_skip_cts = get_dataset_stage(
-            dirs=dirs,
-            matches=match,
+    for (fpaths_stage, segment_len, batch_size, batch_proportions_stage) in zip(fpaths_partitioned, segment_lens, batch_sizes, batch_proportions):
+        dataset = get_dataset_stage(
+            fpaths_partitioned=fpaths_stage,
             segment_len=segment_len,
-            num_files=files_stage,
             batch_size=batch_size,
-            file_skip_cts=file_skip_cts,
             batch_proportions=batch_proportions_stage,
+            dataset_types=dataset_types,
+            start_str=start_str,
+            end_str=end_str,
+            pad_str=pad_str,
+            tokenizer=tokenizer,
             **kwargs
         )
         out.append(dataset)
