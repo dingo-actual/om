@@ -15,6 +15,7 @@ def test_model():
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     mem_iters = [1, 3, 1]
+    final_mlp_multiplier = 2
     
     activation = "gelu"
     segment_len = 2048
@@ -64,7 +65,7 @@ def test_model():
         position_embedders=position_embedders,
         dropout=dropout,
         init_conv=init_conv,
-        final_mlp_multiplier=8
+        final_mlp_multiplier=final_mlp_multiplier
     )
     
     seq_len = segment_len * num_segments

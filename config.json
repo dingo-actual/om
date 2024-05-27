@@ -13,7 +13,7 @@
         "normalize": true,
         "state_len": 256,
         "dropout": 0.1,
-        "final_mlp_multiplier": 8,
+        "final_mlp_multiplier": 2,
         "position_embedders": [
             {
                 "dim": 128,

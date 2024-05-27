@@ -42,7 +42,7 @@ class ARCformer(nn.Module):
             normalize (bool): Whether to normalize attention inputs for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
-            mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the MLP. Defaults to 1.
+            mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
         """
         super(ARCformer, self).__init__()
 
@@ -58,6 +58,7 @@ class ARCformer(nn.Module):
             normalize=normalize,
             position_embedders=position_embedders
         )
+        self.mlp_multiplier = mlp_multiplier
         self.attn_norm = nn.LayerNorm(dim_input)
         
         # MLP
@@ -73,10 +74,10 @@ class ARCformer(nn.Module):
                 nn.Linear(dim_input, dim_hidden * mlp_multiplier),
                 nn.Dropout(dropout),
                 act,
-                nn.Linear(dim_hidden * mlp_multiplier, dim_input),
+                nn.Linear(dim_hidden * mlp_multiplier, dim_input * mlp_multiplier),
                 nn.Dropout(dropout)
             )
-        self.mlp_norm = nn.LayerNorm(dim_input)
+        self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier)
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
@@ -88,11 +89,16 @@ class ARCformer(nn.Module):
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, segment_len, dim_input).
-            torch.Tensor: State tensor of shape (batch_size, state_len, dim_input).
+            torch.Tensor: State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
         # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
         x_, state = self.attn(x, state, offset)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
+        
+        if self.mlp_multiplier == 1:
+            x_ = self.mlp_norm(x_ + x)
+        else:
+            x_ = self.mlp_norm(x_)
 
-        return self.mlp_norm(x_ + x), state
+        return x_, state

@@ -59,7 +59,6 @@ class OmLLM(torch.nn.Module):
             self.conv2 = torch.nn.Conv1d(dim_input, dim_input, 2)
             self.conv3 = torch.nn.Conv1d(dim_input, dim_input, 3)
         
-        
         layers = []
         for _ in range(num_layers - 1):
             layers.append(
@@ -100,7 +99,7 @@ class OmLLM(torch.nn.Module):
         ]
         self.layers = torch.nn.ModuleList(layers)
         
-        self.proj_out = torch.nn.Linear(dim_input, vocab_size)
+        self.proj_out = torch.nn.Linear(dim_input * final_mlp_multiplier, vocab_size)
         
     def get_logits(self, 
                    x: torch.Tensor, 
@@ -108,6 +107,21 @@ class OmLLM(torch.nn.Module):
                    offset: int = 0,
                    next_token: bool = False
                    ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
+        """Generate logits for the next token at each position in the input. The main purpose for this
+        method is to apply temperature scaling to the logits.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len)
+            states (List[torch.Tensor], optional): State tensors for each ARCformer block. Defaults to [].
+            offset (int, optional): Input location offset. Defaults to 0.
+            next_token (bool, optional): Whether to generate predictions for only the final token. Defaults to False.
+
+        Returns:
+            Tuple[torch.Tensor, List[torch.Tensor], int]: 
+              - Logits for the next token at each position in the input.
+              - State tensors for each ARCformer block.
+              - Input location offset.
+        """
         batch_size, seq_len = x.shape
         
         if len(states) == 0:
@@ -164,5 +178,19 @@ class OmLLM(torch.nn.Module):
                 offset: int = 0,
                 next_token: bool = False
                 ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
+        """Forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len).
+            states (List[torch.Tensor], optional): State tensors for each ARCformer block. Defaults to [].
+            offset (int, optional): Input position offset. Defaults to 0.
+            next_token (bool, optional): Whether to generate predictions for only the final token. Defaults to False.
+
+        Returns:
+            Tuple[torch.Tensor, List[torch.Tensor], int]: 
+              - Probabilities for the next token at each position in the input.
+              - State tensors for each ARCformer block.
+              - Input position offset.
+        """
         logits, states, offset = self.get_logits(x, states, offset, next_token)
-        return torch.nn.functional.sigmoid(logits), states, offset
+        return torch.nn.functional.softmax(logits, dim=-1), states, offset
