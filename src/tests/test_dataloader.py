@@ -67,5 +67,13 @@ def test_data_load():
         for dataset, batch_size in zip(datasets, batch_sizes)
     ]
     
-    for batch in dataloaders[0]:
-        _ = None
+    total_tokens = 0
+    
+    for ix, dataloader in enumerate(dataloaders):
+        total_tokens_dataloader = 0
+        for batch in dataloader:
+            total_tokens_dataloader += batch.size(0) * batch.size(1)
+        print(f"Dataloader {ix} completed successfully. Total tokens: {total_tokens_dataloader:,d}")
+        total_tokens += total_tokens_dataloader
+        
+    print(f"All dataloaders completed successfully. Total tokens: {total_tokens:,d}")
