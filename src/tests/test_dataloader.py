@@ -27,15 +27,15 @@ def test_data_load():
             131072
         ],
         batch_sizes=[
-            2968,
-            295,
+            512,
+            128,
             32,
             2
         ],
         batch_proportions=[
-            [720, 2248],
-            [41, 254],
-            [7, 25],
+            [387, 125],
+            [110, 18],
+            [25, 7],
             [1, 1]
         ],
         dataset_types=[
@@ -51,8 +51,8 @@ def test_data_load():
     )
     
     batch_sizes = [
-        2968,
-        295,
+        512,
+        128,
         32,
         2
     ]
