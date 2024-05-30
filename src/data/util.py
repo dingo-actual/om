@@ -1,6 +1,6 @@
 import glob
 from io import TextIOWrapper
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import orjson
 import numpy as np
