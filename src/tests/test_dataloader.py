@@ -27,16 +27,16 @@ def test_data_load():
             131072
         ],
         batch_sizes=[
-            512,
-            128,
-            32,
-            2
+            4096,
+            1024,
+            256,
+            8
         ],
         batch_proportions=[
-            [387, 125],
-            [110, 18],
-            [25, 7],
-            [1, 1]
+            [3102, 994],
+            [882, 142],
+            [202, 54],
+            [5, 3]
         ],
         dataset_types=[
             "parquet",
@@ -51,16 +51,16 @@ def test_data_load():
     )
     
     batch_sizes = [
-        512,
-        128,
-        32,
-        2
+        4096,
+        1024,
+        256,
+        8
     ]
     
     dataloaders = [
         DataLoader(
             dataset=dataset,
-            batch_size=batch_size,
+            batch_size=batch_size // 8,
             shuffle=False,
             num_workers=1
         )
