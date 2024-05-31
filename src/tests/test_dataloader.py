@@ -51,9 +51,9 @@ def test_data_load():
     )
     
     batch_sizes = [
-        4096,
         1024,
-        256,
+        128,
+        32,
         8
     ]
     

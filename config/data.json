@@ -11,9 +11,9 @@
                 26626
             ],
             "batch_size_per_stage": [
-                3102,
-                882,
-                202,
+                775,
+                110,
+                25,
                 5
             ],
             "dataset_kwargs": {
@@ -32,9 +32,9 @@
                 519
             ],
             "batch_size_per_stage": [
-                994,
-                142,
-                54,
+                249,
+                18,
+                7,
                 3
             ],
             "dataset_kwargs": {
