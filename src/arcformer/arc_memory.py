@@ -281,9 +281,9 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If normalize is True, define qkv normalizations
         if self.normalize:
-            self.norm_in = nn.LayerNorm(self.dim_input)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_input)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_input)
+            self.norm_in = nn.LayerNorm(self.dim_input, eps=1e-5)
+            self.norm_in_state_start = nn.LayerNorm(self.dim_input, eps=1e-5)
+            self.norm_in_state_end = nn.LayerNorm(self.dim_input, eps=1e-5)
         
         # State projections from attention layer to the next attention layer
         self.proj_k_state_start = nn.Linear(dim_input, dim_key, bias=False)

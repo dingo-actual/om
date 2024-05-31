@@ -59,7 +59,7 @@ class ARCformer(nn.Module):
             position_embedders=position_embedders
         )
         self.mlp_multiplier = mlp_multiplier
-        self.attn_norm = nn.LayerNorm(dim_input)
+        self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -77,7 +77,7 @@ class ARCformer(nn.Module):
                 nn.Linear(dim_hidden * mlp_multiplier, dim_input * mlp_multiplier),
                 nn.Dropout(dropout)
             )
-        self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier)
+        self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
