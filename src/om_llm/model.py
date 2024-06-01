@@ -48,6 +48,13 @@ class OmLLM(torch.nn.Module):
         """
         super(OmLLM, self).__init__()
         
+        vocab_offset = 8 - dim_input % 8
+        if vocab_offset == 8:
+            vocab_offset = 0
+        self.vocab_offset = vocab_offset
+        vocab_size += vocab_offset
+        self.vocab_size = vocab_size
+        
         self.segment_len = segment_len
         
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
@@ -169,6 +176,9 @@ class OmLLM(torch.nn.Module):
         
         if not next_token:
             out = torch.cat(out, dim=1)
+            
+        if self.vocab_offset > 0:
+            out[:, -self.vocab_offset:] = -float("inf")
         
         return out, states, offset
     
