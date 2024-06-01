@@ -40,7 +40,7 @@ def train_stage(
     
     accelerator = Accelerator(
         project_dir=CHECKPOINT_DIR_STAGE, 
-        mixed_precision="bf16", 
+        mixed_precision="fp16", 
         gradient_accumulation_steps=gradient_accumulation_steps
     )
     
@@ -68,23 +68,24 @@ def train_stage(
     optimizer = optimizer.train()
     
     for batch_ix, batch in enumerate(dataloader_train):
-        optimizer.zero_grad()
-        
-        inputs = batch[:, :-1]
-        targets = batch[:, 1:]
-        
-        tokens_processed += batch.size(0) * batch.size(1)
-        
-        preds, _, _ = model(inputs)
-        
-        with accelerator.autocast():
-            loss = loss_fn(preds, targets)
-        
-        accelerator.backward(loss)
-        
-        if accelerator.sync_gradients:
-            accelerator.clip_grad_value_(model.parameters(), 1.0)
-        optimizer.step()
+        with accelerator.accumulate(model):
+            optimizer.zero_grad()
+            
+            inputs = batch[:, :-1]
+            targets = batch[:, 1:]
+            
+            tokens_processed += batch.size(0) * batch.size(1)
+            
+            preds, _, _ = model(inputs)
+            
+            with accelerator.autocast():
+                loss = loss_fn(preds, targets)
+            
+            accelerator.backward(loss)
+            
+            if accelerator.sync_gradients:
+                accelerator.clip_grad_value_(model.parameters(), 1.0)
+            optimizer.step()
         
         time_crnt = datetime.datetime.now()
         
