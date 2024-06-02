@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import List, Optional, Tuple
 
 import torch
@@ -43,7 +42,7 @@ class OmLLM(torch.nn.Module):
             normalize (bool): Normalize the inputs to ARCformer memory projections.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): MLP dropout. Defaults to 0.0.
-            init_conv (bool, optional): Whether to use an initial convolutional layer. Defaults to False.
+            init_conv (bool, optional): Whether to use initial convolutional layers. Defaults to False.
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
         """
         super(OmLLM, self).__init__()
@@ -108,14 +107,13 @@ class OmLLM(torch.nn.Module):
         
         self.proj_out = torch.nn.Linear(dim_input * final_mlp_multiplier, vocab_size)
         
-    def get_logits(self, 
-                   x: torch.Tensor, 
-                   states: List[torch.Tensor] = [], 
-                   offset: int = 0,
-                   next_token: bool = False
-                   ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
-        """Generate logits for the next token at each position in the input. The main purpose for this
-        method is to apply temperature scaling to the logits.
+    def forward(self, 
+                x: torch.Tensor, 
+                states: List[torch.Tensor] = [], 
+                offset: int = 0,
+                next_token: bool = False
+                ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
+        """Forward model pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len)
@@ -147,11 +145,11 @@ class OmLLM(torch.nn.Module):
             
             if self.init_conv:
                 conv_offset_lo = 2 if segment_num > 0 else 0
-                conv_offset_hi = 0 if segment_num > 0 else 2
+                #conv_offset_hi = 0 if segment_num > 0 else 2
             else:
                 conv_offset_lo = 0
-                conv_offset_hi = 0
-            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi + conv_offset_hi]
+                #conv_offset_hi = 0
+            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi]
             x_seg = self.embedder(x_seg)
             
             if self.init_conv:
@@ -178,29 +176,6 @@ class OmLLM(torch.nn.Module):
             out = torch.cat(out, dim=1)
             
         if self.vocab_offset > 0:
-            out[:, -self.vocab_offset:] = -float("inf")
+            out[:, :, -self.vocab_offset:] = -float("inf")
         
         return out, states, offset
-    
-    def forward(self, 
-                x: torch.Tensor, 
-                states: List[torch.Tensor] = [],
-                offset: int = 0,
-                next_token: bool = False
-                ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
-        """Forward pass of the model.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len).
-            states (List[torch.Tensor], optional): State tensors for each ARCformer block. Defaults to [].
-            offset (int, optional): Input position offset. Defaults to 0.
-            next_token (bool, optional): Whether to generate predictions for only the final token. Defaults to False.
-
-        Returns:
-            Tuple[torch.Tensor, List[torch.Tensor], int]: 
-              - Probabilities for the next token at each position in the input.
-              - State tensors for each ARCformer block.
-              - Input position offset.
-        """
-        logits, states, offset = self.get_logits(x, states, offset, next_token)
-        return torch.nn.functional.softmax(logits, dim=-1), states, offset
