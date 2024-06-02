@@ -1,7 +1,10 @@
 import datetime
+from os import mkdir
+from os.path import exists
 from typing import Any, Dict
 
 from accelerate import Accelerator
+import safetensors
 from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
@@ -29,14 +32,23 @@ def train_stage(
     log_every: int = 100,
     eval_every: int = 100,
     eval_num_steps: int = 100,
-) -> OmLLM:
+):
     CHECKPOINT_DIR_STAGE = f"{CHECKPOINT_DIR}/stage{stage_num}"
     WRITER_DIR = f"{HOME_DIR}/runs/stage{stage_num}"
+    
+    mkdir(CHECKPOINT_DIR_STAGE)
+    mkdir(WRITER_DIR)
+    
+    if stage_num > 1:
+        CHECKPOINT_DIR_PREV_STAGE = f"{CHECKPOINT_DIR}/stage{stage_num-1}"
+        if exists(CHECKPOINT_DIR_PREV_STAGE):
+            model.load_state_dict(safetensors.torch.load_file(CHECKPOINT_DIR_PREV_STAGE))
     
     time_crnt = datetime.datetime.now()
     time_last = time_crnt
     
-    writer = SummaryWriter(f"{WRITER_DIR}/{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
+    mkdir(f"{WRITER_DIR}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
+    writer = SummaryWriter(f"{WRITER_DIR}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
     
     accelerator = Accelerator(
         project_dir=CHECKPOINT_DIR_STAGE, 
@@ -76,13 +88,10 @@ def train_stage(
             
             tokens_processed += batch.size(0) * batch.size(1)
             
-            preds, _, _ = model(inputs)
-            
-            with accelerator.autocast():
-                loss = loss_fn(preds, targets)
-            
+            logits, _, _ = model(inputs)
+            loss = loss_fn(logits, targets)
+        
             accelerator.backward(loss)
-            
             if accelerator.sync_gradients:
                 accelerator.clip_grad_value_(model.parameters(), 1.0)
             optimizer.step()
@@ -94,15 +103,21 @@ def train_stage(
             accelerator.wait_for_everyone()
             model = model.eval()
             optimizer = optimizer.eval()
-            accelerator.save_state(f"{CHECKPOINT_DIR_STAGE}/checkpoint_{time_str}.pt")
+            
+            checkpoint_dir_crnt = f"{CHECKPOINT_DIR_STAGE}/checkpoint_{time_str}"
+            mkdir(checkpoint_dir_crnt)
+            accelerator.save_state(checkpoint_dir_crnt)
+            
             model = model.train()
             optimizer = optimizer.train()
             time_last = time_crnt
         
         if (batch_ix + 1) % log_every == 0:
-            pplx = perplexity(preds, targets)
+            pplx = perplexity(logits, targets)
             grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad]))
+            
             accelerator.wait_for_everyone()
+            
             writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
             writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
             writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
@@ -122,6 +137,25 @@ def train_stage(
             )
 
     accelerator.wait_for_everyone()
-    accelerator.save_state(f"{CHECKPOINT_DIR}/checkpoint_FINAL.pt")
     
-    return model
+    writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
+    writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
+    writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
+    writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
+    
+    eval_net(
+        model=model,
+        optimizer=optimizer,
+        loss_fn=loss_fn,
+        perpelxity=perplexity,
+        dataloader_eval=dataloader_val,
+        num_steps=eval_num_steps,
+        accelerator=accelerator,
+        writer=writer,
+        batch_ix=batch_ix
+    )
+    writer.close()
+    
+    mkdir(f"{CHECKPOINT_DIR_STAGE}/checkpoint_FINAL")
+    accelerator.save_state(f"{CHECKPOINT_DIR_STAGE}/checkpoint_FINAL")
+    accelerator.save_model(model, CHECKPOINT_DIR_STAGE)
