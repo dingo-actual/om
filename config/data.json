@@ -2,44 +2,37 @@
     "datasets": [
         {
             "name": "SlimPajama-627B",
-            "dir": "/home/ubuntu/om-data/SlimPajama-627B/train",
-            "match_str": ".parquet",
+            "dir": "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train",
+            "match": ".jsonl",
             "files_per_stage": [
-                2958,
-                11833,
+                2959,
+                11834,
                 17749,
-                26626
+                26621
             ],
             "batch_size_per_stage": [
-                775,
-                110,
-                25,
+                939,
+                97,
+                23,
                 5
-            ],
-            "dataset_kwargs": {
-                "field": "text"
-            }
-
+            ]
         },
         {
             "name": "Starcoder",
-            "dir": "/home/ubuntu/om-data/starcoderdata",
-            "match_str": ".jsonl.zst",
+            "dir": "/home/ubuntu/om-data/data_preprocessed/starcoderdata",
+            "match": ".jsonl",
             "files_per_stage": [
-                43,
-                86,
-                215,
-                519
+                8,
+                122,
+                216,
+                518
             ],
             "batch_size_per_stage": [
-                249,
-                18,
-                7,
+                85,
+                31,
+                9,
                 3
-            ],
-            "dataset_kwargs": {
-                "column": "content"
-            }
+            ]
         }
     ]
 }

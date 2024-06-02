@@ -1,55 +1,10 @@
 from torch.utils.data import DataLoader
 
-from ..data.util import get_datasets_stages
+from ..data.load import get_datasets_stages
 from ..data.tokenizer import enc
 
 
 def test_data_load():
-    datasets = get_datasets_stages(
-        dirs=[
-            "/home/ubuntu/om-data/starcoderdata",
-            "/home/ubuntu/om-data/SlimPajama-627B/train"
-        ],
-        matches=[
-            ".parquet",
-            ".jsonl.zst"
-        ],
-        datasets_num_files=[
-            [43, 2958],
-            [86, 11833],
-            [215, 17749],
-            [519, 26626]
-        ],
-        segment_lens=[
-            128,
-            1024,
-            8192,
-            131072
-        ],
-        batch_sizes=[
-            4096,
-            1024,
-            256,
-            8
-        ],
-        batch_proportions=[
-            [3102, 994],
-            [882, 142],
-            [202, 54],
-            [5, 3]
-        ],
-        dataset_types=[
-            "parquet",
-            "jsonl"
-        ],
-        start_str="<|im_start|>",
-        end_str="<|im_end|>",
-        pad_str="<|pad|>",
-        tokenizer=enc,
-        field="text",
-        column="content"
-    )
-    
     batch_sizes = [
         1024,
         128,
@@ -57,11 +12,40 @@ def test_data_load():
         8
     ]
     
+    datasets = get_datasets_stages(
+        dirs=[
+            "/home/ubuntu/om-data/data_preprocessed/starcoderdata",
+            "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train"
+        ],
+        matches=[
+            ".jsonl",
+            ".jsonl"
+        ],
+        datasets_num_files=[
+            [8, 2959],
+            [122, 11834],
+            [216, 17749],
+            [518, 26621]
+        ],
+        segment_lens=[
+            128,
+            1024,
+            8192,
+            131072
+        ],
+        batch_sizes=batch_sizes,
+        batch_proportions=[
+            [939, 85],
+            [882, 31],
+            [202, 9],
+            [5, 3]
+        ]
+    )
+    
     dataloaders = [
         DataLoader(
             dataset=dataset,
             batch_size=batch_size // 8,
-            shuffle=False,
             num_workers=1
         )
         for dataset, batch_size in zip(datasets, batch_sizes)
