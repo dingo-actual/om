@@ -2,14 +2,10 @@ import glob
 from io import TextIOWrapper
 from typing import Any, Dict, List
 
-import orjson
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
-import polars as pl
-from tiktoken import Encoding
-import zstandard as zstd
 
-from .datasets import ProportionalDataset, ParquetFilesDataset, CompressedJSONLFilesDataset
+from .datasets import ProportionalDataset, FilesDataset
 
 
 def get_dataset_fpaths(dir: str, match: str) -> List[str]:
@@ -45,13 +41,7 @@ def get_dataset_stage(
     fpaths_partitioned: List[List[str]],
     segment_len: int, 
     batch_size: int, 
-    batch_proportions: List[int],
-    dataset_types: List[str],
-    start_str: str,
-    end_str: str,
-    pad_str: str,
-    tokenizer: Encoding,
-    **kwargs
+    batch_proportions: List[int]
 ) -> ProportionalDataset:
     """Create a dataset with correct proportions from the given directories.
 
@@ -60,11 +50,6 @@ def get_dataset_stage(
         segment_len (int): Segment length.
         batch_size (int): Batch size.
         batch_proportions (List[int]): Proportions of each dataset per batch.
-        dataset_types (List[str]): List of dataset types.
-        start_str (str): Start string for tokenizer.
-        end_str (str): End string for tokenizer.
-        pad_str (str): Padding string for tokenizer.
-        tokenizer (Encoding): Tokenizer.
 
     Returns:
         ProportionalDataset: Output dataset.
@@ -77,27 +62,11 @@ def get_dataset_stage(
 
     datasets = []
     
-    for fpaths, dataset_type in zip(fpaths_partitioned, dataset_types):
-        if dataset_type == "jsonl":
-            ds = CompressedJSONLFilesDataset(
-                fpaths=fpaths,
-                segment_len=segment_len,
-                start_str=start_str,
-                end_str=end_str,
-                pad_str=pad_str,
-                tokenizer=tokenizer,
-                **kwargs
-            )
-        elif dataset_type == "parquet":
-            ds = ParquetFilesDataset(
-                fpaths=fpaths,
-                segment_len=segment_len,
-                start_str=start_str,
-                end_str=end_str,
-                pad_str=pad_str,
-                tokenizer=tokenizer,
-                **kwargs
-            )
+    for fpaths in fpaths_partitioned:
+        ds = FilesDataset(
+            fpaths=fpaths,
+            segment_len=segment_len
+        )
         datasets.append(ds)
         
     return ProportionalDataset(datasets=datasets, proportions=batch_proportions)
@@ -108,13 +77,7 @@ def get_datasets_stages(
     datasets_num_files: List[List[int]],
     segment_lens: List[int], 
     batch_sizes: List[int], 
-    batch_proportions: List[List[int]],
-    dataset_types: List[str],
-    start_str: str,
-    end_str: str,
-    pad_str: str,
-    tokenizer: Encoding,
-    **kwargs
+    batch_proportions: List[List[int]]
 ) -> List[ProportionalDataset]:
     """Create datasets for each stage of optimization.
 
@@ -125,11 +88,6 @@ def get_datasets_stages(
         segment_lens (List[int]): Segment length for each stage.
         batch_sizes (List[int]): Batch size for each stage.
         batch_proportions (List[List[int]]): List of batch proportions for each stage.
-        dataset_types (List[str]): List of dataset types.
-        start_str (str): Start string for tokenizer.
-        end_str (str): End string for tokenizer.
-        pad_str (str): Padding string for tokenizer.
-        tokenizer (Encoding): Tokenizer.
 
     Returns:
         List[ProportionalDataset]: Datasets for each stage.
@@ -175,56 +133,8 @@ def get_datasets_stages(
             fpaths_partitioned=fpaths_stage,
             segment_len=segment_len,
             batch_size=batch_size,
-            batch_proportions=batch_proportions_stage,
-            dataset_types=dataset_types,
-            start_str=start_str,
-            end_str=end_str,
-            pad_str=pad_str,
-            tokenizer=tokenizer,
-            **kwargs
+            batch_proportions=batch_proportions_stage
         )
         out.append(dataset)
         
     return out
-
-def get_dataset_statistics(dir: str, match: str, **kwargs) -> Dict[str, Any]:
-    """Get summary statistics for a dataset.
-
-    Args:
-        dir (str): Dataset directory.
-        match (str): Match expression for dataset files.
-
-    Returns:
-        Dict[str, Any]: Summary statistics for dataset.
-    """
-    fpaths = get_dataset_fpaths(dir, match)
-    
-    num_files = len(fpaths)
-    total_num_chars = 0
-    
-    for fpath in fpaths:
-        if fpath.endswith(".parquet"):
-            file = (
-                pl.read_parquet(fpath)
-                .get_column(kwargs["column"])
-                .to_list()
-            )
-            for line in file:
-                total_num_chars += len(line)
-        elif fpath.endswith(".jsonl.zst"):
-            with open(fpath, "rb") as file:
-                dctx = zstd.ZstdDecompressor()
-                stream_reader = dctx.stream_reader(file)
-                text_wrapper = TextIOWrapper(stream_reader, encoding="utf-8")
-                for line in text_wrapper:
-                    total_num_chars += len(orjson.loads(line)[kwargs["field"]])
-        else:
-            pass
-        
-        num_files += 1
-        
-    return {
-        "num_files": num_files,
-        "total_num_chars": total_num_chars,
-        "chars_per_file": total_num_chars / num_files
-    }
