@@ -1,23 +1,15 @@
-from io import TextIOWrapper
-from typing import Generator, List
+from typing import List
 
 import orjson
-import polars as pl
-from tiktoken import Encoding
 import torch
 from torch.utils.data import IterableDataset
-import zstandard as zstd
 
 
 class FilesDataset(IterableDataset):
     def __init__(
         self, 
         fpaths: List[str], 
-        segment_len: int, 
-        start_str: str,
-        end_str: str,
-        pad_str: str,
-        tokenizer: Encoding
+        segment_len: int
     ):
         """Initialize dataset.
 
@@ -29,23 +21,20 @@ class FilesDataset(IterableDataset):
         
         self.fpaths = fpaths
         self.segment_len = segment_len
-        self.tokenizer = tokenizer
-        
-        self.start_str = start_str
-        self.end_str = end_str
-        self.pad_str = pad_str
 
         self.buffer = []
         
         self.current_file_ix = 0
         self.current_obs_ix = 0
         
-        self.current_file_ix += 1
+        self.open_current_file()
         
-        self.initialized = False
+        self.current_file_ix += 1
 
     def open_current_file(self):
-        raise NotImplementedError
+        """Open the next file."""
+        with open(self.fpaths[self.current_file_ix], "f") as fp:
+            self.current_file = fp.readlines()
             
     def __iter__(self):
         """Iterate over the dataset."""
@@ -75,7 +64,7 @@ class FilesDataset(IterableDataset):
                     self.open_current_file()
             else:
                 # Add next line to buffer
-                self.buffer = self.buffer + self.encode(self.current_file[self.current_obs_ix])
+                self.buffer.extend(self.parse(self.current_file[self.current_obs_ix]))
                 self.current_obs_ix += 1
                 
         out = self.buffer[:self.segment_len]
@@ -83,104 +72,8 @@ class FilesDataset(IterableDataset):
                 
         return torch.tensor(out)
     
-    def encode(self, text: str) -> List[int]:
-        padding = f"{self.pad_str}{self.pad_str}"
-        return self.tokenizer.encode(
-            f"{padding}{self.start_str}{text}{self.end_str}",
-            allowed_special={self.start_str, self.pad_str, self.end_str}
-        )
-
-class ParquetFilesDataset(FilesDataset):
-    def __init__(
-        self, 
-        fpaths: List[str], 
-        segment_len: int, 
-        column: str, 
-        start_str: str, 
-        end_str: str, 
-        pad_str: str,
-        tokenizer: Encoding,
-        **kwargs
-    ):
-        """Initialize dataset.
-
-        Args:
-            fpaths (List[str]): List of paths to the parquet files.
-            segment_len (int): Length of the segments for each sample.
-            column (str): Name of column to use as input.
-            start_str (str): Start string for the tokenizer.
-            end_str (str): End string for the tokenizer.
-            pad_str (str): Padding string for the tokenizer.
-            tokenizer (Encoding): Tokenizer to use.
-
-        Raises:
-            StopIteration: Reached end of dataset.
-        """
-        super(ParquetFilesDataset, self).__init__(fpaths, segment_len, start_str, end_str, pad_str, tokenizer)
-        self.column = column
-        
-    def open_current_file(self):
-        """Open the next parquet file."""
-        self.current_file = (
-            pl.read_parquet(
-                self.fpaths[self.current_file_ix]
-            )
-            .get_column(self.column)
-            .to_list()
-        )
-        self.current_file_ix += 1
-
-class CompressedJSONLFilesDataset(FilesDataset):
-    def __init__(
-        self, 
-        fpaths: List[str], 
-        segment_len: int, 
-        field: str, 
-        start_str: str, 
-        end_str: str, 
-        pad_str: str,
-        tokenizer: Encoding,
-        **kwargs
-    ):
-        """Initialize dataset.
-
-        Args:
-            fpaths (List[str]): List of paths to the compressed JSONL files.
-            segment_len (int): Length of the segments for each sample.
-            field (str): Field to extract from JSONL.
-            start_str (str): Start string for the tokenizer.
-            end_str (str): End string for the tokenizer.
-            pad_str (str): Padding string for the tokenizer.
-            tokenizer (Encoding): Tokenizer to use.
-
-        Raises:
-            StopIteration: Reached end of dataset.
-        """
-        super(CompressedJSONLFilesDataset, self).__init__(fpaths, segment_len, start_str, end_str, pad_str, tokenizer)
-        self.field = field
-        
-    def open_current_file(self):
-        """Open the next compressed JSONL file."""
-        self.current_file = list(self.read_zst_jsonl(self.fpaths[self.current_file_ix], self.field))
-        self.current_file_ix += 1
-        
-    @staticmethod
-    def read_zst_jsonl(fpath: str, field: str) -> Generator[str, None, None]:
-        """Reads a compressed JSONL file.
-
-        Args:
-            fpath (str): Path to the compressed JSONL file.
-            field (str): Field to extract from JSONL.
-
-        Yields:
-            Generator[str]: Output strings.
-        """
-        with open(fpath, "rb") as file:
-            dctx = zstd.ZstdDecompressor()
-            stream_reader = dctx.stream_reader(file)
-            text_wrapper = TextIOWrapper(stream_reader, encoding="utf-8")
-            for line in text_wrapper:
-                yield orjson.loads(line)[field]
+    def parse(self, text: str) -> List[int]:
+        return orjson.loads(text.strip())
 
 class ProportionalDataset(IterableDataset):
     def __init__(self, datasets: List[IterableDataset], proportions: List[int]) -> None:
