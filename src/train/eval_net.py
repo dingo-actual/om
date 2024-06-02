@@ -34,11 +34,11 @@ def eval_net(
             inputs = batch[:, :-1]
             targets = batch[:, 1:]
             
-            pred = model(inputs)
+            logits = model(inputs)
             
             with accelerator.autocast():
-                loss = loss_fn(pred, targets)
-                pplx = perpelxity(pred, targets)
+                loss = loss_fn(logits, targets)
+                pplx = perpelxity(logits, targets)
                 
             batch_tokens = batch.size(0) * batch.size(1)
             loss_total += loss.cpu().detach().item() * batch_tokens
@@ -55,5 +55,3 @@ def eval_net(
             
     model.train()
     optimizer.train()
-
-    return None
