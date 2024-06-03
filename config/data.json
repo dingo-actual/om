@@ -1,5 +1,5 @@
 {
-    "datasets": [
+    "train": [
         {
             "name": "SlimPajama-627B",
             "dir": "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train",
@@ -15,6 +15,12 @@
                 97,
                 23,
                 5
+            ],
+            "segment_lens": [
+                2048,
+                2048,
+                2048,
+                2048
             ]
         },
         {
@@ -32,6 +38,37 @@
                 31,
                 9,
                 3
+            ],
+            "segment_lens": [
+                2048,
+                2048,
+                2048,
+                2048
+            ]
+        }
+    ],
+    "validation": [
+        {
+            "name": "SlimPajama-627B",
+            "dir": "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/validation",
+            "match": ".jsonl",
+            "files_per_stage": [
+                1180,
+                5698,
+                8939,
+                15611
+            ],
+            "batch_size_per_stage": [
+                1024,
+                128,
+                32,
+                8
+            ],
+            "segment_lens": [
+                2048,
+                2048,
+                2048,
+                2048
             ]
         }
     ]
