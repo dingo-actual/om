@@ -12,6 +12,7 @@
     "normalize": true,
     "state_len": 256,
     "dropout": 0.1,
+    "init_conv": true,
     "final_mlp_multiplier": 2,
     "position_embedders": [
         {
