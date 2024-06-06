@@ -22,7 +22,7 @@
         },
         "log_every": 100,
         "eval_every": 100,
-        "eval_num_steps": 1000
+        "eval_num_steps": 100
     },
     {
         "stage_num": 2,
@@ -47,7 +47,7 @@
         },
         "log_every": 100,
         "eval_every": 100,
-        "eval_num_steps": 1000
+        "eval_num_steps": 100
     },
     {
         "stage_num": 3,
@@ -72,7 +72,7 @@
         },
         "log_every": 100,
         "eval_every": 100,
-        "eval_num_steps": 1000
+        "eval_num_steps": 100
     },
     {
         "stage_num": 4,
@@ -97,6 +97,6 @@
         },
         "log_every": 100,
         "eval_every": 100,
-        "eval_num_steps": 1000
+        "eval_num_steps": 100
     }
 ]
