@@ -5,10 +5,10 @@
             "dir": "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train",
             "match": ".jsonl",
             "files_per_stage": [
-                2959,
-                11834,
+                2958,
+                11833,
                 17749,
-                26621
+                26624
             ],
             "batch_size_per_stage": [
                 939,
@@ -29,9 +29,9 @@
             "match": ".jsonl",
             "files_per_stage": [
                 8,
-                122,
-                216,
-                518
+                43,
+                86,
+                172
             ],
             "batch_size_per_stage": [
                 85,
