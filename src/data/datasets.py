@@ -33,7 +33,7 @@ class FilesDataset(IterableDataset):
 
     def open_current_file(self):
         """Open the next file."""
-        with open(self.fpaths[self.current_file_ix], "f") as fp:
+        with open(self.fpaths[self.current_file_ix], "r") as fp:
             self.current_file = fp.readlines()
             
     def __iter__(self):
@@ -46,9 +46,6 @@ class FilesDataset(IterableDataset):
         Returns:
             str: Current sample.
         """
-        if not self.initialized:
-            self.open_current_file()
-            self.initialized = True
         # Fill the buffer if necessary
         while len(self.buffer) < self.segment_len:
             # Read next line from current file
