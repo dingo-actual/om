@@ -25,8 +25,8 @@ def get_dataset_fpaths(dir: str, match: str) -> List[str]:
     return out
 
 def partition_fpaths(fpaths: List[str], num_files: List[int]) -> List[List[str]]:
-    if sum(num_files) != len(fpaths):
-        raise ValueError("Sum of file counts must equal number of files.")
+    if sum(num_files) > len(fpaths):
+        raise ValueError("Sum of file counts must be less than or equal to the number of files.")
     
     fpaths_partitioned = []
     ix_lo = 0
