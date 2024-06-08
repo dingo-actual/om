@@ -92,6 +92,10 @@ def train_stage(
             loss = loss_fn(logits, targets)
         
             accelerator.backward(loss)
+            
+            if (batch_ix + 1) % log_every == 0:
+                grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad]))
+            
             if accelerator.sync_gradients:
                 accelerator.clip_grad_value_(model.parameters(), 1.0)
             optimizer.step()
@@ -114,7 +118,6 @@ def train_stage(
         
         if (batch_ix + 1) % log_every == 0:
             pplx = perplexity(logits, targets)
-            grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad]))
             
             accelerator.wait_for_everyone()
             
