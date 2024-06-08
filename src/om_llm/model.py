@@ -4,7 +4,7 @@ import torch
 
 from ..arcformer import ARCformer, RoPEEmbeddings
 
-
+#TODO: add depth-aware weight initialization
 class OmLLM(torch.nn.Module):
     def __init__(
         self,

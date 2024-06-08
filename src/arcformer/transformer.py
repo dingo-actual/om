@@ -8,6 +8,7 @@ from .arc_memory import ARC
 from .positional_embeddings import RoPEEmbeddings
 
 
+#TODO: add depth-aware weight initialization
 class ARCformer(nn.Module):
     """Transformer layer with ARC memory."""
 

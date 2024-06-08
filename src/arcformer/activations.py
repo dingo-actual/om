@@ -2,6 +2,8 @@ from typing import Optional
 
 import torch
 
+#TODO: add depth-aware weight initialization
+
 class Swish(torch.nn.Module):
     """Swish activation module"""
     def __init__(self, beta: Optional[float] = None):

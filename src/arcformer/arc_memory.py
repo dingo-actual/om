@@ -7,6 +7,8 @@ from xformers.ops import memory_efficient_attention, LowerTriangularMask
 from .positional_embeddings import RoPEEmbeddings
 from .util import extract_state
 
+#TODO: add depth-aware weight initialization
+
 class ARC(nn.Module):
     """Implements ARC Transformer memory module."""
 
