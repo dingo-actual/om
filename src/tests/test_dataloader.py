@@ -17,18 +17,18 @@ def test_data_load():
     
     datasets = get_datasets_stages(
         dirs=[
-            "/home/ubuntu/om-data/data_preprocessed/starcoderdata",
-            "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train"
+            "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/train",
+            "/home/ubuntu/om-data/data_preprocessed/starcoderdata"
         ],
         matches=[
             ".jsonl",
             ".jsonl"
         ],
         datasets_num_files=[
-            [8, 2958],
-            [43, 11833],
-            [86, 17749],
-            [172, 26624]
+            [2958, 8],
+            [11833, 43],
+            [17749, 86],
+            [26624, 172]
         ],
         segment_lens=[
             128,
@@ -56,21 +56,22 @@ def test_data_load():
     
     total_tokens = 0
     
-    times = []
     for ix, dataloader in enumerate(dataloaders):
+        times = []
         total_tokens_dataloader = 0
+        
         for batch in dataloader:
             times.append(time())
             total_tokens_dataloader += batch.size(0) * batch.size(1)
+            
+        time_diffs = np.array([t2 - t1 for t1, t2 in zip(times[:-1], times[1:])])
+        
         print(f"Dataloader {ix+1} completed successfully. Total tokens: {total_tokens_dataloader:,d}")
-        break
+        print(f"Average time per batch: {time_diffs.mean():.6f}s")
+        print(f"Median time per batch: {np.median(time_diffs):.6f}s")
+        print(f"99th percentile time per batch: {np.percentile(time_diffs, q=99):.6f}s")
+        print(f"Max time per batch: {time_diffs.max():.6f}s")
+        
         total_tokens += total_tokens_dataloader
         
     print(f"All dataloaders completed successfully. Total tokens: {total_tokens:,d}")
-    time_diffs = np.array([t2 - t1 for t1, t2 in zip(times[:-1], times[1:])])
-    
-    print(f"Average time per batch: {time_diffs.mean():.6f}s")
-    print(f"Median time per batch: {np.median(time_diffs):.6f}s")
-    print(f"99th percentile time per batch: {np.percentile(time_diffs, q=99):.6f}s")
-    print(f"Max time per batch: {time_diffs.max():.6f}s")
-    
