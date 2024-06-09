@@ -36,9 +36,8 @@ def eval_net(
             
             logits = model(inputs)
             
-            with accelerator.autocast():
-                loss = loss_fn(logits, targets)
-                pplx = perpelxity(logits, targets)
+            loss = loss_fn(logits, targets)
+            pplx = perpelxity(logits, targets)
                 
             batch_tokens = batch.size(0) * batch.size(1)
             loss_total += loss.cpu().detach().item() * batch_tokens
@@ -50,8 +49,8 @@ def eval_net(
         eval_loss = loss_total / n_tokens
         eval_pplx = pplx_total / n_tokens
         
-        writer.add_scalar("Loss/Train", eval_loss, batch_ix)
-        writer.add_scalar("Perplexity/Train", eval_pplx, batch_ix)
+        writer.add_scalar("Loss/Validation", eval_loss, batch_ix)
+        writer.add_scalar("Perplexity/Validation", eval_pplx, batch_ix)
             
     model.train()
     optimizer.train()
