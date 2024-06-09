@@ -12,9 +12,9 @@
             ],
             "batch_size_per_stage": [
                 939,
-                97,
-                23,
-                5
+                114,
+                28,
+                7
             ],
             "segment_lens": [
                 2048,
@@ -30,14 +30,14 @@
             "files_per_stage": [
                 8,
                 43,
-                86,
-                172
+                73,
+                129
             ],
             "batch_size_per_stage": [
                 85,
-                31,
-                9,
-                3
+                14,
+                4,
+                1
             ],
             "segment_lens": [
                 2048,
@@ -53,10 +53,10 @@
             "dir": "/home/ubuntu/om-data/data_preprocessed/SlimPajama-627B/validation",
             "match": ".jsonl",
             "files_per_stage": [
-                1180,
-                5698,
-                8939,
-                15611
+                1512,
+                6172,
+                9385,
+                14359
             ],
             "batch_size_per_stage": [
                 1024,
