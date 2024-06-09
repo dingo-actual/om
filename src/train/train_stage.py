@@ -94,6 +94,7 @@ def train_stage(
             accelerator.backward(loss)
             
             if (batch_ix + 1) % log_every == 0:
+                param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
                 grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad]))
             
             if accelerator.sync_gradients:
@@ -124,6 +125,7 @@ def train_stage(
             writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
             writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
             writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
+            writer.add_scalar("Parameter Norm/Train", param_norm.cpu().detach().item(), batch_ix)
             writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
             
         if (batch_ix + 1) % eval_every == 0:
