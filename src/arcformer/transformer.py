@@ -24,6 +24,7 @@ class ARCformer(nn.Module):
         segment_len: int,
         state_len: int,
         normalize: bool,
+        cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         mlp_multiplier: int = 1,
@@ -41,6 +42,7 @@ class ARCformer(nn.Module):
             segment_len (int): Segment length for the memory modules.
             state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
             normalize (bool): Whether to normalize attention inputs for the memory modules.
+            cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
@@ -57,6 +59,7 @@ class ARCformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             normalize=normalize,
+            cope=cope,
             position_embedders=position_embedders
         )
         self.mlp_multiplier = mlp_multiplier

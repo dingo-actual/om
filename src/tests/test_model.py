@@ -20,6 +20,7 @@ def test_model():
     activation = "gelu"
     segment_len = 2048
     normalize = True
+    cope = True
     state_len = segment_len // 8
     
     init_conv = True
@@ -62,6 +63,7 @@ def test_model():
         segment_len=segment_len,
         state_len=state_len,
         normalize=normalize,
+        cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
         init_conv=init_conv,

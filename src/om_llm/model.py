@@ -20,6 +20,7 @@ class OmLLM(torch.nn.Module):
         segment_len: int,
         state_len: int,
         normalize: bool,
+        cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         init_conv: bool = False,
@@ -40,6 +41,7 @@ class OmLLM(torch.nn.Module):
             segment_len (int): Segment length.
             state_len (int): State length (in tokens).
             normalize (bool): Normalize the inputs to ARCformer memory projections.
+            cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): MLP dropout. Defaults to 0.0.
             init_conv (bool, optional): Whether to use initial convolutional layers. Defaults to False.
@@ -79,6 +81,7 @@ class OmLLM(torch.nn.Module):
                     segment_len=segment_len,
                     state_len=state_len,
                     normalize=normalize,
+                    cope=cope,
                     position_embedders=position_embedders,
                     dropout=dropout
                 )
@@ -95,6 +98,7 @@ class OmLLM(torch.nn.Module):
                 segment_len=segment_len,
                 state_len=state_len,
                 normalize=normalize,
+                cope=cope,
                 position_embedders=position_embedders,
                 dropout=dropout,
                 mlp_multiplier=final_mlp_multiplier
