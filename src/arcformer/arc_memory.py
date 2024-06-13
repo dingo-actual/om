@@ -7,7 +7,6 @@ from xformers.ops import memory_efficient_attention, LowerTriangularMask
 from .positional_embeddings import RoPEEmbeddings
 from .util import extract_state
 
-#TODO: add depth-aware weight initialization
 
 class ARC(nn.Module):
     """Implements ARC Transformer memory module."""
@@ -22,6 +21,7 @@ class ARC(nn.Module):
         segment_len: int, 
         state_len: int,
         normalize: bool,
+        num_layers: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]]
     ):
@@ -36,6 +36,7 @@ class ARC(nn.Module):
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
             normalize (bool): Whether to normalize the attention inputs.
+            num_layers (int): Number of ARC transformer layers in the parent model.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
@@ -46,6 +47,7 @@ class ARC(nn.Module):
         self.segment_len = segment_len
         self.state_len = state_len
         self.normalize = normalize
+        self.num_layers = num_layers
 
         self.dim_input = dim_input
         self.dims_key = dims_key
@@ -54,7 +56,7 @@ class ARC(nn.Module):
         self.iters = iters
         
         # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2.0 / (5 * dim_input)) ** 0.5)
+        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
         
         # Build attention modules
         self.attn = StatefulCausalMMHA(
@@ -72,9 +74,11 @@ class ARC(nn.Module):
         
         # Projection for next state
         self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
+        torch.nn.init.normal_(self.proj_out_state.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
         
         # Projection for output
         self.proj_out = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
+        torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
 
 
     def forward(self, x: torch.Tensor, state: torch.Tuple, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -326,7 +330,7 @@ class StatefulCausalAttentionHead(nn.Module):
             
         if cope:
             self.cope_emb = nn.Parameter(
-                torch.randn(1, self.dim_key, self.state_len) / (2.0 / (5 * dim_key)) ** 0.5
+                torch.randn(1, self.dim_key, self.state_len)
             )
     
     def apply_attention(

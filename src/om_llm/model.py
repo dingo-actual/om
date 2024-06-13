@@ -4,7 +4,6 @@ import torch
 
 from ..arcformer import ARCformer, RoPEEmbeddings
 
-#TODO: add depth-aware weight initialization
 class OmLLM(torch.nn.Module):
     def __init__(
         self,
@@ -60,7 +59,7 @@ class OmLLM(torch.nn.Module):
         
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
         for p in self.embedder.parameters():
-            torch.nn.init.normal_(p, mean=0, std=(2.0 / (5 * dim_input)) ** 0.5)
+            torch.nn.init.normal_(p, mean=0, std=(2. / 5. ) ** 0.5)
         
         self.init_conv = init_conv
         if init_conv:
@@ -81,6 +80,7 @@ class OmLLM(torch.nn.Module):
                     segment_len=segment_len,
                     state_len=state_len,
                     normalize=normalize,
+                    num_layers=num_layers,
                     cope=cope,
                     position_embedders=position_embedders,
                     dropout=dropout
@@ -98,6 +98,7 @@ class OmLLM(torch.nn.Module):
                 segment_len=segment_len,
                 state_len=state_len,
                 normalize=normalize,
+                num_layers=num_layers,
                 cope=cope,
                 position_embedders=position_embedders,
                 dropout=dropout,

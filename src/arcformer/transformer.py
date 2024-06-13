@@ -8,7 +8,6 @@ from .arc_memory import ARC
 from .positional_embeddings import RoPEEmbeddings
 
 
-#TODO: add depth-aware weight initialization
 class ARCformer(nn.Module):
     """Transformer layer with ARC memory."""
 
@@ -24,6 +23,7 @@ class ARCformer(nn.Module):
         segment_len: int,
         state_len: int,
         normalize: bool,
+        num_layers: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
@@ -42,6 +42,7 @@ class ARCformer(nn.Module):
             segment_len (int): Segment length for the memory modules.
             state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
             normalize (bool): Whether to normalize attention inputs for the memory modules.
+            num_layers (int): Number of ARC transformer layers in the parent model.
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
@@ -59,10 +60,12 @@ class ARCformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             normalize=normalize,
+            num_layers=num_layers,
             cope=cope,
             position_embedders=position_embedders
         )
         self.mlp_multiplier = mlp_multiplier
+        self.num_layers = num_layers
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
         
         # MLP
@@ -81,6 +84,7 @@ class ARCformer(nn.Module):
                 nn.Linear(dim_hidden * mlp_multiplier, dim_input * mlp_multiplier),
                 nn.Dropout(dropout)
             )
+            torch.nn.init.normal_(self.mlp[3].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
