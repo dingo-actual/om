@@ -159,6 +159,7 @@ def train_stage(
         writer=writer,
         batch_ix=batch_ix
     )
+    writer.flush()
     writer.close()
     
     mkdir(f"{CHECKPOINT_DIR_STAGE}/checkpoint_FINAL")
