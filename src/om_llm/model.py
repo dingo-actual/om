@@ -150,10 +150,9 @@ class OmLLM(torch.nn.Module):
             
             if self.init_conv:
                 conv_offset_lo = 2 if segment_num > 0 else 0
-                #conv_offset_hi = 0 if segment_num > 0 else 2
             else:
                 conv_offset_lo = 0
-                #conv_offset_hi = 0
+
             x_seg = x[:, ix_lo - conv_offset_lo:ix_hi]
             x_seg = self.embedder(x_seg)
             

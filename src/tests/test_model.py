@@ -27,7 +27,7 @@ def test_model():
     
     dropout = 0.1
     
-    batch_size = 6
+    batch_size = 2
     num_segments = 4
     next_token = False
     
@@ -71,7 +71,7 @@ def test_model():
     )
     
     seq_len = segment_len * num_segments
-    x = vocab_size * torch.rand(batch_size, seq_len + 2 if next_token else seq_len)
+    x = vocab_size * torch.rand(batch_size, seq_len + 2 if init_conv else seq_len)
     x = x.to(torch.long)
 
     if torch.cuda.is_available():
