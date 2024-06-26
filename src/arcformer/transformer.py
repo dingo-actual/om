@@ -18,6 +18,7 @@ class ARCformer(nn.Module):
         dims_key: List[int],
         dims_value: List[int],
         mem_iters: List[int],
+        mem_iter_invert: bool,
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -37,6 +38,7 @@ class ARCformer(nn.Module):
             dims_key (int): Key dimensions for the memory modules.
             dims_value (int): Value dimensions for the memory modules.
             mem_iters (int): Number of iterations for the memory modules.
+            mem_iter_invert (int): Whether to invert between attention iterations for the memory modules.
             num_heads (int): Number of attention heads for the memory modules.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory modules.
@@ -56,6 +58,7 @@ class ARCformer(nn.Module):
             dims_key=dims_key, 
             dims_value=dims_value, 
             iters=mem_iters,
+            iter_invert=mem_iter_invert,
             num_heads=num_heads, 
             segment_len=segment_len, 
             state_len=state_len, 

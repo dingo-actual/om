@@ -15,6 +15,7 @@ def test_model():
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     mem_iters = [1, 3, 1]
+    mem_iter_invert = False
     final_mlp_multiplier = 2
     
     activation = "gelu"
@@ -58,6 +59,7 @@ def test_model():
         dims_key=dims_key,
         dims_value=dims_value,
         mem_iters=mem_iters,
+        mem_iter_invert=mem_iter_invert,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,
@@ -81,7 +83,7 @@ def test_model():
     model.eval()  # Set the model to evaluation mode
     model = model.to(torch.bfloat16)
     with torch.no_grad():
-        preds, states, offset = model(x, next_token=next_token)
+        preds, states, _ = model(x, next_token=next_token)
 
     
     if next_token:

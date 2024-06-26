@@ -14,6 +14,7 @@ class OmLLM(torch.nn.Module):
         dims_key: List[int],
         dims_value: List[int],
         mem_iters: List[int],
+        mem_iter_invert: bool,
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -35,6 +36,7 @@ class OmLLM(torch.nn.Module):
             dims_key (List[int]): Key dimensions for ARCformer.
             dims_value (List[int]): Value dimensions for ARCformer.
             mem_iters (List[int]): Number of memory iterations for each memory layer in ARCformer.
+            mem_iter_invert (bool): Whether to invert between attention iterations for each memory layer in ARCformer.
             num_heads (int): Number of attention heads for ARCformer.
             activation (str): Activation function for MLP.
             segment_len (int): Segment length.
@@ -75,6 +77,7 @@ class OmLLM(torch.nn.Module):
                     dims_key=dims_key,
                     dims_value=dims_value,
                     mem_iters=mem_iters,
+                    mem_iter_invert=mem_iter_invert,
                     num_heads=num_heads,
                     activation=activation,
                     segment_len=segment_len,
@@ -93,6 +96,7 @@ class OmLLM(torch.nn.Module):
                 dims_key=dims_key,
                 dims_value=dims_value,
                 mem_iters=mem_iters,
+                mem_iter_invert=mem_iter_invert,
                 num_heads=num_heads,
                 activation=activation,
                 segment_len=segment_len,
