@@ -10,7 +10,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ### Reporting Bugs
 
-If you find a bug, please open an issue on our [GitHub Issues page](https://github.com/[username]/[repository]/issues) with the following information:
+If you find a bug, please open an issue on our [GitHub Issues page](https://github.com/dingo-actual/om/issues) with the following information:
 
 - A clear, descriptive title
 - A detailed description of the issue
@@ -22,7 +22,7 @@ If you find a bug, please open an issue on our [GitHub Issues page](https://gith
 
 ### Suggesting Enhancements
 
-We're always looking for ways to improve [Project Name]. If you have an idea for an enhancement, please open an issue on our [GitHub Issues page](https://github.com/[username]/[repository]/issues) with the following information:
+We're always looking for ways to improve Om LLM. If you have an idea for an enhancement, please open an issue on our [GitHub Issues page](https://github.com/dingo-actual/om/issues) with the following information:
 
 - A clear, descriptive title
 - A detailed description of the proposed enhancement
@@ -46,18 +46,13 @@ To set up your development environment:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/[username]/[repository].git
-   cd [repository]
+   git clone https://github.com/dingo-actual/om.git
+   cd om
    ```
 
 2. Install dependencies:
    ```bash
-   npm install
-   ```
-
-3. Run tests:
-   ```bash
-   npm test
+   pip install -r requirements.txt
    ```
 
 ## License
