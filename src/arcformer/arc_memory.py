@@ -342,12 +342,7 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias is None:
-            #attn_bias = LowerTriangularMask()
-            device = k.device
-            attn_bias = torch.tril(
-                torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=torch.bool), 
-                diagonal=0,
-            )
+            attn_bias = LowerTriangularMask()
         else:
             device = k.device
             attn_bias = torch.tril(
@@ -357,8 +352,7 @@ class StatefulCausalAttentionHead(nn.Module):
             attn_bias = attn_bias.log()
             attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
             
-        #att = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
-        att = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
 
         return att
 
