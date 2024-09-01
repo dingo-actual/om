@@ -17,8 +17,6 @@ class ARCformer(nn.Module):
         dim_hidden: int,
         dims_key: List[int],
         dims_value: List[int],
-        mem_iters: List[int],
-        mem_iter_invert: bool,
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -37,8 +35,6 @@ class ARCformer(nn.Module):
             dim_hidden (int): Hidden dimension for the MLP.
             dims_key (int): Key dimensions for the memory modules.
             dims_value (int): Value dimensions for the memory modules.
-            mem_iters (int): Number of iterations for the memory modules.
-            mem_iter_invert (int): Whether to invert between attention iterations for the memory modules.
             num_heads (int): Number of attention heads for the memory modules.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory modules.
@@ -57,8 +53,6 @@ class ARCformer(nn.Module):
             dim_input=dim_input, 
             dims_key=dims_key, 
             dims_value=dims_value, 
-            iters=mem_iters,
-            iter_invert=mem_iter_invert,
             num_heads=num_heads, 
             segment_len=segment_len, 
             state_len=state_len, 
@@ -102,11 +96,12 @@ class ARCformer(nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, segment_len, dim_input).
             torch.Tensor: State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
-        # Apply multi-head attention, followed by MLP and layer normalization with residual connection.
+        # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
         x_, state = self.attn(x, state, offset)
         x_ = self.attn_norm(x_ + x)
         x_ = self.mlp(x_)
         
+        # If no MLP multiplier, then add residual connection.
         if self.mlp_multiplier == 1:
             x_ = self.mlp_norm(x_ + x)
         else:

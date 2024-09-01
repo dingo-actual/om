@@ -14,17 +14,16 @@ def test_model():
     dim_hidden = int(8 * dim_input / 3)
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
-    mem_iters = [1, 3, 1]
-    mem_iter_invert = False
     final_mlp_multiplier = 2
     
     activation = "gelu"
-    segment_len = 2048
+    segment_len = 128
     normalize = True
     cope = True
     state_len = segment_len // 8
     
-    init_conv = True
+    init_convs = [1, 2, 3, 4]
+    max_init_convs = 1 if len(init_convs) == 0 else max(init_convs)
     
     dropout = 0.1
     
@@ -58,8 +57,6 @@ def test_model():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
-        mem_iters=mem_iters,
-        mem_iter_invert=mem_iter_invert,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,
@@ -68,12 +65,12 @@ def test_model():
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
-        init_conv=init_conv,
+        init_convs=init_convs,
         final_mlp_multiplier=final_mlp_multiplier
     )
     
     seq_len = segment_len * num_segments
-    x = vocab_size * torch.rand(batch_size, seq_len + 2 if init_conv else seq_len)
+    x = vocab_size * torch.rand(batch_size, seq_len + max_init_convs - 1)
     x = x.to(torch.long)
 
     if torch.cuda.is_available():

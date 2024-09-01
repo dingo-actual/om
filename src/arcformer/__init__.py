@@ -1,5 +1,5 @@
 from .arc_memory import ARC
-from .transformer import ARCformer
+from .arcformer import ARCformer
 from .positional_embeddings import RoPEEmbeddings
 
 __all__ = [

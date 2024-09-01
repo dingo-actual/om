@@ -13,8 +13,6 @@ class OmLLM(torch.nn.Module):
         dim_hidden: int,
         dims_key: List[int],
         dims_value: List[int],
-        mem_iters: List[int],
-        mem_iter_invert: bool,
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -23,7 +21,7 @@ class OmLLM(torch.nn.Module):
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
-        init_conv: bool = False,
+        init_convs: List[int] = [],
         final_mlp_multiplier: int = 1,
     ):
         """Initialize the model.
@@ -35,8 +33,6 @@ class OmLLM(torch.nn.Module):
             dim_hidden (int): Hidden dimension for MLP.
             dims_key (List[int]): Key dimensions for ARCformer.
             dims_value (List[int]): Value dimensions for ARCformer.
-            mem_iters (List[int]): Number of memory iterations for each memory layer in ARCformer.
-            mem_iter_invert (bool): Whether to invert between attention iterations for each memory layer in ARCformer.
             num_heads (int): Number of attention heads for ARCformer.
             activation (str): Activation function for MLP.
             segment_len (int): Segment length.
@@ -45,7 +41,7 @@ class OmLLM(torch.nn.Module):
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): MLP dropout. Defaults to 0.0.
-            init_conv (bool, optional): Whether to use initial convolutional layers. Defaults to False.
+            init_convs (List[int], optional): Initial convolutional layer hidden sizes. Defaults to [].
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
         """
         super(OmLLM, self).__init__()
@@ -63,10 +59,14 @@ class OmLLM(torch.nn.Module):
         for p in self.embedder.parameters():
             torch.nn.init.normal_(p, mean=0, std=(2. / 5. ) ** 0.5)
         
-        self.init_conv = init_conv
-        if init_conv:
-            self.conv2 = torch.nn.Conv1d(dim_input, dim_input, 2)
-            self.conv3 = torch.nn.Conv1d(dim_input, dim_input, 3)
+        self.init_convs = sorted(init_convs)
+        if len(init_convs) > 0:
+            self.convs = torch.nn.ModuleList(
+                [
+                    torch.nn.Conv1d(dim_input, dim_input, kernel_size=k)
+                    for k in init_convs
+                ]
+            )
         
         layers = []
         for _ in range(num_layers - 1):
@@ -76,8 +76,6 @@ class OmLLM(torch.nn.Module):
                     dim_hidden=dim_hidden,
                     dims_key=dims_key,
                     dims_value=dims_value,
-                    mem_iters=mem_iters,
-                    mem_iter_invert=mem_iter_invert,
                     num_heads=num_heads,
                     activation=activation,
                     segment_len=segment_len,
@@ -95,8 +93,6 @@ class OmLLM(torch.nn.Module):
                 dim_hidden=dim_hidden,
                 dims_key=dims_key,
                 dims_value=dims_value,
-                mem_iters=mem_iters,
-                mem_iter_invert=mem_iter_invert,
                 num_heads=num_heads,
                 activation=activation,
                 segment_len=segment_len,
@@ -147,23 +143,32 @@ class OmLLM(torch.nn.Module):
         
         out = []
         
+        if len(self.init_convs) > 0:
+            drop_num = max(self.init_convs) - 1
+        else:
+            drop_num = 0
+        
         for segment_num in range(num_segments):
             ix_lo = segment_num * self.segment_len
             ix_hi = min(ix_lo + self.segment_len, seq_len)
             seg_len_actual = ix_hi - ix_lo
             
-            if self.init_conv:
-                conv_offset_lo = 2 if segment_num > 0 else 0
+            if len(self.init_convs) > 0 and segment_num > 0:
+                conv_offset_lo = max(self.init_convs) - 1
             else:
                 conv_offset_lo = 0
 
             x_seg = x[:, ix_lo - conv_offset_lo:ix_hi]
             x_seg = self.embedder(x_seg)
             
-            if self.init_conv:
-                x_seg_conv2 = self.conv2(x_seg.transpose(1, 2)).transpose(1, 2)
-                x_seg_conv3 = self.conv3(x_seg.transpose(1, 2)).transpose(1, 2)
-                x_seg = x_seg[:, 2:, :] + x_seg_conv2[:, 1:, :] + x_seg_conv3
+            if len(self.init_convs) > 0:
+                x_seg_convs = [
+                    conv(x_seg.transpose(1, 2)).transpose(1, 2) for conv in self.convs
+                ]
+                for k, x_seg_conv in zip(self.init_convs, x_seg_convs):
+                    x_seg[:, k-1:, :] += x_seg_conv
+                    
+                x_seg = x_seg[:, drop_num:, :]
             
             states_next = []
         

@@ -9,15 +9,13 @@ from .util import extract_state
 
 
 class ARC(nn.Module):
-    """Implements ARC Transformer memory module."""
+    """Implements ARC (Attentive Recurrent Cell) Transformer memory module."""
 
     def __init__(
         self, 
         dim_input: int, 
         dims_key: List[int], 
         dims_value: List[int], 
-        iters: List[int],
-        iter_invert: bool,
         num_heads: int, 
         segment_len: int, 
         state_len: int,
@@ -32,8 +30,6 @@ class ARC(nn.Module):
             dim_input (int): Input dimension.
             dims_key (List[int]): Key dimensions.
             dims_value (List[int]): Value dimensions.
-            iters (List[int]): Number of iterations for each memory module.
-            iter_invert (bool): Whether to invert between attention iterations.
             num_heads (int): Number of attention heads.
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
@@ -55,14 +51,11 @@ class ARC(nn.Module):
         self.dims_key = dims_key
         self.dims_value = dims_value
         
-        self.iters = iters
-        self.iter_invert = iter_invert
-        
         # Set learnable initial state
         self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
         
         # Build attention modules
-        self.attn = StatefulCausalMMHA(
+        self.attn = StatefulCausalMHMA(
             dim_input=dim_input,
             dims_key=dims_key,
             dims_value=dims_value,
@@ -72,8 +65,6 @@ class ARC(nn.Module):
             normalize=normalize,
             cope=cope,
             position_embedders=position_embedders,
-            iters=iters,
-            iter_invert=iter_invert
         )
         
         # Projection for next state
@@ -87,7 +78,7 @@ class ARC(nn.Module):
 
     def forward(self, x: torch.Tensor, state: torch.Tuple, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Applies recurrent dual-attention to the input tensor x.
+        Applies recurrent stateful attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
@@ -105,17 +96,18 @@ class ARC(nn.Module):
         x = self.attn(x, offset=offset - self.state_len)
         
         # Extract state from result
-        _, att_end, state_end = extract_state(x, self.state_len)
+        _, att, state_end = extract_state(x, self.state_len)
         
         # Get next state
         state = self.proj_out_state(state_end)
         
         # Append output to buffer
-        x = self.proj_out(att_end)
+        x = self.proj_out(att)
 
         return x, state
 
-class StatefulCausalMMHA(nn.Module):
+class StatefulCausalMHMA(nn.Module):
+    """Implements a Stateful Causal Multi-Head Multi-Attention (MHMA) module."""
     def __init__(
         self,  
         dim_input: int, 
@@ -127,8 +119,6 @@ class StatefulCausalMMHA(nn.Module):
         normalize: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
-        iters: List[int],
-        iter_invert: bool = False,
     ):
         """Initializes the module
 
@@ -142,10 +132,8 @@ class StatefulCausalMMHA(nn.Module):
             normalize (bool): Whether to normalize the input to the attention projections.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
-            iters (List[int]): The number of attention iterations to perform.
-            iter_invert (bool, optional): Whether to invert between attention iterations. Defaults to False.
         """
-        super(StatefulCausalMMHA, self).__init__()
+        super(StatefulCausalMHMA, self).__init__()
         
         self.dim_input = dim_input
         self.dims_key = dims_key
@@ -155,8 +143,6 @@ class StatefulCausalMMHA(nn.Module):
         self.state_len = state_len
         self.normalize = normalize
         self.position_embedders = position_embedders
-        self.iters = iters
-        self.iter_invert = iter_invert
         
         self.attn_heads = nn.ModuleList(
             [
@@ -169,8 +155,6 @@ class StatefulCausalMMHA(nn.Module):
                     normalize=normalize,
                     cope=cope,
                     position_embedders=position_embedders,
-                    iters=iters,
-                    iter_invert=iter_invert
                 ) for _ in range(num_heads)
             ]
         )
@@ -194,6 +178,7 @@ class StatefulCausalMMHA(nn.Module):
     
 
 class StatefulCausalMultiAttention(nn.Module):
+    """Implements a Stateful Causal Multi-Attention module."""
     def __init__(
         self,  
         dim_input: int, 
@@ -204,8 +189,6 @@ class StatefulCausalMultiAttention(nn.Module):
         normalize: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
-        iters: List[int],
-        iter_invert: bool = False,
     ):
         """Initializes the module
 
@@ -218,8 +201,6 @@ class StatefulCausalMultiAttention(nn.Module):
             normalize (bool): Whether to normalize the input to the attention projections.
             cope (bool): Whether to use CoPE.
             position_embedder (Optional[RoPEEmbeddings]): The position embedder to use.
-            iters (List[int]): The number of attention iterations to perform.
-            iter_invert (bool, optional): Whether to invert between attention iterations. Defaults to False.
         """
         super(StatefulCausalMultiAttention, self).__init__()
         
@@ -230,8 +211,6 @@ class StatefulCausalMultiAttention(nn.Module):
         self.state_len = state_len
         self.normalize = normalize
         self.position_embedders = position_embedders
-        self.iters = iters
-        self.iter_invert = iter_invert
         
         attn_modules = [
             StatefulCausalAttentionHead(
@@ -243,8 +222,6 @@ class StatefulCausalMultiAttention(nn.Module):
                 normalize=normalize,
                 cope=cope,
                 position_embedder=position_embedders[0],
-                iters=iters[0],
-                iter_invert=iter_invert
             )
         ]
         for ix in range(1, len(dims_key)):
@@ -258,7 +235,6 @@ class StatefulCausalMultiAttention(nn.Module):
                     normalize=normalize,
                     cope=cope,
                     position_embedder=position_embedders[ix],
-                    iters=iters[ix]
                 )
             )
         self.attn_modules = nn.ModuleList(attn_modules)
@@ -281,6 +257,7 @@ class StatefulCausalMultiAttention(nn.Module):
         return x
     
 class StatefulCausalAttentionHead(nn.Module):
+    """Implements a Stateful Causal Attention Head module."""
     def __init__(
         self,  
         dim_input: int, 
@@ -291,8 +268,6 @@ class StatefulCausalAttentionHead(nn.Module):
         normalize: bool = True,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
-        iters: int = 1,
-        iter_invert: bool = False,
     ):
         """Initializes the module
 
@@ -303,8 +278,6 @@ class StatefulCausalAttentionHead(nn.Module):
             state_len (int): The length of the state tensor.
             normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
-            iters (int, optional): The number of attention iterations to perform. Defaults to 1.
-            iter_invert (bool, optional): Whether to invert between attention iterations. Defaults to False.
         """
         super(StatefulCausalAttentionHead, self).__init__()
         
@@ -316,8 +289,6 @@ class StatefulCausalAttentionHead(nn.Module):
         self.normalize = normalize
         self.cope = cope
         self.position_embedder = position_embedder
-        self.iters = iters
-        self.iter_invert = iter_invert
         
         # Projections from the attention layer to the next attention layer
         self.proj_k = nn.Linear(dim_input, dim_key, bias=False)
@@ -338,22 +309,6 @@ class StatefulCausalAttentionHead(nn.Module):
         self.proj_q_state_end = nn.Linear(dim_input, dim_key, bias=False)
         self.proj_v_state_end = nn.Linear(dim_input, dim_value, bias=False)
         
-        if iters > 1:
-            if iter_invert:
-                self.proj_inv = nn.Linear(dim_value, dim_input, bias=False)
-                self.proj_inv_state_begin = nn.Linear(dim_value, dim_input, bias=False)
-                self.proj_inv_state_end = nn.Linear(dim_value, dim_input, bias=False)
-            
-            self.kv_initialized = False
-            
-            self.k = None
-            self.k_state_start = None
-            self.k_state_end = None
-            
-            self.v = None
-            self.v_state_start = None
-            self.v_state_end = None
-            
         if cope:
             self.cope_emb = nn.Parameter(
                 torch.randn(1, self.dim_key, self.state_len)
@@ -365,8 +320,7 @@ class StatefulCausalAttentionHead(nn.Module):
         k: torch.Tensor, 
         v: torch.Tensor, 
         offset: Optional[int] = None,
-        bias: Optional[torch.Tensor] = None,
-        skip_k_pos: bool = False
+        bias: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -377,20 +331,23 @@ class StatefulCausalAttentionHead(nn.Module):
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
             offset (Optional[int]): Optional offset to apply to the position embeddings.
             bias (Optional[torch.Tensor]): Attention bias vector of shape (batch_size, seq_len, seq_len).
-            skip_k_pos (bool): Whether to skip the key positional embeddings.
             
         Returns:
             torch.Tensor: Output tensors of shape (batch_size, seq_len + 2 * state_len, dim_value).
         """
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            if not skip_k_pos:
-                k = self.position_embedder(k, offset=offset)
+            k = self.position_embedder(k, offset=offset)
             q = self.position_embedder(q, offset=offset)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias is None:
-            attn_bias = LowerTriangularMask()
+            #attn_bias = LowerTriangularMask()
+            device = k.device
+            attn_bias = torch.tril(
+                torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=torch.bool), 
+                diagonal=0,
+            )
         else:
             device = k.device
             attn_bias = torch.tril(
@@ -400,57 +357,18 @@ class StatefulCausalAttentionHead(nn.Module):
             attn_bias = attn_bias.log()
             attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
             
-        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
-        #att = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+        #att = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
+        att = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
 
         return att
-    
+
     def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
         """
-        Applies the StatefulCausalAttention layer to the input tensor.
+        Forward pass. Applies StatefulCausalAttention to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
             offset (int): Offset for the position embeddings.
-
-        Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
-                
-        """
-        if self.iters > 1:
-            for _ in range(self.iters - 1):
-                x = self.forward_(x, offset, project=False)
-                x_state_start, x, x_state_end = extract_state(x, self.state_len)
-                if self.iter_invert:
-                    x = self.proj_inv(x)
-                    x_state_start = self.proj_inv_state_begin(x_state_start)
-                    x_state_end = self.proj_inv_state_begin(x_state_end)
-                x = torch.cat([x_state_start, x, x_state_end], dim=1) 
-            x = self.forward_(x, offset, project=False)
-        else:
-            x = self.forward_(x, offset, project=True)
-            
-        if self.iters > 1:
-            self.k = None
-            self.k_state_start = None
-            self.k_state_end = None
-            
-            self.v = None
-            self.v_state_start = None
-            self.v_state_end = None
-            
-            self.kv_initialized = False
-            
-        return x
-    
-    def forward_(self, x: torch.Tensor, offset: int, project: bool = True) -> torch.Tensor:
-        """
-        Applies StatefulCausalAttention to the input tensor.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
-            project (bool): Whether to project the input tensor to the key, query, and value spaces.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
@@ -458,47 +376,30 @@ class StatefulCausalAttentionHead(nn.Module):
         """
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
-        if not project and not self.kv_initialized:
-            project = True
-            self.kv_initialized = True
+        if self.normalize:
+            x = self.norm_in(x)
+            x_state_start = self.norm_in_state_start(x_state_start)
+            x_state_end = self.norm_in_state_end(x_state_end)
         
-        if project:
-            if self.normalize:
-                x = self.norm_in(x)
-                x_state_start = self.norm_in_state_start(x_state_start)
-                x_state_end = self.norm_in_state_end(x_state_end)
-            
-            k = self.proj_k(x)
-            q = self.proj_q(x)
-            v = self.proj_v(x)
-            
-            k_state_start = self.proj_k_state_start(x_state_start)
-            q_state_start = self.proj_q_state_start(x_state_start)
-            v_state_start = self.proj_v_state_start(x_state_start)
-            
-            k_state_end = self.proj_k_state_end(x_state_end)
-            q_state_end = self.proj_q_state_end(x_state_end)
-            v_state_end = self.proj_v_state_end(x_state_end)
-            
-            self.k = k
-            self.k_state_start = k_state_start
-            self.k_state_end = k_state_end
-            
-            self.v = v
-            self.v_state_start = v_state_start
-            self.v_state_end = v_state_end
-        else:
-            k = self.k
-            k_state_start = self.k_state_start
-            k_state_end = self.k_state_end
-
-            v = self.v
-            v_state_start = self.v_state_start
-            v_state_end = self.v_state_end
-            
-            q = x
-            q_state_start = x_state_start
-            q_state_end = x_state_end
+        k = self.proj_k(x)
+        q = self.proj_q(x)
+        v = self.proj_v(x)
+        
+        k_state_start = self.proj_k_state_start(x_state_start)
+        q_state_start = self.proj_q_state_start(x_state_start)
+        v_state_start = self.proj_v_state_start(x_state_start)
+        
+        k_state_end = self.proj_k_state_end(x_state_end)
+        q_state_end = self.proj_q_state_end(x_state_end)
+        v_state_end = self.proj_v_state_end(x_state_end)
+        
+        self.k = k
+        self.k_state_start = k_state_start
+        self.k_state_end = k_state_end
+        
+        self.v = v
+        self.v_state_start = v_state_start
+        self.v_state_end = v_state_end
         
         if self.cope:
             logits = q @ k.transpose(-2, -1)
@@ -523,6 +424,6 @@ class StatefulCausalAttentionHead(nn.Module):
         q = torch.cat([q_state_start, q, q_state_end], dim=1)
         v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
-        att = self.apply_attention(q, k, v, offset=offset, bias=bias, skip_k_pos=not project)
+        att = self.apply_attention(q, k, v, offset=offset, bias=bias)
         
         return att
