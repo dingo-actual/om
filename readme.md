@@ -1,4 +1,4 @@
-# Om LLM
+# Om LLM (WIP)
 
 <img src="om_llm.jpg" alt="Om LLM Logo" width="25%" height="25%">
 
