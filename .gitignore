@@ -1,4 +1,2 @@
 *.vscode*
 *__pycache__*
-src/tests/*
-*run_tests.py
