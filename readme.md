@@ -46,7 +46,26 @@ It will produce two outputs `Tensor`s:
 
 ### `ARC` Usage
 
+The `ARC` class can be instantiated with the following parameters:
 
+- `dim_input` (`int`): The dimension of the input sequence.
+- `dims_key` (`List[int]`): The dimensions of the key/query vectors for each layer in the attention block.
+- `dims_value` (`List[int]`): The dimensions of the value vectors for each layer in the attention block.
+- `num_heads` (`int`): The number of heads in the attention block.
+- `segment_len` (`int`): The length of the segment to be processed at a time.
+- `state_len` (`int`): The length of the state token sequence.
+- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
+- `cope` (`bool`): Whether to use CoPE positional embeddings.
+- `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
+
+Once instantiated, an `ARC` object can be called as follows:
+
+```python
+output, state_token_sequence = arc(input_sequence, state_token_sequence, offset)
+```
+
+The `output` tensor will have the same shape as the input sequence, and can be passed to the MLP portion of an `ARCformer`. The `state_token_sequence` tensor will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARC` layer.
 
 ## `ARCformer`: Attentive Recurrent Cell (ARC) Transformer
 
@@ -63,13 +82,22 @@ It will produce two outputs `Tensor`s:
 
 ### `ARCformer` Usage
 
+TODO
 ## `RoPEEmbeddings`
+
+TODO
 
 ### `RoPEEmbeddings` Usage
 
+TODO
+
 ## `OmLLM`
 
+TODO
+
 ### `OmLLM` Usage
+
+TODO
 
 ## Installation
 
@@ -89,6 +117,8 @@ pip install -r requirements.txt
 - NumPy 1.25+
 
 ## Future Work
+
+TODO
 
 ## Contributing
 
