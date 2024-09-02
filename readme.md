@@ -31,11 +31,32 @@ I do not plan on publishing a paper on this project. If you would like to use th
 
 ## `ARC`: Attentive Recurrent Cell
 
+The Attentive Recurrent Cell (`ARC`) is a lower-level component of Om LLM. It represents a recurrent cell that utilizes attention calculations to update state. Unlike the multi-head attention component of a transformer, the memory component of an `ARC` performs multiple project-then-attend operations. Beyond the first of these operations, the number of additional parameters added to the model is rather small, having nine matrices of size `(memory_dim_prev, memory_dim_next)` for each memory head: three for the "read" state sequence, three for the "write" state sequence, and three for the non-state sub-sequence. Additionally, `ARC` is compatible with RoPE and/or CoPE positional embeddings.
+
+The forward pass of `ARC` requires three inputs:
+
+- A `Tensor` sub-sequence of the input
+- A current state token sequence `Tensor`, and
+- An `int` offset, representing the location of the current sub-sequence in the input sequence.
+
+It will produce two outputs `Tensor`s:
+
+- The typical output sequence from a multi-head attention block, as well as
+- A state token sequence, which is used to process the next input sub-sequence.
+
 ### `ARC` Usage
+
+
 
 ## `ARCformer`: Attentive Recurrent Cell (ARC) Transformer
 
-The ARC Transformer (`ARCformer`) is the second highest-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequences". The forward pass of `ARCformer` requires inputs of a sub-sequence and a current state token sequence (the initial state for each `ARCformer` is a learned parameter) and will produce two outputs:
+The ARC Transformer (`ARCformer`) is a middle-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequences". The forward pass of `ARCformer` requires three inputs:
+
+- A `Tensor` sub-sequence of the input
+- A current state token sequence `Tensor` (the initial state for each `ARCformer` is a learned parameter), and
+- An `int` offset, representing the location of the current sub-sequence in the input sequence.
+
+It will produce two outputs `Tensor`s:
 
 - The usual output sequence from a transformer block, as well as
 - A state token sequence, which is used to process the next input sub-sequence.
@@ -52,7 +73,22 @@ The ARC Transformer (`ARCformer`) is the second highest-level component of Om LL
 
 ## Installation
 
+To install Om LLM, run the following commands:
+
+```bash
+git clone https://github.com/dingo-actual/om.git
+cd om
+pip install -r requirements.txt
+```
+
 ## Requirements
+
+- Python 3.10+
+- PyTorch 2.0+
+- xformers 0.0.26+
+- NumPy 1.25+
+
+## Future Work
 
 ## Contributing
 
