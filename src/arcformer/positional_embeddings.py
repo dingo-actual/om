@@ -13,7 +13,7 @@ class RoPEEmbeddings(torch.nn.Module):
         """Instantiate the module.
 
         Args:
-            dim (int): Key/Value dimension of the attention layer.
+            dim (int): Query/Key dimension of the attention layer.
             seq_len (int): Maximum sequence length.
             dim_embedding_pct (float): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
             base (int, optional): Base used for calculating thetas. Defaults to 10000.
