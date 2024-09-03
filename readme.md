@@ -82,11 +82,43 @@ It will produce two outputs `Tensor`s:
 
 ### `ARCformer` Usage
 
-TODO
+The `ARCformer` class can be instantiated with the following parameters:
+
+- `dim_input` (`int`): The dimension of the input sequence.
+- `dim_hidden` (`int`): The dimension of the hidden layer for the MLP portion of the transformer.
+- `dims_key` (`List[int]`): The dimensions of the key/query vectors for each layer in the attention block.
+- `dims_value` (`List[int]`): The dimensions of the value vectors for each layer in the attention block.
+- `num_heads` (`int`): The number of heads in the attention block.
+- `activation` (`str`): The activation function to use for the MLP portion of the transformer. Must be one of:
+  - "relu"
+  - "gelu"
+  - "swish"
+  - "swiglu"
+  - "geglu"
+  - "ffnglu"
+  - "ffngeglu"
+  - "ffnswiglu"
+  - "abs"
+- `segment_len` (`int`): The length of the segment to be processed at a time.
+- `state_len` (`int`): The length of the state token sequence.
+- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
+- `cope` (`bool`): Whether to use CoPE positional embeddings.
+- `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
+- dropout (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
+- mlp_multiplier (`int`): Multiplier for the final two layers of the MLP portion of the transformer. (Default: 1)
+
+Once instantiated, an `ARCformer` object can be called as follows:
+
+```python
+output, state_token_sequence = arcformer(input_sequence, state_token_sequence, offset)
+```
+
+The `output` tensor will have the same shape as the input sequence, and can be passed to the next `ARCformer` in the model. The `state_token_sequence` tensor will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
 
 ## `RoPEEmbeddings`
 
-TODO
+RoPEEmbeddings is a class that implements the RoPE (Rotary Position Embedding) positional embedding scheme, as described in the paper "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Jianlin Su et al. [arxiv](https://arxiv.org/abs/2104.09864). It has minor modifications made to support `ARC`'s recurrent structure.
 
 ### `RoPEEmbeddings` Usage
 
@@ -119,7 +151,11 @@ pip install -r requirements.txt
 
 ## Future Work
 
-TODO
+- Add a linear projection after the final memory layer in `ARC` to bring the output dimension of the memory block to the same dimension as the first memory layer.
+  - This will allow for the final memory dimension to be set arbitrarily, instead of being fixed at the dimension of the first memory layer.
+- Investigate the properties of the `ARCformer` initial state token sequence after training.
+  - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
+- Investigate the impact of the state token sequence length on the length generalization of the model.
 
 ## Contributing
 
