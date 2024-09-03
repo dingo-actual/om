@@ -25,7 +25,7 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
     - Learn effectively, regardless of the choice of tokenizer
     - Potentially eliminate the need for a tokenizer
 
-To the best of my knowledge, these features are novel. If you find any references to these features in the literature, please let me know!
+To the best of my knowledge, these features are novel. If you find any references to these features in the literature, please let me know. My email is [ryan@beta-reduce.net](ryan@beta-reduce.net)
 
 I do not plan on publishing a paper on this project. If you would like to use this project in your own work, please cite this repository, and its creator (Ryan P. Taylor).
 
@@ -118,15 +118,44 @@ The `output` tensor will have the same shape as the input sequence, and can be p
 
 ## `RoPEEmbeddings`
 
-RoPEEmbeddings is a class that implements the RoPE (Rotary Position Embedding) positional embedding scheme, as described in the paper "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Jianlin Su et al. [arxiv](https://arxiv.org/abs/2104.09864). It has minor modifications made to support `ARC`'s recurrent structure.
+RoPEEmbeddings is a class that implements the RoPE (Rotary Position Embedding) positional embedding scheme, as described in the paper "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Jianlin Su et al. ([arxiv](https://arxiv.org/abs/2104.09864)). It has minor modifications made to support `ARC`'s recurrent structure.
 
 ### `RoPEEmbeddings` Usage
 
-TODO
+The `RoPEEmbeddings` class can be instantiated with the following parameters:
+
+- `dim` (`int`): Key/Query dimension of the corresponding attention layer.
+- `seq_len` (`int`): Maximum sequence length.
+- `dim_embedding_pct` (`float`): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
+- `base` (`int`, optional): Base used for calculating thetas. Defaults to 10000.
+
+Once instantiated, a `RoPEEmbeddings` object can be called as follows:
+
+```python
+q_rope = rope(q, offset)
+k_rope = rope(k, offset)
+
+att = sdp_attention(q_rope, k_rope, v)
+```
+
+Although users are unlikely to directly interface with a `RoPEEmbeddings` object, it's necessary to instantiate them when using RoPE in an `OmLLM` object.
 
 ## `OmLLM`
 
-TODO
+The `OmLLM` class is the primary user-facing class in this package. It represents an LLM using the Om architecture, which utilizes `ARC` memory, as well as (optional) initial convolutional operations on the embeddings. Note that these embeddings can either come from tokens, or from direct characters.
+
+The inputs to an `OmLLM` object are:
+
+- A `Tensor` of token/character indices.
+- A list of initial state token sequences (one for each `ARCformer` layer in the model). If an empty list is provided, the learned initial state token sequences will be used for each `ARCformer`. This argument is the means through which inference with a cached context is performed.
+- An `int` offset for the input text (default: 0). This can be set to a nonzero value when performing inference with a cached context (where the value will be equal to the length of the cached context).
+- A `bool` indicating whether or not to only produce predictions for the next token. If `False`, next-token predictions will be produced for the entire input.
+
+The outputs of an `OmLLM` object are:
+
+- A `Tensor` of logits for next tokens; this can either be a sequence of such logit vectors, or a single logit vector, depending on whether the user has specified to only predict the next token.
+- A list of state token sequence `Tensor`s at the final input. This can be cached to perform context caching.
+- An `int` offset for the input sequence. This can be used to perform context caching.
 
 ### `OmLLM` Usage
 
