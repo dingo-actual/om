@@ -65,7 +65,7 @@ Once instantiated, an `ARC` object can be called as follows:
 output, state_token_sequence = arc(input_sequence, state_token_sequence, offset)
 ```
 
-The `output` tensor will have the same shape as the input sequence, and can be passed to the MLP portion of an `ARCformer`. The `state_token_sequence` tensor will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARC` layer.
+The `output` `Tensor` will have the same shape as the input sequence, and can be passed to the MLP portion of an `ARCformer`. The `state_token_sequence` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARC` layer.
 
 ## `ARCformer`: Attentive Recurrent Cell (ARC) Transformer
 
@@ -105,16 +105,16 @@ The `ARCformer` class can be instantiated with the following parameters:
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
-- dropout (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
-- mlp_multiplier (`int`): Multiplier for the final two layers of the MLP portion of the transformer. (Default: 1)
+- `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
+- `mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the transformer. (Default: 1)
 
 Once instantiated, an `ARCformer` object can be called as follows:
 
 ```python
-output, state_token_sequence = arcformer(input_sequence, state_token_sequence, offset)
+output, state_token_sequence_next = arcformer(input_sequence, state_token_sequence, offset)
 ```
 
-The `output` tensor will have the same shape as the input sequence, and can be passed to the next `ARCformer` in the model. The `state_token_sequence` tensor will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
+The `output` `Tensor` will have the same shape as the input sequence, and can be passed to the next `ARCformer` in the model. The `state_token_sequence_next` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
 
 ## `RoPEEmbeddings`
 
@@ -159,7 +159,45 @@ The outputs of an `OmLLM` object are:
 
 ### `OmLLM` Usage
 
-TODO
+The `OmLLM` class can be instantiated with the following parameters:
+
+- `num_layers` (`int`): The number of `ARCformer` layers in the model.
+- `vocab_size` (`int`): The size of the input vocabulary. If not divisible by 8, this will be internally padded to the next multiple of 8 (to make softmax computation during next-token prediction more efficient).
+- `dim_input` (`int`): The dimension of the input sequence.
+- `dim_hidden` (`int`): The dimension of the hidden layer for the MLP portion of the transformers.
+- `dims_key` (`List[int]`): The dimensions of the key/query vectors for each layer in the attention blocks.
+- `dims_value` (`List[int]`): The dimensions of the value vectors for each layer in the attention blocks.
+- `num_heads` (`int`): The number of heads in the attention blocks.
+- `activation` (`str`): The activation function to use for the MLP portion of the transformers. Must be one of:
+  - "relu"
+  - "gelu"
+  - "swish"
+  - "swiglu"
+  - "geglu"
+  - "ffnglu"
+  - "ffngeglu"
+  - "ffnswiglu"
+  - "abs"
+- `segment_len` (`int`): The length of the segment to be processed at a time.
+- `state_len` (`int`): The length of the state token sequence.
+- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `cope` (`bool`): Whether to use CoPE positional embeddings.
+- `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
+- `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
+- `init_convs` (`List[int]`): The kernel widths for initial convolutional layers. Leave empty to not use initial convolutional layers. (Default: [])
+- `final_mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the final transformer. (Default: 1)
+
+Once instantiated, an `OmLLM` object can be called as follows:
+
+```python
+output, state_token_sequence_end, offset = omllm(input_sequence, state_token_sequence, offset, next_token_flag)
+```
+
+The `output` `Tensor` will contain logits for each next-token prediction. If `next_token_flag` is `False` (the default) have dimensions `(batch_size, seq_len, vocab_size_adj)`, where `vocab_size_adj` is equal to the input vocab size plus an offset to make the number divisible by 8 (which is done to make downstream softmax computations more efficient on CUDA devices -- note, all "padded" logits are set to `-inf`); if `next_token_flag` is `True`, the `Tensor` will have dimensions `(batch_size, vocab_size_adj)` and represent only the logits for the final next-token in the input.
+
+The `state_token_sequence_end` `Tensor` will have the same shape as `state_token_sequence`, and can be stored to be used as the initial state token sequence for the next call to the model (context caching).
+
+The `offset` `int` will be the offset for the input sequence. This can be used to perform context caching.
 
 ## Installation
 
