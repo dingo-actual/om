@@ -68,11 +68,11 @@ class ARC(nn.Module):
         )
         
         # Projection for next state
-        self.proj_out_state = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
+        self.proj_out_state = nn.Linear(num_heads * dims_value[0], dim_input, bias=False)
         torch.nn.init.normal_(self.proj_out_state.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
         
         # Projection for output
-        self.proj_out = nn.Linear(num_heads * dims_value[-1], dim_input, bias=False)
+        self.proj_out = nn.Linear(num_heads * dims_value[0], dim_input, bias=False)
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
 
 
@@ -167,7 +167,7 @@ class StatefulCausalMHMA(nn.Module):
             offset (int, optional): Offset for the position embeddings. Defaults to 0.
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_input * num_heads).
+            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dims_value[0] * num_heads).
         """
         return torch.concat(
             [
@@ -216,10 +216,9 @@ class StatefulCausalMultiAttention(nn.Module):
             self.proj_out = nn.Linear(dims_value[-1], dims_value[0], bias=False)
             self.proj_out_state_start = nn.Linear(dims_value[-1], dims_value[0], bias=False)
             self.proj_out_state_end = nn.Linear(dims_value[-1], dims_value[0], bias=False)
+            self.use_out_proj = True
         else:
-            self.proj_out = None
-            self.proj_out_state_start = None
-            self.proj_out_state_end = None
+            self.use_out_proj = False
         
         attn_modules = [
             StatefulCausalAttentionHead(
@@ -262,14 +261,15 @@ class StatefulCausalMultiAttention(nn.Module):
         """
         for attn_module in self.attn_modules:
             x = attn_module(x, offset=offset)
+        
+        if self.use_out_proj:
+            x_state_start, x, x_state_end = extract_state(x, self.state_len)
             
-        x_state_start, x, x_state_end = extract_state(x, self.state_len)
-        
-        x = self.proj_out(x)
-        x_state_start = self.proj_out_state_start(x_state_start)
-        x_state_end = self.proj_out_state_start(x_state_end)
-        
-        x = torch.concat([x_state_start, x, x_state_end], dim=1)
+            x = self.proj_out(x)
+            x_state_start = self.proj_out_state_start(x_state_start)
+            x_state_end = self.proj_out_state_start(x_state_end)
+            
+            x = torch.concat([x_state_start, x, x_state_end], dim=1)
             
         return x
     
