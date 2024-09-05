@@ -212,6 +212,15 @@ class StatefulCausalMultiAttention(nn.Module):
         self.normalize = normalize
         self.position_embedders = position_embedders
         
+        if len(dims_value) > 1 and dims_value[0] != dims_value[-1]:
+            self.proj_out = nn.Linear(dims_value[-1], dims_value[0], bias=False)
+            self.proj_out_state_start = nn.Linear(dims_value[-1], dims_value[0], bias=False)
+            self.proj_out_state_end = nn.Linear(dims_value[-1], dims_value[0], bias=False)
+        else:
+            self.proj_out = None
+            self.proj_out_state_start = None
+            self.proj_out_state_end = None
+        
         attn_modules = [
             StatefulCausalAttentionHead(
                 dim_input=dim_input,
@@ -248,11 +257,19 @@ class StatefulCausalMultiAttention(nn.Module):
             offset (int): Offset for the position embeddings.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value[-1]).
+            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value[0]).
                 
         """
         for attn_module in self.attn_modules:
             x = attn_module(x, offset=offset)
+            
+        x_state_start, x, x_state_end = extract_state(x, self.state_len)
+        
+        x = self.proj_out(x)
+        x_state_start = self.proj_out_state_start(x_state_start)
+        x_state_end = self.proj_out_state_start(x_state_end)
+        
+        x = torch.concat([x_state_start, x, x_state_end], dim=1)
             
         return x
     

@@ -218,8 +218,6 @@ pip install -r requirements.txt
 
 ## Future Work
 
-- Add a linear projection after the final memory layer in `ARC` to bring the output dimension of the memory block to the same dimension as the first memory layer.
-  - This will allow for the final memory dimension to be set arbitrarily, instead of being fixed at the dimension of the first memory layer.
 - Investigate the properties of the `ARCformer` initial state token sequence after training.
   - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
 - Investigate the impact of the state token sequence length on the length generalization of the model.
