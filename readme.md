@@ -31,7 +31,7 @@ I do not plan on publishing a paper on this project. If you would like to use th
 
 ## `ARC`: Attentive Recurrent Cell
 
-The Attentive Recurrent Cell (`ARC`) is a lower-level component of Om LLM. It represents a recurrent cell that utilizes attention calculations to update state. Unlike the multi-head attention component of a transformer, the memory component of an `ARC` performs multiple project-then-attend operations. Beyond the first of these operations, the number of additional parameters added to the model is rather small, having nine matrices of size `(memory_dim_prev, memory_dim_next)` for each memory head: three for the "read" state sequence, three for the "write" state sequence, and three for the non-state sub-sequence. Additionally, `ARC` is compatible with RoPE and/or CoPE positional embeddings.
+The Attentive Recurrent Cell (`ARC`) is a lower-level component of Om LLM. It represents a recurrent cell that utilizes attention calculations to update the state. Unlike the multi-head attention component of a transformer, the memory component of an `ARC` performs a sequence of project-then-attend operations. Beyond the first of these operations, the number of additional parameters added to the model is rather small, having nine matrices of size `(memory_dim_prev, memory_dim_next)` for each memory head: three for the "read" state sequence, three for the "write" state sequence, and three for the non-state sub-sequence. Additionally, `ARC` is compatible with RoPE and/or CoPE positional embeddings.
 
 The forward pass of `ARC` requires three inputs:
 
@@ -69,7 +69,7 @@ The `output` `Tensor` will have the same shape as the input sequence, and can be
 
 ## `ARCformer`: Attentive Recurrent Cell (ARC) Transformer
 
-The ARC Transformer (`ARCformer`) is a middle-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequences". The forward pass of `ARCformer` requires three inputs:
+The ARC Transformer (`ARCformer`) is a middle-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequence" recurrence. The forward pass of `ARCformer` requires three inputs:
 
 - A `Tensor` sub-sequence of the input
 - A current state token sequence `Tensor` (the initial state for each `ARCformer` is a learned parameter), and
@@ -114,7 +114,7 @@ Once instantiated, an `ARCformer` object can be called as follows:
 output, state_token_sequence_next = arcformer(input_sequence, state_token_sequence, offset)
 ```
 
-The `output` `Tensor` will have the same shape as the input sequence, and can be passed to the next `ARCformer` in the model. The `state_token_sequence_next` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
+The `output` `Tensor` will have the same shape as the input sequence (unless `mlp_multiplier` is not 1, in which case the final dimension in `output` dimension will be `mlp_multiplier` times the final dimension in the input), and can be passed to the next `ARCformer` in the model. The `state_token_sequence_next` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
 
 ## `RoPEEmbeddings`
 
@@ -182,8 +182,8 @@ The `OmLLM` class can be instantiated with the following parameters:
 - `state_len` (`int`): The length of the state token sequence.
 - `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
-- `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
-- `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
+- `position_embedders` (`List[Optional[RoPEEmmbeddings]]`): A list of optional positional embedding objects for each layer in the attention blocks.
+- `dropout` (`float`): The dropout rate for the MLP portion of the transformers. (Default: 0.0)
 - `init_convs` (`List[int]`): The kernel widths for initial convolutional layers. Leave empty to not use initial convolutional layers. (Default: [])
 - `final_mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the final transformer. (Default: 1)
 
@@ -193,7 +193,7 @@ Once instantiated, an `OmLLM` object can be called as follows:
 output, state_token_sequence_end, offset = omllm(input_sequence, state_token_sequence, offset, next_token_flag)
 ```
 
-The `output` `Tensor` will contain logits for each next-token prediction. If `next_token_flag` is `False` (the default) have dimensions `(batch_size, seq_len, vocab_size_adj)`, where `vocab_size_adj` is equal to the input vocab size plus an offset to make the number divisible by 8 (which is done to make downstream softmax computations more efficient on CUDA devices -- note, all "padded" logits are set to `-inf`); if `next_token_flag` is `True`, the `Tensor` will have dimensions `(batch_size, vocab_size_adj)` and represent only the logits for the final next-token in the input.
+The `output` `Tensor` will contain logits for each next-token prediction. If `next_token_flag` is `False` (the default) it will have dimensions `(batch_size, seq_len, vocab_size_adj)`, where `vocab_size_adj` is equal to the input vocab size plus an offset to make the number divisible by 8 (which is done to make downstream softmax computations more efficient on CUDA devices -- note, all "padded" logits are set to `-inf`); if `next_token_flag` is `True`, the `Tensor` will have dimensions `(batch_size, vocab_size_adj)` and represent only the logits for the final next-token in the input.
 
 The `state_token_sequence_end` `Tensor` will have the same shape as `state_token_sequence`, and can be stored to be used as the initial state token sequence for the next call to the model (context caching).
 
