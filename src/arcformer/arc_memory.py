@@ -267,7 +267,7 @@ class StatefulCausalMultiAttention(nn.Module):
             
             x = self.proj_out(x)
             x_state_start = self.proj_out_state_start(x_state_start)
-            x_state_end = self.proj_out_state_start(x_state_end)
+            x_state_end = self.proj_out_state_end(x_state_end)
             
             x = torch.concat([x_state_start, x, x_state_end], dim=1)
             
