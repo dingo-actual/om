@@ -37,7 +37,7 @@ The core of Om LLM is the `ARC` (Attentive Recurrent Cell). It represents a recu
 
 ![Memory Projection Step](images/stateful_mem_proj.png)
 
-One we've projected to form the query, key and value tensors, we apply LayerNorm. Although not shown in the figure below, it is at this point that positional embeddings (RoPE and/or CoPE) may be added to the query and key tensors. We then pass the three tensors through a standard scaled dot-product attention layer with a causal attention mask.
+One we've projected to form the query, key and value tensors, we apply LayerNorm. Although not shown in the figure below, it is at this point that positional embeddings (RoPE) may be added to the query and key tensors, and/or the attention matrix (CoPE). We then pass the three tensors through a standard scaled dot-product attention layer with a causal attention mask.
 
 An important point is that each position in the non-memory sequence attends to the "read" state sequence, allowing the model to utilize the current state of the input sequence. Likewise, each position in the "write" state sequence attends to the entire non-memory sequence, as well as the "read" state sequence, allowing the model to update the current state using the attention mechanism.
 
