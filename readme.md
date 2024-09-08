@@ -33,7 +33,7 @@ I do not plan on publishing a paper on this project. If you would like to use th
 
 #### Attentive Recent Cell (ARC)
 
-The core of Om LLM is the `ARC` (Attentive Recurrent Cell). It represents a recurrent cell that utilizes attention calculations to update the state. The first operation of an `ARC` is a simple sequence of projections on the input sequence and state sequence. Note that there are two distinct projections performed on the state sequence. This is done to prepare the prepended copy of the state sequence for "reading" and the appended copy of the state sequence for "writing". The result of each such triple of projections is concatenated along the sequence dimension to form the query, key, and value tensors. This projection step is illustrated below for the key tensor:
+The core of Om LLM is the `ARC` (Attentive Recurrent Cell). It represents a recurrent cell that utilizes attention calculations to update the state. The first operation of an `ARC` is a simple sequence of projections on the input sequence and state sequence. Note that there are two distinct projections performed on the state sequence. This is done to prepare the prepended copy of the state sequence for "reading" and the appended copy of the state sequence for "writing". The result of each such triple of projections is concatenated along the sequence dimension to form the query, key, and value tensors. This projection step is illustrated below for the query tensor:
 
 ![Memory Projection Step](images/stateful_mem_proj.png)
 
