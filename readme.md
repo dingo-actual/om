@@ -235,6 +235,7 @@ att = sdp_attention(q_rope, k_rope, v)
 Although users are unlikely to directly interface with a `RoPEEmbeddings` object, it's necessary to instantiate them when using RoPE in an `OmLLM` object.
 
 [Top](#om-llm)
+
 ## `OmLLM`
 
 The `OmLLM` class is the primary user-facing class in this package. It represents an LLM using the Om architecture, which utilizes `ARC` memory, as well as (optional) initial convolutional operations on the embeddings. Note that these embeddings can either come from tokens, or from direct characters.
@@ -324,6 +325,7 @@ pip install -r requirements.txt
 - Investigate the properties of the `ARCformer` initial state token sequence after training.
   - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
 - Investigate the impact of the state token sequence length on the length generalization of the model.
+- Hopfield memory!
 
 [Top](#om-llm)
 
