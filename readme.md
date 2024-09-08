@@ -1,6 +1,6 @@
 # Om LLM
 
-<img src="om_llm.jpg" alt="Om LLM Logo" width="25%" height="25%">
+<img src="images/om_llm.jpg" alt="Om LLM Logo" width="25%" height="25%">
 
 ## Overview
 
@@ -28,6 +28,56 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
 To the best of my knowledge, these features are novel. If you find any references to these features in the literature, please let me know. My email is [ryan@beta-reduce.net](ryan@beta-reduce.net)
 
 I do not plan on publishing a paper on this project. If you would like to use this project in your own work, please cite this repository, and its creator (Ryan P. Taylor).
+
+### Architecture Details
+
+#### Attentive Recent Cell (ARC)
+
+The core of Om LLM is the `ARC` (Attentive Recurrent Cell). It represents a recurrent cell that utilizes attention calculations to update the state. The first operation of an `ARC` is a simple sequence of projections on the input sequence and state sequence. Note that there are two distinct projections performed on the state sequence. This is done to prepare the prepended copy of the state sequence for "reading" and the appended copy of the state sequence for "writing". The result of each such triple of projections is concatenated along the sequence dimension to form the query, key, and value tensors. This projection step is illustrated below for the key tensor:
+
+![Memory Projection Step](images/stateful_mem_proj.png)
+
+One we've projected to form the query, key and value tensors, we apply LayerNorm. Although not shown in the figure below, it is at this point that positional embeddings (RoPE and/or CoPE) may be added to the query and key tensors. We then pass the three tensors through a standard scaled dot-product attention layer with a causal attention mask.
+
+An important point is that each position in the non-memory sequence attends to the "read" state sequence, allowing the model to utilize the current state of the input sequence. Likewise, each position in the "write" state sequence attends to the entire non-memory sequence, as well as the "read" state sequence, allowing the model to update the current state using the attention mechanism.
+
+The attention step is illustrated below:
+
+![Memory Attention Step](images/stateful_mem_attn.png)
+
+In the following, we will refer to the operations performed thus far as an "attention block." One of the novel ideas expressed in Om LLM is the use of a sequence of attention blocks, rather than a single attention block.
+
+Note that a single attention block represents an approximate nearest-neighbor lookup, and the result that's learned is a number of "prototype regions" within the value dimension. This form of memory is limited by the dimension of the value space. Instead, if we perform multiple such approximate nearest-neighbor lookups, the model can learn a distributed representation in the form of "paths" between "prototype regions." This more expressive form of memory comes at a limited additional computational cost and adds a negligible number of parameters to the model.
+
+The mechanics of the multi-pass memory (with multiple attention blocks) are illustrated below:
+
+![Memory Multi-Pass Step](images/multi_pass_mem.png)
+
+If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
+
+This allows us to use sequences of increasingly large memory dimensions, while only adding a small number of parameters to the model.
+
+This projection is illustrated below:
+
+![Memory Projection Step](images/attn_head.png)
+
+We will now refer to all of the operations performed thus far as an "attention head." Just as in the case of an ordinary transformer, we will use multiple attention heads in parallel, and concatenate the results along the representation dimension. This is followed by another concatenation of the "read" state sequence, the non-memory sequence and the "write" state sequence. Note that this second concatenation is only performed to simplify the model code and is mathematically unnecessary.
+
+The final result is referred to as an Attentive Recurrent Cell (ARC), and is illustrated below:
+
+![ARC](images/arc.png)
+
+From here, the operations are similar to those of an ordinary transformer.
+
+#### Initial Convolutional Layers
+
+The first layer of Om LLM is an (optional) series of 1-d convolutional layers. Each of these layers has a number of filters equal to the input dimension of the model. The result of the convolutions are added to the input sequence (after truncation). Because the truncation is necessary to maintain the input dimension, we must either re-use the past `k-1` inputs, or pre-pad our input with `k-1` pad tokens, where `k` is the largest kernel size used in the convolutions. The sum of the input, together with the result of the convolutions, is then passed through an `ARC`. Note that these convolutions are only performed for the first `ARCformer` layer in the model.
+
+The rationale for the convolutions is to learn an adjustment to the specific tokens used by the tokenizer, and to potentially allow the model to learn directly from characters, using the convolutional layers as a kind of "learned tokenizer."
+
+#### A Note on the Final MLP
+
+The final MLP has a parameter to multiply the dimensions of the final two dimensions in the MLP. If this is specified, the final residual connection is dropped. By utilizing this parameter, we can give a larger parameter budget to the final output decision, which has been hypothesized to be a bottleneck in smaller models.
 
 ## `ARC`: Attentive Recurrent Cell
 
