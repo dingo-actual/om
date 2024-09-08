@@ -2,9 +2,33 @@
 
 <img src="images/om_llm.jpg" alt="Om LLM Logo" width="25%" height="25%">
 
+- [Om LLM](#om-llm)
+  - [Overview](#overview)
+    - [Features](#features)
+    - [Novel Contributions (at time of writing) and Publication](#novel-contributions-at-time-of-writing-and-publication)
+    - [Architecture Details](#architecture-details)
+      - [Attentive Recent Cell (ARC)](#attentive-recent-cell-arc)
+      - [Initial Convolutional Layers](#initial-convolutional-layers)
+      - [A Note on the Final MLP](#a-note-on-the-final-mlp)
+  - [`ARC`: Attentive Recurrent Cell](#arc-attentive-recurrent-cell)
+    - [`ARC` Usage](#arc-usage)
+  - [`ARCformer`: Attentive Recurrent Cell (ARC) Transformer](#arcformer-attentive-recurrent-cell-arc-transformer)
+    - [`ARCformer` Usage](#arcformer-usage)
+  - [`RoPEEmbeddings`](#ropeembeddings)
+    - [`RoPEEmbeddings` Usage](#ropeembeddings-usage)
+  - [`OmLLM`](#omllm)
+    - [`OmLLM` Usage](#omllm-usage)
+  - [Installation](#installation)
+  - [Requirements](#requirements)
+  - [Future Work](#future-work)
+  - [Contributing](#contributing)
+  - [License](#license)
+
 ## Overview
 
 Om LLM is a project that implements an advanced large language model (LLM) architecture using Attentive Recurrent Cells (ARC).
+
+[Top](#om-llm)
 
 ### Features
 
@@ -13,6 +37,8 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
 - Multi-pass memory transformer
 - Ability to handle sequences of characters, or sequences of tokens
 - Reduced dependence on tokenizer through use of initial convolutional layers
+
+[Top](#om-llm)
 
 ### Novel Contributions (at time of writing) and Publication
 
@@ -28,6 +54,8 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
 To the best of my knowledge, these features are novel. If you find any references to these features in the literature, please let me know. My email is [ryan@beta-reduce.net](ryan@beta-reduce.net)
 
 I do not plan on publishing a paper on this project. If you would like to use this project in your own work, please cite this repository, and its creator (Ryan P. Taylor).
+
+[Top](#om-llm)
 
 ### Architecture Details
 
@@ -69,15 +97,21 @@ The final result is referred to as an Attentive Recurrent Cell (ARC), and is ill
 
 From here, the operations are similar to those of an ordinary transformer.
 
+[Top](#om-llm)
+
 #### Initial Convolutional Layers
 
 The second layer of Om LLM is an (optional) series of 1-d convolutional layers that act on the initial embeddings. Each of these layers has a number of filters equal to the embedding dimension of the model. The result of the convolutions are added to the input sequence (after truncation). Because the truncation is necessary to maintain the embedding dimension, we must either re-use the past `k-1` inputs, or pre-pad our input with `k-1` pad tokens, where `k` is the largest kernel size used in the convolutions. The sum of the input, together with the result of the convolutions, is then passed through an `ARC`. Note that these convolutions are only performed for the first `ARCformer` layer in the model.
 
 The rationale for the convolutions is to learn an adjustment to the specific tokens used by the tokenizer, as well as to potentially allow the model to learn directly from characters, using the convolutional layers as a kind of "learned tokenizer."
 
+[Top](#om-llm)
+
 #### A Note on the Final MLP
 
 The final MLP has a parameter to multiply the dimensions of the final two dimensions in the MLP. If this is specified, the final residual connection is dropped. By utilizing this parameter, we can give a larger parameter budget to the final output decision, which has been hypothesized to be a bottleneck in smaller models.
+
+[Top](#om-llm)
 
 ## `ARC`: Attentive Recurrent Cell
 
@@ -93,6 +127,8 @@ It will produce two outputs `Tensor`s:
 
 - The typical output sequence from a multi-head attention block, as well as
 - A state token sequence, which is used to process the next input sub-sequence.
+
+[Top](#om-llm)
 
 ### `ARC` Usage
 
@@ -117,6 +153,8 @@ output, state_token_sequence = arc(input_sequence, state_token_sequence, offset)
 
 The `output` `Tensor` will have the same shape as the input sequence, and can be passed to the MLP portion of an `ARCformer`. The `state_token_sequence` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARC` layer.
 
+[Top](#om-llm)
+
 ## `ARCformer`: Attentive Recurrent Cell (ARC) Transformer
 
 The ARC Transformer (`ARCformer`) is a middle-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequence" recurrence. The forward pass of `ARCformer` requires three inputs:
@@ -129,6 +167,8 @@ It will produce two outputs `Tensor`s:
 
 - The usual output sequence from a transformer block, as well as
 - A state token sequence, which is used to process the next input sub-sequence.
+
+[Top](#om-llm)
 
 ### `ARCformer` Usage
 
@@ -166,9 +206,13 @@ output, state_token_sequence_next = arcformer(input_sequence, state_token_sequen
 
 The `output` `Tensor` will have the same shape as the input sequence (unless `mlp_multiplier` is not 1, in which case the final dimension in `output` dimension will be `mlp_multiplier` times the final dimension in the input), and can be passed to the next `ARCformer` in the model. The `state_token_sequence_next` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
 
+[Top](#om-llm)
+
 ## `RoPEEmbeddings`
 
 RoPEEmbeddings is a class that implements the RoPE (Rotary Position Embedding) positional embedding scheme, as described in the paper "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Jianlin Su et al. ([arxiv](https://arxiv.org/abs/2104.09864)). It has minor modifications made to support `ARC`'s recurrent structure.
+
+[Top](#om-llm)
 
 ### `RoPEEmbeddings` Usage
 
@@ -190,6 +234,7 @@ att = sdp_attention(q_rope, k_rope, v)
 
 Although users are unlikely to directly interface with a `RoPEEmbeddings` object, it's necessary to instantiate them when using RoPE in an `OmLLM` object.
 
+[Top](#om-llm)
 ## `OmLLM`
 
 The `OmLLM` class is the primary user-facing class in this package. It represents an LLM using the Om architecture, which utilizes `ARC` memory, as well as (optional) initial convolutional operations on the embeddings. Note that these embeddings can either come from tokens, or from direct characters.
@@ -206,6 +251,8 @@ The outputs of an `OmLLM` object are:
 - A `Tensor` of logits for next tokens; this can either be a sequence of such logit vectors, or a single logit vector, depending on whether the user has specified to only predict the next token.
 - A list of state token sequence `Tensor`s at the final input. This can be cached to perform context caching.
 - An `int` offset for the input sequence. This can be used to perform context caching.
+
+[Top](#om-llm)
 
 ### `OmLLM` Usage
 
@@ -249,6 +296,8 @@ The `state_token_sequence_end` `Tensor` will have the same shape as `state_token
 
 The `offset` `int` will be the offset for the input sequence. This can be used to perform context caching.
 
+[Top](#om-llm)
+
 ## Installation
 
 To install Om LLM, run the following commands:
@@ -259,6 +308,8 @@ cd om
 pip install -r requirements.txt
 ```
 
+[Top](#om-llm)
+
 ## Requirements
 
 - Python 3.10+
@@ -266,16 +317,24 @@ pip install -r requirements.txt
 - xformers 0.0.26+
 - NumPy 1.25+
 
+[Top](#om-llm)
+
 ## Future Work
 
 - Investigate the properties of the `ARCformer` initial state token sequence after training.
   - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
 - Investigate the impact of the state token sequence length on the length generalization of the model.
 
+[Top](#om-llm)
+
 ## Contributing
 
 We welcome contributions to Om LLM. Please see our [Contributing Guidelines](CONTRIBUTING.md) for more information.
 
+[Top](#om-llm)
+
 ## License
 
 Om LLM is released under the [Apache 2.0 License](LICENSE).
+
+[Top](#om-llm)
