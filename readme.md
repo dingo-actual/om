@@ -47,13 +47,13 @@ The attention step is illustrated below:
 
 In the following, we will refer to the operations performed thus far as an "attention block." One of the novel ideas expressed in Om LLM is the use of a sequence of attention blocks, rather than a single attention block.
 
-Note that a single attention block represents an approximate nearest-neighbor lookup, and the result that's learned is a number of "prototype regions" within the value dimension. This form of memory is limited by the dimension of the value space. Instead, if we perform multiple such approximate nearest-neighbor lookups, the model can learn a distributed representation in the form of "paths" between "prototype regions." This more expressive form of memory comes at a limited additional computational cost and adds a negligible number of parameters to the model.
+Note that a single attention block represents an approximate nearest-neighbor lookup, and the result that's learned is a number of "prototype regions" within the value dimension and the effective number of "prototype regions" that can be expressed through the projection matrices. Instead, if we perform multiple such approximate nearest-neighbor lookups, the model can learn a distributed representation in the form of "paths" between "prototype regions." This more expressive form of memory comes at a limited additional computational cost and adds a negligible number of parameters to the model.
 
 The mechanics of the multi-pass memory (with multiple attention blocks) are illustrated below:
 
 ![Memory Multi-Pass Step](images/multi_pass_mem.png)
 
-If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
+If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done (with the assumption that the first value dimension is the smallest) to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
 
 This allows us to use sequences of increasingly large memory dimensions, while only adding a small number of parameters to the model.
 
@@ -71,9 +71,9 @@ From here, the operations are similar to those of an ordinary transformer.
 
 #### Initial Convolutional Layers
 
-The first layer of Om LLM is an (optional) series of 1-d convolutional layers. Each of these layers has a number of filters equal to the input dimension of the model. The result of the convolutions are added to the input sequence (after truncation). Because the truncation is necessary to maintain the input dimension, we must either re-use the past `k-1` inputs, or pre-pad our input with `k-1` pad tokens, where `k` is the largest kernel size used in the convolutions. The sum of the input, together with the result of the convolutions, is then passed through an `ARC`. Note that these convolutions are only performed for the first `ARCformer` layer in the model.
+The second layer of Om LLM is an (optional) series of 1-d convolutional layers that act on the initial embeddings. Each of these layers has a number of filters equal to the embedding dimension of the model. The result of the convolutions are added to the input sequence (after truncation). Because the truncation is necessary to maintain the embedding dimension, we must either re-use the past `k-1` inputs, or pre-pad our input with `k-1` pad tokens, where `k` is the largest kernel size used in the convolutions. The sum of the input, together with the result of the convolutions, is then passed through an `ARC`. Note that these convolutions are only performed for the first `ARCformer` layer in the model.
 
-The rationale for the convolutions is to learn an adjustment to the specific tokens used by the tokenizer, and to potentially allow the model to learn directly from characters, using the convolutional layers as a kind of "learned tokenizer."
+The rationale for the convolutions is to learn an adjustment to the specific tokens used by the tokenizer, as well as to potentially allow the model to learn directly from characters, using the convolutional layers as a kind of "learned tokenizer."
 
 #### A Note on the Final MLP
 
