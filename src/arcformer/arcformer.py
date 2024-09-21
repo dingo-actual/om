@@ -26,6 +26,7 @@ class ARCformer(nn.Module):
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
+        attn_dropout: float = 0.0,
         mlp_multiplier: int = 1,
     ):
         """Initializes the module.
@@ -44,6 +45,7 @@ class ARCformer(nn.Module):
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
+            attn_dropout (float, optional): Dropout rate for attention. Defaults to 0.0.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
         """
         super(ARCformer, self).__init__()
@@ -57,6 +59,7 @@ class ARCformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             attn_normalize=attn_normalize,
+            dropout=attn_dropout,
             num_layers=num_layers,
             cope=cope,
             position_embedders=position_embedders
@@ -64,7 +67,7 @@ class ARCformer(nn.Module):
         self.mlp_multiplier = mlp_multiplier
         self.num_layers = num_layers
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
-        self.attn_dropout = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(dropout)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -82,7 +85,7 @@ class ARCformer(nn.Module):
             )
             torch.nn.init.normal_(self.mlp[3].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
-        self.mlp_dropout = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
@@ -98,8 +101,8 @@ class ARCformer(nn.Module):
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
         x_, state = self.attn(x, state, offset)
-        x_ = self.attn_norm(self.attn_dropout(x_) + x)
-        x_ = self.mlp_dropout(self.mlp(x_))
+        x_ = self.attn_norm(self.dropout1(x_) + x)
+        x_ = self.dropout2(self.mlp(x_))
         
         # If no MLP multiplier, then add residual connection.
         if self.mlp_multiplier == 1:

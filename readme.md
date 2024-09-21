@@ -141,6 +141,7 @@ The `ARC` class can be instantiated with the following parameters:
 - `segment_len` (`int`): The length of the segment to be processed at a time.
 - `state_len` (`int`): The length of the state token sequence.
 - `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `dropout` (`float`): The dropout rate for the attention block.
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
@@ -196,6 +197,7 @@ The `ARCformer` class can be instantiated with the following parameters:
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
+- `attn_dropout` (`float`): The dropout rate for attention calculations. (Default: 0.0)
 - `mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the transformer. (Default: 1)
 
 Once instantiated, an `ARCformer` object can be called as follows:

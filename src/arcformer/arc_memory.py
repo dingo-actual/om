@@ -20,6 +20,7 @@ class ARC(nn.Module):
         segment_len: int, 
         state_len: int,
         attn_normalize: bool,
+        dropout: float,
         num_layers: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]]
@@ -34,6 +35,7 @@ class ARC(nn.Module):
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
             attn_normalize (bool): Whether to normalize the attention inputs.
+            dropout (float): The dropout rate.
             num_layers (int): Number of ARC transformer layers in the parent model.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
@@ -45,6 +47,7 @@ class ARC(nn.Module):
         self.segment_len = segment_len
         self.state_len = state_len
         self.attn_normalize = attn_normalize
+        self.dropout = dropout
         self.num_layers = num_layers
 
         self.dim_input = dim_input
@@ -63,6 +66,7 @@ class ARC(nn.Module):
             seq_len=segment_len,
             state_len=state_len,
             attn_normalize=attn_normalize,
+            dropout=dropout,
             cope=cope,
             position_embedders=position_embedders,
         )
@@ -117,6 +121,7 @@ class StatefulCausalMHMA(nn.Module):
         seq_len: int,
         state_len: int,
         attn_normalize: bool,
+        dropout: float,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
     ):
@@ -130,6 +135,7 @@ class StatefulCausalMHMA(nn.Module):
             seq_len (int): The maximum length of the input sequence.
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
+            dropout (float): The dropout rate.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
         """
@@ -142,6 +148,7 @@ class StatefulCausalMHMA(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.attn_normalize = attn_normalize
+        self.dropout = dropout
         self.position_embedders = position_embedders
         
         self.attn_heads = nn.ModuleList(
@@ -153,6 +160,7 @@ class StatefulCausalMHMA(nn.Module):
                     seq_len=seq_len,
                     state_len=state_len,
                     attn_normalize=attn_normalize,
+                    dropout=dropout,
                     cope=cope,
                     position_embedders=position_embedders,
                 ) for _ in range(num_heads)
@@ -187,6 +195,7 @@ class StatefulCausalMultiAttention(nn.Module):
         seq_len: int,
         state_len: int,
         attn_normalize: bool,
+        dropout: float,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
     ):
@@ -199,6 +208,7 @@ class StatefulCausalMultiAttention(nn.Module):
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
+            dropout (float): Dropout rate.
             cope (bool): Whether to use CoPE.
             position_embedder (Optional[RoPEEmbeddings]): The position embedder to use.
         """
@@ -210,6 +220,7 @@ class StatefulCausalMultiAttention(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.attn_normalize = attn_normalize
+        self.dropout = dropout
         self.position_embedders = position_embedders
         
         if len(dims_value) > 1 and dims_value[0] != dims_value[-1]:
@@ -228,6 +239,7 @@ class StatefulCausalMultiAttention(nn.Module):
                 seq_len=seq_len,
                 state_len=state_len,
                 attn_normalize=attn_normalize,
+                dropout=dropout,
                 cope=cope,
                 position_embedder=position_embedders[0],
             )
@@ -241,6 +253,7 @@ class StatefulCausalMultiAttention(nn.Module):
                     seq_len=seq_len,
                     state_len=state_len,
                     attn_normalize=attn_normalize,
+                    dropout=dropout,
                     cope=cope,
                     position_embedder=position_embedders[ix],
                 )
@@ -283,6 +296,7 @@ class StatefulCausalAttentionHead(nn.Module):
         seq_len: int,
         state_len: int,
         attn_normalize: bool = True,
+        dropout: float = 0.0,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
     ):
@@ -294,6 +308,7 @@ class StatefulCausalAttentionHead(nn.Module):
             dim_value (int): The value dimension.
             state_len (int): The length of the state tensor.
             normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
+            dropout (float, optional): The dropout rate. Defaults to 0.0.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalAttentionHead, self).__init__()
@@ -304,6 +319,7 @@ class StatefulCausalAttentionHead(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.attn_normalize = attn_normalize
+        self.dropout = dropout
         self.cope = cope
         self.position_embedder = position_embedder
         
@@ -369,7 +385,7 @@ class StatefulCausalAttentionHead(nn.Module):
             attn_bias = attn_bias.log()
             attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
             
-        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias)
+        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout)
 
         return att
 

@@ -21,6 +21,7 @@ class OmLLM(torch.nn.Module):
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
+        attn_dropout: float = 0.0,
         init_convs: List[int] = [],
         final_mlp_multiplier: int = 1,
     ):
@@ -40,7 +41,8 @@ class OmLLM(torch.nn.Module):
             normalize (bool): Normalize the inputs to ARCformer memory projections.
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
-            dropout (float, optional): MLP dropout. Defaults to 0.0.
+            dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
+            attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
             init_convs (List[int], optional): Initial convolutional layer hidden sizes. Defaults to [].
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
         """
@@ -80,11 +82,12 @@ class OmLLM(torch.nn.Module):
                     activation=activation,
                     segment_len=segment_len,
                     state_len=state_len,
-                    normalize=normalize,
+                    attn_normalize=normalize,
                     num_layers=num_layers,
                     cope=cope,
                     position_embedders=position_embedders,
-                    dropout=dropout
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
                 )
             )
         layers.append(
@@ -97,11 +100,12 @@ class OmLLM(torch.nn.Module):
                 activation=activation,
                 segment_len=segment_len,
                 state_len=state_len,
-                normalize=normalize,
+                attn_normalize=normalize,
                 num_layers=num_layers,
                 cope=cope,
                 position_embedders=position_embedders,
                 dropout=dropout,
+                attn_dropout=attn_dropout,
                 mlp_multiplier=final_mlp_multiplier
             )
         )
