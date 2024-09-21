@@ -17,7 +17,7 @@ class OmLLM(torch.nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        normalize: bool,
+        attn_normalize: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
@@ -38,7 +38,7 @@ class OmLLM(torch.nn.Module):
             activation (str): Activation function for MLP.
             segment_len (int): Segment length.
             state_len (int): State length (in tokens).
-            normalize (bool): Normalize the inputs to ARCformer memory projections.
+            attn_normalize (bool): Normalize the inputs to ARCformer memory calculations.
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
@@ -82,7 +82,7 @@ class OmLLM(torch.nn.Module):
                     activation=activation,
                     segment_len=segment_len,
                     state_len=state_len,
-                    attn_normalize=normalize,
+                    attn_normalize=attn_normalize,
                     num_layers=num_layers,
                     cope=cope,
                     position_embedders=position_embedders,
@@ -100,7 +100,7 @@ class OmLLM(torch.nn.Module):
                 activation=activation,
                 segment_len=segment_len,
                 state_len=state_len,
-                attn_normalize=normalize,
+                attn_normalize=attn_normalize,
                 num_layers=num_layers,
                 cope=cope,
                 position_embedders=position_embedders,
