@@ -64,6 +64,7 @@ class ARCformer(nn.Module):
         self.mlp_multiplier = mlp_multiplier
         self.num_layers = num_layers
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
+        self.attn_dropout = nn.Dropout(dropout)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -76,13 +77,12 @@ class ARCformer(nn.Module):
             act = ACTIVATIONS[activation]()
             self.mlp = nn.Sequential(
                 nn.Linear(dim_input, dim_hidden * mlp_multiplier),
-                nn.Dropout(dropout),
                 act,
                 nn.Linear(dim_hidden * mlp_multiplier, dim_input * mlp_multiplier),
-                nn.Dropout(dropout)
             )
             torch.nn.init.normal_(self.mlp[3].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
+        self.mlp_dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
@@ -98,8 +98,8 @@ class ARCformer(nn.Module):
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
         x_, state = self.attn(x, state, offset)
-        x_ = self.attn_norm(x_ + x)
-        x_ = self.mlp(x_)
+        x_ = self.attn_norm(self.attn_dropout(x_) + x)
+        x_ = self.mlp_dropout(self.mlp(x_))
         
         # If no MLP multiplier, then add residual connection.
         if self.mlp_multiplier == 1:
