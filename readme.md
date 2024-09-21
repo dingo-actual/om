@@ -140,7 +140,7 @@ The `ARC` class can be instantiated with the following parameters:
 - `num_heads` (`int`): The number of heads in the attention block.
 - `segment_len` (`int`): The length of the segment to be processed at a time.
 - `state_len` (`int`): The length of the state token sequence.
-- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
@@ -191,7 +191,7 @@ The `ARCformer` class can be instantiated with the following parameters:
   - "abs"
 - `segment_len` (`int`): The length of the segment to be processed at a time.
 - `state_len` (`int`): The length of the state token sequence.
-- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
@@ -278,7 +278,7 @@ The `OmLLM` class can be instantiated with the following parameters:
   - "abs"
 - `segment_len` (`int`): The length of the segment to be processed at a time.
 - `state_len` (`int`): The length of the state token sequence.
-- `normalize` (`bool`): Whether to normalize the inputs to SDP attention.
+- `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention blocks.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformers. (Default: 0.0)

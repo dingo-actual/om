@@ -21,7 +21,7 @@ class ARCformer(nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
-        normalize: bool,
+        attn_normalize: bool,
         num_layers: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
@@ -39,7 +39,7 @@ class ARCformer(nn.Module):
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory modules.
             state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
-            normalize (bool): Whether to normalize attention inputs for the memory modules.
+            attn_normalize (bool): Whether to normalize attention inputs for the memory modules.
             num_layers (int): Number of ARC transformer layers in the parent model.
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
@@ -56,7 +56,7 @@ class ARCformer(nn.Module):
             num_heads=num_heads, 
             segment_len=segment_len, 
             state_len=state_len, 
-            normalize=normalize,
+            attn_normalize=attn_normalize,
             num_layers=num_layers,
             cope=cope,
             position_embedders=position_embedders
