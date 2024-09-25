@@ -39,7 +39,7 @@ def test_arc_transformer():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        normalize=normalize,
+        attn_normalize=normalize,
         num_layers=num_layers,
         cope=True,
         position_embedders=position_embedders,

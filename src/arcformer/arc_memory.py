@@ -54,9 +54,6 @@ class ARC(nn.Module):
         self.dims_key = dims_key
         self.dims_value = dims_value
         
-        # Set learnable initial state
-        self.init_state = nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
-        
         # Build attention modules
         self.attn = StatefulCausalMHMA(
             dim_input=dim_input,

@@ -61,7 +61,7 @@ def test_model():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        normalize=normalize,
+        attn_normalize=normalize,
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
