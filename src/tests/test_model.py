@@ -12,13 +12,13 @@ def test_model():
     dim_input = 1024
     num_heads = 8
     dim_hidden = int(8 * dim_input / 3)
-    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
-    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
+    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
+    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     final_mlp_multiplier = 2
     
     activation = "gelu"
     segment_len = 128
-    normalize = True
+    attn_normalize = True
     cope = True
     state_len = segment_len // 8
     
@@ -61,7 +61,7 @@ def test_model():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        attn_normalize=normalize,
+        attn_normalize=attn_normalize,
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
