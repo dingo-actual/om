@@ -109,9 +109,6 @@ class OmLLM(torch.nn.Module):
                 mlp_multiplier=final_mlp_multiplier
             )
         )
-        # Set learnable initial state
-        self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
-        
         self.layers = torch.nn.ModuleList(layers)
         
         self.proj_out = torch.nn.Linear(dim_input * final_mlp_multiplier, vocab_size)
@@ -136,11 +133,10 @@ class OmLLM(torch.nn.Module):
               - State tensors for each ARCformer block.
               - Input location offset.
         """
-        batch_size, seq_len = x.shape
+        _, seq_len = x.shape
         
         if len(states) == 0:
-            state_next = self.init_state.repeat(batch_size, 1, 1)
-            states = [None] * len(self.layers)
+            states = [layer.attn.init_state.copy() for layer in self.layers]
         
         num_segments, rem = divmod(seq_len, self.segment_len)
         if rem > 0:
@@ -178,10 +174,7 @@ class OmLLM(torch.nn.Module):
             states_next = []
         
             for layer, state in zip(self.layers, states):
-                if state is None:
-                    x_seg, state_next = layer(x_seg, state_next, offset)
-                else:
-                    x_seg, state_next = layer(x_seg, state, offset)
+                x_seg, state_next = layer(x_seg, state, offset)
                 states_next.append(state_next)
             
             states = states_next

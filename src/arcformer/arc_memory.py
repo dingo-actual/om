@@ -75,21 +75,27 @@ class ARC(nn.Module):
         # Projection for output
         self.proj_out = nn.Linear(num_heads * dims_value[0], dim_input, bias=False)
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
+        
+        # Set learnable initial state
+        self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
 
 
-    def forward(self, x: torch.Tensor, state: torch.Tuple, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Optional[torch.Tuple], offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent stateful attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
-            state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
+            state (Optional[torch.Tensor]): State tensor of shape (batch_size, state_len, dim_input).
             offset (int): Offset for the position embeddings.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: 
               - Output tensor of shape (batch_size, segment_len, dim_input)
               - State tensor of shape (batch_size, state_len, dim_input)
         """
+        if state is None:
+            state = self.init_state.repeat(x.size(0), 1, 1)
+        
         # Prepend and append state to x_seg
         x = torch.cat([state, x, state], dim=1)
         

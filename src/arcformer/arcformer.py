@@ -83,7 +83,7 @@ class ARCformer(nn.Module):
                 act,
                 nn.Linear(dim_hidden * mlp_multiplier, dim_input * mlp_multiplier),
             )
-            torch.nn.init.normal_(self.mlp[3].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
+            torch.nn.init.normal_(self.mlp[2].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
         self.dropout2 = nn.Dropout(dropout)
 
