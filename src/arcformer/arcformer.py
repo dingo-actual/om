@@ -96,8 +96,9 @@ class ARCformer(nn.Module):
             offset (int): Offset for position embeddings.
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, segment_len, dim_input).
-            torch.Tensor: State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
+            Tuple[torch.Tensor, torch.Tensor]:
+             - Output tensor of shape (batch_size, segment_len, dim_input).
+             - State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
         x_, state = self.attn(x, state, offset)
