@@ -23,6 +23,7 @@ class ARCformer(nn.Module):
         state_len: int,
         attn_normalize: bool,
         num_layers: int,
+        first_layer: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
@@ -42,6 +43,7 @@ class ARCformer(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
             attn_normalize (bool): Whether to normalize attention inputs for the memory modules.
             num_layers (int): Number of ARC transformer layers in the parent model.
+            first_layer (bool): Whether this is the first ARC layer in the parent model.
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
@@ -61,6 +63,7 @@ class ARCformer(nn.Module):
             attn_normalize=attn_normalize,
             dropout=attn_dropout,
             num_layers=num_layers,
+            first_layer=first_layer,
             cope=cope,
             position_embedders=position_embedders
         )

@@ -71,7 +71,7 @@ class OmLLM(torch.nn.Module):
             )
         
         layers = []
-        for _ in range(num_layers - 1):
+        for ix in range(num_layers - 1):
             layers.append(
                 ARCformer(
                     dim_input=dim_input,
@@ -84,6 +84,7 @@ class OmLLM(torch.nn.Module):
                     state_len=state_len,
                     attn_normalize=attn_normalize,
                     num_layers=num_layers,
+                    first_layer=ix == 0,
                     cope=cope,
                     position_embedders=position_embedders,
                     dropout=dropout,
@@ -102,6 +103,7 @@ class OmLLM(torch.nn.Module):
                 state_len=state_len,
                 attn_normalize=attn_normalize,
                 num_layers=num_layers,
+                first_layer=False,
                 cope=cope,
                 position_embedders=position_embedders,
                 dropout=dropout,
@@ -151,19 +153,27 @@ class OmLLM(torch.nn.Module):
         
         out = []
         
+        ix_hi = 0
+        
         for segment_num in range(num_segments):
-            ix_lo = segment_num * self.segment_len
-            ix_hi = min(ix_lo + self.segment_len, seq_len)
-            seg_len_actual = ix_hi - ix_lo
+            ix_lo = ix_hi
+            ix_hi = min(ix_lo + self.segment_len, seq_len + drop_num)
             
-            if len(self.init_convs) > 0 and segment_num > 0:
-                conv_offset_lo = max(self.init_convs) - 1
-                conv_offset_hi = 0
+            if len(self.init_convs) > 0:
+                if segment_num > 0:
+                    conv_offset_lo = max(self.init_convs) - 1
+                    conv_offset_hi = 0
+                else:
+                    conv_offset_lo = 0
+                    conv_offset_hi = max(self.init_convs) - 1
             else:
                 conv_offset_lo = 0
-                conv_offset_hi = max(self.init_convs) - 1
+                conv_offset_hi = 0
+                
+            ix_lo = ix_lo - conv_offset_lo
+            ix_hi = ix_hi + conv_offset_hi
 
-            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi + conv_offset_hi]
+            x_seg = x[:, ix_lo:ix_hi]
             x_seg = self.embedder(x_seg)
             
             if len(self.init_convs) > 0:
@@ -182,7 +192,6 @@ class OmLLM(torch.nn.Module):
                 states_next.append(state_next)
             
             states = states_next
-            offset += seg_len_actual
             
             if next_token:
                 if segment_num == num_segments - 1:
@@ -196,4 +205,4 @@ class OmLLM(torch.nn.Module):
         if self.vocab_offset > 0:
             out[:, :, -self.vocab_offset:] = -float("inf")
         
-        return out, states, offset
+        return out, states, ix_hi

@@ -22,6 +22,7 @@ class ARC(nn.Module):
         attn_normalize: bool,
         dropout: float,
         num_layers: int,
+        first_layer: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]]
     ):
@@ -37,6 +38,7 @@ class ARC(nn.Module):
             attn_normalize (bool): Whether to normalize the attention inputs.
             dropout (float): The dropout rate.
             num_layers (int): Number of ARC transformer layers in the parent model.
+            first_layer (bool): Whether this is the first ARC layer in the parent model.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
@@ -77,7 +79,10 @@ class ARC(nn.Module):
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
         
         # Set learnable initial state
-        self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
+        if first_layer:
+            self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input) / (2. / 5.) ** 0.5)
+        else:
+            self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input))
 
 
     def forward(self, x: torch.Tensor, state: Optional[torch.Tuple], offset: int) -> Tuple[torch.Tensor, torch.Tensor]:

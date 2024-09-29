@@ -12,9 +12,11 @@ def test_model():
     dim_input = 1024
     num_heads = 8
     dim_hidden = int(8 * dim_input / 3)
+    if dim_hidden % 32 != 0:
+        dim_hidden += 32 - dim_hidden % 32
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
-    final_mlp_multiplier = 2
+    final_mlp_multiplier = 1
     
     activation = "gelu"
     segment_len = 128
@@ -82,7 +84,7 @@ def test_model():
     model.eval()  # Set the model to evaluation mode
     model = model.to(torch.bfloat16)
     with torch.no_grad():
-        preds, states, _ = model(x, next_token=next_token)
+        preds, states, offset = model(x, next_token=next_token)
 
     
     if next_token:
@@ -91,6 +93,7 @@ def test_model():
         assert preds.shape == (batch_size, seq_len, vocab_size)
     for state in states:
         assert state.shape == (batch_size, state_len, dim_input)
+    assert offset == x.size(1)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
