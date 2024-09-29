@@ -13,13 +13,14 @@ def test_arc_transformer():
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
     
-    activation = "ffngeglu"
+    activation = "gelu"
     segment_len = 128
-    normalize = True
+    attn_normalize = True
     state_len = segment_len // 8
     num_layers = 8
     
     dropout = 0.1
+    attn_dropout = 0.1
     
     position_embedders = [
         RoPEEmbeddings(
@@ -39,11 +40,12 @@ def test_arc_transformer():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        attn_normalize=normalize,
+        attn_normalize=attn_normalize,
         num_layers=num_layers,
         cope=True,
         position_embedders=position_embedders,
-        dropout=dropout
+        dropout=dropout,
+        attn_dropout=attn_dropout,
     )
 
     batch_size = 2

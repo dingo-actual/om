@@ -26,6 +26,7 @@ def test_model():
     max_init_convs = 1 if len(init_convs) == 0 else max(init_convs)
     
     dropout = 0.1
+    attn_dropout = 0.1
     
     batch_size = 2
     num_segments = 4
@@ -65,6 +66,7 @@ def test_model():
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
+        attn_dropout=attn_dropout,
         init_convs=init_convs,
         final_mlp_multiplier=final_mlp_multiplier
     )
