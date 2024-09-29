@@ -53,6 +53,10 @@ def test_arc_transformer():
     x = torch.randn(batch_size, seq_len, dim_input)
     state = torch.randn(batch_size, state_len, dim_input)
     offset = 0
+    
+    layer = layer.cuda()
+    x = x.cuda()
+    state = state.cuda()
 
     layer.eval()  # Set the layer to evaluation mode
     x_att, state_next = layer(x, state, offset)

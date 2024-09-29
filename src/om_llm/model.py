@@ -135,19 +135,21 @@ class OmLLM(torch.nn.Module):
         """
         _, seq_len = x.shape
         
+        if len(self.init_convs) > 0:
+            drop_num = max(self.init_convs) - 1
+        else:
+            drop_num = 0
+            
+        seq_len = seq_len - drop_num
+        
         if len(states) == 0:
-            states = [layer.attn.init_state.copy() for layer in self.layers]
+            states = [layer.attn.init_state for layer in self.layers]
         
         num_segments, rem = divmod(seq_len, self.segment_len)
         if rem > 0:
             num_segments += 1
         
         out = []
-        
-        if len(self.init_convs) > 0:
-            drop_num = max(self.init_convs) - 1
-        else:
-            drop_num = 0
         
         for segment_num in range(num_segments):
             ix_lo = segment_num * self.segment_len
@@ -156,10 +158,12 @@ class OmLLM(torch.nn.Module):
             
             if len(self.init_convs) > 0 and segment_num > 0:
                 conv_offset_lo = max(self.init_convs) - 1
+                conv_offset_hi = 0
             else:
                 conv_offset_lo = 0
+                conv_offset_hi = max(self.init_convs) - 1
 
-            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi]
+            x_seg = x[:, ix_lo - conv_offset_lo:ix_hi + conv_offset_hi]
             x_seg = self.embedder(x_seg)
             
             if len(self.init_convs) > 0:

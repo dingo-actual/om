@@ -94,7 +94,10 @@ class ARC(nn.Module):
               - State tensor of shape (batch_size, state_len, dim_input)
         """
         if state is None:
-            state = self.init_state.repeat(x.size(0), 1, 1)
+            state = self.init_state
+        
+        if state.size(0) != x.size(0):
+            state = state.repeat(x.size(0), 1, 1)
         
         # Prepend and append state to x_seg
         x = torch.cat([state, x, state], dim=1)
