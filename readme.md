@@ -328,6 +328,7 @@ pip install -r requirements.txt
   - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
 - Investigate the impact of the state token sequence length on the length generalization of the model.
 - Hopfield memory!
+- Optional (1,2,2,1) MLP
 
 [Top](#om-llm)
 
