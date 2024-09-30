@@ -24,6 +24,7 @@ class OmLLM(torch.nn.Module):
         attn_dropout: float = 0.0,
         init_convs: List[int] = [],
         final_mlp_multiplier: int = 1,
+        mlp_1221: bool = False,
     ):
         """Initialize the model.
 
@@ -45,6 +46,7 @@ class OmLLM(torch.nn.Module):
             attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
             init_convs (List[int], optional): Initial convolutional layer hidden sizes. Defaults to [].
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
+            mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
         """
         super(OmLLM, self).__init__()
         
@@ -89,6 +91,7 @@ class OmLLM(torch.nn.Module):
                     position_embedders=position_embedders,
                     dropout=dropout,
                     attn_dropout=attn_dropout,
+                    mlp_1221=mlp_1221
                 )
             )
         layers.append(
@@ -108,7 +111,8 @@ class OmLLM(torch.nn.Module):
                 position_embedders=position_embedders,
                 dropout=dropout,
                 attn_dropout=attn_dropout,
-                mlp_multiplier=final_mlp_multiplier
+                mlp_multiplier=final_mlp_multiplier,
+                mlp_1221=mlp_1221
             )
         )
         self.layers = torch.nn.ModuleList(layers)
