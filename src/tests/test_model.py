@@ -17,8 +17,10 @@ def test_model():
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     final_mlp_multiplier = 1
+    attn_proj_rank = 2 * dim_input // num_heads
     
     activation = "gelu"
+    mlp_1221 = True
     segment_len = 128
     attn_normalize = True
     cope = True
@@ -46,11 +48,17 @@ def test_model():
         dim_embedding_pct=0.25,
         base=10000
     )
+    position_embedder_3 = RoPEEmbeddings(
+        dim=dims_key[2],
+        seq_len=segment_len + 4 * state_len,
+        dim_embedding_pct=0.25,
+        base=10000
+    )
     
     position_embedders = [
         position_embedder_1,
         position_embedder_2,
-        position_embedder_1
+        position_embedder_3
     ]
     
     model = OmLLM(
@@ -69,8 +77,10 @@ def test_model():
         position_embedders=position_embedders,
         dropout=dropout,
         attn_dropout=attn_dropout,
+        attn_proj_rank=attn_proj_rank,
         init_convs=init_convs,
-        final_mlp_multiplier=final_mlp_multiplier
+        final_mlp_multiplier=final_mlp_multiplier,
+        mlp_1221=mlp_1221,
     )
     
     seq_len = segment_len * num_segments

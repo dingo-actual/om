@@ -7,17 +7,20 @@ from ..arcformer.util import count_optimized_parameters
 
 
 def test_arc_transformer():
-    dim_input = 2048
+    dim_input = 1024
     num_heads = 8
     dim_hidden = int(8 * dim_input / 3)
-    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
-    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, dim_input // num_heads]
+    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
+    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
+    attn_proj_rank = 2 * dim_input // num_heads
     
     activation = "gelu"
+    mlp_1221 = True
     segment_len = 128
     attn_normalize = True
     state_len = segment_len // 8
     num_layers = 8
+    mlp_multiplier = 1
     
     dropout = 0.1
     attn_dropout = 0.1
@@ -30,6 +33,7 @@ def test_arc_transformer():
             base=10000,
         ) for dim_key in dims_key
     ]
+    cope = True
 
     layer = ARCformer(
         dim_input=dim_input,
@@ -42,10 +46,14 @@ def test_arc_transformer():
         state_len=state_len,
         attn_normalize=attn_normalize,
         num_layers=num_layers,
-        cope=True,
+        first_layer=True,
+        cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
         attn_dropout=attn_dropout,
+        attn_proj_rank=attn_proj_rank,
+        mlp_multiplier=mlp_multiplier,
+        mlp_1221=mlp_1221
     )
 
     batch_size = 2
@@ -54,9 +62,10 @@ def test_arc_transformer():
     state = torch.randn(batch_size, state_len, dim_input)
     offset = 0
     
-    layer = layer.cuda()
-    x = x.cuda()
-    state = state.cuda()
+    if torch.cuda.is_available():
+        layer = layer.cuda()
+        x = x.cuda()
+        state = state.cuda()
 
     layer.eval()  # Set the layer to evaluation mode
     x_att, state_next = layer(x, state, offset)

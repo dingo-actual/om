@@ -28,6 +28,7 @@ class ARCformer(nn.Module):
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         attn_dropout: float = 0.0,
+        attn_proj_rank: int = -1,
         mlp_multiplier: int = 1,
         mlp_1221: bool = False,
     ):
@@ -49,6 +50,7 @@ class ARCformer(nn.Module):
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             attn_dropout (float, optional): Dropout rate for attention. Defaults to 0.0.
+            attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use min(dims_value). Defaults to -1.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
             mlp_1221 (bool, optional): Whether to use the 1-2-2-1 MLP architecture. Defaults to False.
         """
@@ -64,6 +66,7 @@ class ARCformer(nn.Module):
             state_len=state_len, 
             attn_normalize=attn_normalize,
             dropout=attn_dropout,
+            attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else min(dims_value),
             num_layers=num_layers,
             first_layer=first_layer,
             cope=cope,

@@ -22,6 +22,7 @@ class OmLLM(torch.nn.Module):
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
         attn_dropout: float = 0.0,
+        attn_proj_rank: int = -1,
         init_convs: List[int] = [],
         final_mlp_multiplier: int = 1,
         mlp_1221: bool = False,
@@ -44,6 +45,7 @@ class OmLLM(torch.nn.Module):
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
+            attn__proj_rank (int, optional): Rank of the attention projection. If -1 will use min(dims_value). Defaults to -1.
             init_convs (List[int], optional): Initial convolutional layer hidden sizes. Defaults to [].
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
             mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
@@ -91,6 +93,7 @@ class OmLLM(torch.nn.Module):
                     position_embedders=position_embedders,
                     dropout=dropout,
                     attn_dropout=attn_dropout,
+                    attn_proj_rank=attn_proj_rank,
                     mlp_1221=mlp_1221
                 )
             )
@@ -111,6 +114,7 @@ class OmLLM(torch.nn.Module):
                 position_embedders=position_embedders,
                 dropout=dropout,
                 attn_dropout=attn_dropout,
+                attn_proj_rank=attn_proj_rank,
                 mlp_multiplier=final_mlp_multiplier,
                 mlp_1221=mlp_1221
             )

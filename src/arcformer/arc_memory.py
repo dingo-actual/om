@@ -21,6 +21,7 @@ class ARC(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
+        attn_proj_rank: int,
         num_layers: int,
         first_layer: bool,
         cope: bool,
@@ -37,6 +38,7 @@ class ARC(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens).
             attn_normalize (bool): Whether to normalize the attention inputs.
             dropout (float): The dropout rate.
+            attn_proj_rank (int): The rank of the attention projection.
             num_layers (int): Number of ARC transformer layers in the parent model.
             first_layer (bool): Whether this is the first ARC layer in the parent model.
             cope (bool): Whether to use CoPE.
@@ -50,6 +52,7 @@ class ARC(nn.Module):
         self.state_len = state_len
         self.attn_normalize = attn_normalize
         self.dropout = dropout
+        self.attn_proj_rank = attn_proj_rank
         self.num_layers = num_layers
 
         self.dim_input = dim_input
@@ -66,16 +69,17 @@ class ARC(nn.Module):
             state_len=state_len,
             attn_normalize=attn_normalize,
             dropout=dropout,
+            attn_proj_rank=attn_proj_rank,
             cope=cope,
             position_embedders=position_embedders,
         )
         
         # Projection for next state
-        self.proj_out_state = nn.Linear(num_heads * dims_value[0], dim_input, bias=False)
+        self.proj_out_state = nn.Linear(num_heads * attn_proj_rank, dim_input, bias=False)
         torch.nn.init.normal_(self.proj_out_state.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
         
         # Projection for output
-        self.proj_out = nn.Linear(num_heads * dims_value[0], dim_input, bias=False)
+        self.proj_out = nn.Linear(num_heads * attn_proj_rank, dim_input, bias=False)
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=(1. / (2 * self.num_layers) ** 0.5))
         
         # Set learnable initial state
@@ -133,6 +137,7 @@ class StatefulCausalMHMA(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
+        attn_proj_rank: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
     ):
@@ -147,6 +152,7 @@ class StatefulCausalMHMA(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): The dropout rate.
+            attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
         """
@@ -160,6 +166,7 @@ class StatefulCausalMHMA(nn.Module):
         self.state_len = state_len
         self.attn_normalize = attn_normalize
         self.dropout = dropout
+        self.attn_proj_rank = attn_proj_rank
         self.position_embedders = position_embedders
         
         self.attn_heads = nn.ModuleList(
@@ -172,6 +179,7 @@ class StatefulCausalMHMA(nn.Module):
                     state_len=state_len,
                     attn_normalize=attn_normalize,
                     dropout=dropout,
+                    attn_proj_rank=attn_proj_rank,
                     cope=cope,
                     position_embedders=position_embedders,
                 ) for _ in range(num_heads)
@@ -207,6 +215,7 @@ class StatefulCausalMultiAttention(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
+        attn_proj_rank: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
     ):
@@ -220,6 +229,7 @@ class StatefulCausalMultiAttention(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): Dropout rate.
+            attn__proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             position_embedder (Optional[RoPEEmbeddings]): The position embedder to use.
         """
@@ -232,12 +242,13 @@ class StatefulCausalMultiAttention(nn.Module):
         self.state_len = state_len
         self.attn_normalize = attn_normalize
         self.dropout = dropout
+        self.attn_proj_rank = attn_proj_rank
         self.position_embedders = position_embedders
         
-        if len(dims_value) > 1 and dims_value[0] != dims_value[-1]:
-            self.proj_out = nn.Linear(dims_value[-1], dims_value[0], bias=False)
-            self.proj_out_state_start = nn.Linear(dims_value[-1], dims_value[0], bias=False)
-            self.proj_out_state_end = nn.Linear(dims_value[-1], dims_value[0], bias=False)
+        if dims_value[-1] != attn_proj_rank:
+            self.proj_out = nn.Linear(dims_value[-1], attn_proj_rank, bias=False)
+            self.proj_out_state_start = nn.Linear(dims_value[-1], attn_proj_rank, bias=False)
+            self.proj_out_state_end = nn.Linear(dims_value[-1], attn_proj_rank, bias=False)
             self.use_out_proj = True
         else:
             self.use_out_proj = False
@@ -280,7 +291,7 @@ class StatefulCausalMultiAttention(nn.Module):
             offset (int): Offset for the position embeddings.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value[0]).
+            Output tensor of shape (batch_size, seq_len + 2 * state_len, attn_proj_rank).
                 
         """
         for attn_module in self.attn_modules:
