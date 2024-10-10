@@ -33,6 +33,20 @@ def extract_state(
     """
     return x[:,:state_len,:], x[:,state_len:-state_len,:], x[:,-state_len:,:]
 
+def split_last_dim(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Splits the last dimension of a tensor into two tensors.
+    
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim).
+        
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]:
+            - x_start: Tensor of shape (batch_size, seq_len, dim // 2)
+            - x_end: Tensor of shape (batch_size, seq_len, dim // 2)
+    """
+    return x[..., :x.size(-1) // 2], x[..., x.size(-1) // 2:]
+
 
 if __name__ == "__main__":
     # Run unit tests

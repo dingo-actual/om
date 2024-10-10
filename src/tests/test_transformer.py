@@ -24,6 +24,8 @@ def test_arc_transformer():
     
     dropout = 0.1
     attn_dropout = 0.1
+    diff_attn = True
+    layer_num = 0
     
     position_embedders = [
         RoPEEmbeddings(
@@ -46,10 +48,11 @@ def test_arc_transformer():
         state_len=state_len,
         attn_normalize=attn_normalize,
         num_layers=num_layers,
-        first_layer=True,
+        layer_num=layer_num,
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
+        diff_attn=diff_attn,
         attn_dropout=attn_dropout,
         attn_proj_rank=attn_proj_rank,
         mlp_multiplier=mlp_multiplier,

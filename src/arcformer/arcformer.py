@@ -23,10 +23,11 @@ class ARCformer(nn.Module):
         state_len: int,
         attn_normalize: bool,
         num_layers: int,
-        first_layer: bool,
+        layer_num: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         dropout: float = 0.0,
+        diff_attn: bool = False,
         attn_dropout: float = 0.0,
         attn_proj_rank: int = -1,
         mlp_multiplier: int = 1,
@@ -45,10 +46,11 @@ class ARCformer(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens) for the memory modules.
             attn_normalize (bool): Whether to normalize attention inputs for the memory modules.
             num_layers (int): Number of ARC transformer layers in the parent model.
-            first_layer (bool): Whether this is the first ARC layer in the parent model.
+            layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
+            diff_attn (bool, optional): Whether to use diff attention. Defaults to False.
             attn_dropout (float, optional): Dropout rate for attention. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use min(dims_value). Defaults to -1.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
@@ -68,13 +70,17 @@ class ARCformer(nn.Module):
             dropout=attn_dropout,
             attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else min(dims_value),
             num_layers=num_layers,
-            first_layer=first_layer,
+            first_layer=layer_num==0,
             cope=cope,
+            diff_attn=diff_attn,
+            layer_num=layer_num,
             position_embedders=position_embedders
         )
         self.mlp_multiplier = mlp_multiplier
         self.mlp_1221 = mlp_1221
         self.num_layers = num_layers
+        self.layer_num = layer_num
+        self.diff_attn = diff_attn
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
         self.dropout1 = nn.Dropout(dropout)
         

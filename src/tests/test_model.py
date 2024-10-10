@@ -31,6 +31,7 @@ def test_model():
     
     dropout = 0.1
     attn_dropout = 0.1
+    diff_attn = True
     
     batch_size = 2
     num_segments = 4
@@ -76,6 +77,7 @@ def test_model():
         cope=cope,
         position_embedders=position_embedders,
         dropout=dropout,
+        diff_attn=diff_attn,
         attn_dropout=attn_dropout,
         attn_proj_rank=attn_proj_rank,
         init_convs=init_convs,
