@@ -142,8 +142,11 @@ The `ARC` class can be instantiated with the following parameters:
 - `state_len` (`int`): The length of the state token sequence.
 - `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `dropout` (`float`): The dropout rate for the attention block.
+- `attn_proj_rank` (`int`): The rank of the projection from final value dim to input dim.
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
+- `layer_num` (`int`): Position of the current layer (used for diff attention lambda calculation and state token sequence initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
+- `diff_attn` (`bool`): Whether to use diff attention.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
 
 Once instantiated, an `ARC` object can be called as follows:
@@ -194,11 +197,16 @@ The `ARCformer` class can be instantiated with the following parameters:
 - `state_len` (`int`): The length of the state token sequence.
 - `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
+- `layer_num` (`int`): Position of the current layer (used for diff attention lambda calculation and state token sequence initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
 - `attn_dropout` (`float`): The dropout rate for attention calculations. (Default: 0.0)
+- `diff_attn` (`bool`): Whether to use diff attention.
+- `attn_dropout` (`float`): The dropout rate for attention calculations. (Default: 0.0)
+- `attn_proj_rank` (`int`): The rank of the projection from final value dim to input dim before MLP. (Default: -1 -- use smallest value dim)
 - `mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the transformer. (Default: 1)
+- `mlp_1221` (`bool`): Whether to use the 1-2-2-1 MLP architecture. (Default: False)
 
 Once instantiated, an `ARCformer` object can be called as follows:
 
@@ -284,8 +292,12 @@ The `OmLLM` class can be instantiated with the following parameters:
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention blocks.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformers. (Default: 0.0)
+- `diff_attn` (`bool`): Whether to use diff attention. (Default: False)
+- `attn_dropout` (`float`): The dropout rate for the attention blocks. (Default: 0.0)
+- `attn_proj_rank` (`int`): The rank of the projection from final value dim to input dim before MLP. (Default: -1 -- use smallest value dim)
 - `init_convs` (`List[int]`): The kernel widths for initial convolutional layers. Leave empty to not use initial convolutional layers. (Default: [])
 - `final_mlp_multiplier` (`int`): Multiplier for the final two layers of the MLP portion of the final transformer. (Default: 1)
+- `mlp_1221` (`bool`): Whether to use the 1-2-2-1 MLP structure for the MLP portion of the transformers. (Default: False)
 
 Once instantiated, an `OmLLM` object can be called as follows:
 
