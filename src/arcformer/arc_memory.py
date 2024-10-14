@@ -24,10 +24,9 @@ class ARC(nn.Module):
         dropout: float,
         attn_proj_rank: int,
         num_layers: int,
-        first_layer: bool,
+        layer_num: int,
         cope: bool,
         diff_attn: bool,
-        layer_num: int,
         position_embedders: List[Optional[RoPEEmbeddings]]
     ):
         """Initialize module.
@@ -43,10 +42,9 @@ class ARC(nn.Module):
             dropout (float): The dropout rate.
             attn_proj_rank (int): The rank of the attention projection.
             num_layers (int): Number of ARC transformer layers in the parent model.
-            first_layer (bool): Whether this is the first ARC layer in the parent model.
+            layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
-            layer_num (int): The position of the layer.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
         super(ARC, self).__init__()
@@ -65,6 +63,8 @@ class ARC(nn.Module):
         self.dim_input = dim_input
         self.dims_key = dims_key
         self.dims_value = dims_value
+        
+        first_layer = layer_num == 0
         
         # Build attention modules
         self.attn = StatefulCausalMHMA(
