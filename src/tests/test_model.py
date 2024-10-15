@@ -21,7 +21,7 @@ def test_model():
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 2048
+    segment_len = 1024
     attn_normalize = True
     cope = True
     state_len = segment_len // 8
@@ -94,7 +94,6 @@ def test_model():
         x = x.to("cuda:0")
     
     model.eval()  # Set the model to evaluation mode
-    model = model.to(torch.bfloat16)
     with torch.no_grad():
         preds, states, offset = model(x, next_token=next_token)
 
@@ -109,3 +108,5 @@ def test_model():
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
+    
+    del model
