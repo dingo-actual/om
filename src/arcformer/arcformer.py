@@ -70,10 +70,9 @@ class ARCformer(nn.Module):
             dropout=attn_dropout,
             attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else min(dims_value),
             num_layers=num_layers,
-            first_layer=layer_num==0,
+            layer_num=layer_num,
             cope=cope,
             diff_attn=diff_attn,
-            layer_num=layer_num,
             position_embedders=position_embedders
         )
         self.mlp_multiplier = mlp_multiplier

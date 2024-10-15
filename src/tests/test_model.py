@@ -9,9 +9,9 @@ def test_model():
     num_layers = 8
     vocab_size = 50284
     
-    dim_input = 1024
-    num_heads = 8
-    dim_hidden = int(8 * dim_input / 3)
+    dim_input = 768
+    num_heads = 12
+    dim_hidden = 4 * dim_input
     if dim_hidden % 32 != 0:
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
@@ -21,7 +21,7 @@ def test_model():
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 128
+    segment_len = 2048
     attn_normalize = True
     cope = True
     state_len = segment_len // 8
