@@ -612,8 +612,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         # Initialize lambda params
         self.lambda_q1 = nn.Parameter(torch.randn((dim_key, 1)))
         self.lambda_q2 = nn.Parameter(torch.randn((dim_key, 1)))
-        self.lambda_k1 = nn.Parameter(torch.randn((dim_key, 1)))
-        self.lambda_k2 = nn.Parameter(torch.randn((dim_key, 1)))
+        self.lambda_k1 = nn.Parameter(torch.randn((1, dim_key)))
+        self.lambda_k2 = nn.Parameter(torch.randn((1, dim_key)))
         
         # Projections from the attention layer to the next attention layer
         self.proj_k = nn.Linear(dim_input, 2 * dim_key, bias=False)
@@ -699,7 +699,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             attn_bias_2 = attn_bias_2.log()
             attn_bias_2[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias2.to(dtype=k.dtype)
         
-        lambda_ = torch.exp(self.lambda_q1.transpose(0, 1) @ self.lambda_k1) - torch.exp(self.lambda_q2.transpose(0, 1) @ self.lambda_k2) + self.lambda_init
+        lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
         att1 = torch.nn.functional.softmax(q1 @ k1.transpose(-2, -1) / np.sqrt(self.dim_key) + attn_bias_1, dim=-1)
         att2 = lambda_ * torch.nn.functional.softmax(q2 @ k2.transpose(-2, -1) / np.sqrt(self.dim_key) + attn_bias_2, dim=-1)
