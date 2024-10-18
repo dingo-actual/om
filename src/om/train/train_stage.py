@@ -1,5 +1,5 @@
 import datetime
-from os import mkdir
+from os import makedirs
 from os.path import exists
 from typing import Any, Dict
 
@@ -16,13 +16,10 @@ from ..om_llm import OmLLM
 from ..data import ProportionalDataset
 
 
-HOME_DIR = "/home/ubuntu/om-data"
-CHECKPOINT_DIR = f"{HOME_DIR}/checkpoints"
-
-
 def train_stage(
     model: OmLLM, 
     stage_num: int,
+    paths: Dict[str, str],
     dataset_train: ProportionalDataset, 
     dataset_val: ProportionalDataset,
     gradient_accumulation_steps: int,
@@ -33,25 +30,28 @@ def train_stage(
     eval_every: int = 100,
     eval_num_steps: int = 100,
 ):
-    CHECKPOINT_DIR_STAGE = f"{CHECKPOINT_DIR}/stage{stage_num}"
-    WRITER_DIR = f"{HOME_DIR}/runs/stage{stage_num}"
+    home_dir = paths["home"]
+    checkpoint_dir = paths["checkpoints"]
     
-    mkdir(CHECKPOINT_DIR_STAGE)
-    mkdir(WRITER_DIR)
+    checkpoint_dir_stage = f"{checkpoint_dir}/stage{stage_num}"
+    writer_dir = f"{home_dir}/runs/stage{stage_num}"
+    
+    makedirs(checkpoint_dir_stage)
+    makedirs(writer_dir)
     
     if stage_num > 1:
-        CHECKPOINT_DIR_PREV_STAGE = f"{CHECKPOINT_DIR}/stage{stage_num-1}"
-        if exists(CHECKPOINT_DIR_PREV_STAGE):
-            model.load_state_dict(safetensors.torch.load_file(CHECKPOINT_DIR_PREV_STAGE))
+        checkpoint_dir_prev_stage = f"{checkpoint_dir}/stage{stage_num-1}"
+        if exists(checkpoint_dir_prev_stage):
+            model.load_state_dict(safetensors.torch.load_file(checkpoint_dir_prev_stage))
     
     time_crnt = datetime.datetime.now()
     time_last = time_crnt
     
-    mkdir(f"{WRITER_DIR}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
-    writer = SummaryWriter(f"{WRITER_DIR}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
+    makedirs(f"{writer_dir}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
+    writer = SummaryWriter(f"{writer_dir}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
     
     accelerator = Accelerator(
-        project_dir=CHECKPOINT_DIR_STAGE, 
+        project_dir=checkpoint_dir_stage, 
         mixed_precision="bf16", 
         gradient_accumulation_steps=gradient_accumulation_steps
     )
@@ -109,8 +109,8 @@ def train_stage(
             model = model.eval()
             optimizer = optimizer.eval()
             
-            checkpoint_dir_crnt = f"{CHECKPOINT_DIR_STAGE}/checkpoint_{time_str}"
-            mkdir(checkpoint_dir_crnt)
+            checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
+            makedirs(checkpoint_dir_crnt)
             accelerator.save_state(checkpoint_dir_crnt)
             
             model = model.train()
@@ -162,6 +162,6 @@ def train_stage(
     writer.flush()
     writer.close()
     
-    mkdir(f"{CHECKPOINT_DIR_STAGE}/checkpoint_FINAL")
-    accelerator.save_state(f"{CHECKPOINT_DIR_STAGE}/checkpoint_FINAL")
-    accelerator.save_model(model, CHECKPOINT_DIR_STAGE)
+    makedirs(f"{checkpoint_dir_stage}/checkpoint_FINAL")
+    accelerator.save_state(f"{checkpoint_dir_stage}/checkpoint_FINAL")
+    accelerator.save_model(model, checkpoint_dir_stage)
