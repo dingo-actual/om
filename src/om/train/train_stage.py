@@ -52,7 +52,7 @@ def train_stage(
     
     accelerator = Accelerator(
         project_dir=CHECKPOINT_DIR_STAGE, 
-        mixed_precision="fp16", 
+        mixed_precision="bf16", 
         gradient_accumulation_steps=gradient_accumulation_steps
     )
     
