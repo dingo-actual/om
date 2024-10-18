@@ -53,8 +53,8 @@ class OmLLM(torch.nn.Module):
         """
         super(OmLLM, self).__init__()
         
-        vocab_offset = 8 - dim_input % 8
-        if vocab_offset == 8:
+        vocab_offset = 32 - dim_input % 32
+        if vocab_offset == 32:
             vocab_offset = 0
         self.vocab_offset = vocab_offset
         vocab_size += vocab_offset
