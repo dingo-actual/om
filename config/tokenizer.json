@@ -1,0 +1,8 @@
+{
+    "name": "p50k_edit",
+    "special_tokens": {
+        "<|im_start|>": 50281,
+        "<|im_end|>": 50256,
+        "<|pad|>": 50282
+    }
+}
