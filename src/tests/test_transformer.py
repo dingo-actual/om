@@ -2,8 +2,8 @@
 
 import torch
 
-from ..arcformer import ARCformer, RoPEEmbeddings
-from ..arcformer.util import count_optimized_parameters
+from ..om.arcformer import ARCformer, RoPEEmbeddings
+from ..om.arcformer.util import count_optimized_parameters
 
 
 def test_arc_transformer():

@@ -1,8 +1,8 @@
 import torch
 
-from ..arcformer import RoPEEmbeddings
-from ..arcformer.util import count_optimized_parameters
-from ..om_llm import OmLLM
+from ..om.arcformer import RoPEEmbeddings
+from ..om.arcformer.util import count_optimized_parameters
+from ..om.om_llm import OmLLM
 
 
 def test_model():
