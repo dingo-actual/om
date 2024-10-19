@@ -701,10 +701,10 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
-        att1 = torch.nn.functional.softmax(q1 @ k1.transpose(-2, -1) / np.sqrt(self.dim_key) + attn_bias_1, dim=-1)
-        att2 = lambda_ * torch.nn.functional.softmax(q2 @ k2.transpose(-2, -1) / np.sqrt(self.dim_key) + attn_bias_2, dim=-1)
+        att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout)
+        att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout)
         
-        att = torch.nn.functional.dropout(att1 - att2, p=self.dropout) @ v
+        att = att1 - lambda_ * att2
 
         return att
 
