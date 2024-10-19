@@ -17,6 +17,7 @@ class ARCformer(nn.Module):
         dim_hidden: int,
         dims_key: List[int],
         dims_value: List[int],
+        num_iters: List[int],
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -38,8 +39,9 @@ class ARCformer(nn.Module):
         Args:
             dim_input (int): Input dimension.
             dim_hidden (int): Hidden dimension for the MLP.
-            dims_key (int): Key dimensions for the memory modules.
-            dims_value (int): Value dimensions for the memory modules.
+            dims_key (List[int]): Key dimensions for the memory modules.
+            dims_value (List[int]): Value dimensions for the memory modules.
+            num_iters (List[int]): Number of iterations for the memory modules.
             num_heads (int): Number of attention heads for the memory modules.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory modules.
@@ -63,6 +65,7 @@ class ARCformer(nn.Module):
             dim_input=dim_input, 
             dims_key=dims_key, 
             dims_value=dims_value, 
+            num_iters=num_iters,
             num_heads=num_heads, 
             segment_len=segment_len, 
             state_len=state_len, 

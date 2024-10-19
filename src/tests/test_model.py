@@ -16,12 +16,13 @@ def test_model():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
+    num_iters = [1, 1, 1]
     final_mlp_multiplier = 1
     attn_proj_rank = 2 * dim_input // num_heads
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 1024
+    segment_len = 2048
     attn_normalize = True
     cope = True
     state_len = segment_len // 8
@@ -51,7 +52,7 @@ def test_model():
     )
     position_embedder_3 = RoPEEmbeddings(
         dim=dims_key[2],
-        seq_len=segment_len + 4 * state_len,
+        seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
         base=10000
     )
@@ -69,6 +70,7 @@ def test_model():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
+        num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,
@@ -93,6 +95,7 @@ def test_model():
         model = model.to("cuda:0")
         x = x.to("cuda:0")
     
+    model = model.to(torch.bfloat16)
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
         preds, states, offset = model(x, next_token=next_token)

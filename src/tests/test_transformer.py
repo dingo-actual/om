@@ -12,6 +12,7 @@ def test_arc_transformer():
     dim_hidden = 4 * dim_input
     dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
     dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
+    num_iters = [2, 2, 2]
     attn_proj_rank = 2 * dim_input // num_heads
     
     activation = "gelu"
@@ -42,6 +43,7 @@ def test_arc_transformer():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
+        num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,
@@ -61,8 +63,8 @@ def test_arc_transformer():
 
     batch_size = 2
     seq_len = segment_len
-    x = torch.randn(batch_size, seq_len, dim_input)
-    state = torch.randn(batch_size, state_len, dim_input)
+    x = torch.randn(batch_size, seq_len, dim_input).to(torch.bfloat16)
+    state = torch.randn(batch_size, state_len, dim_input).to(torch.bfloat16)
     offset = 0
     
     if torch.cuda.is_available():
@@ -70,8 +72,11 @@ def test_arc_transformer():
         x = x.cuda()
         state = state.cuda()
 
+    layer = layer.to(torch.bfloat16)
     layer.eval()  # Set the layer to evaluation mode
-    x_att, state_next = layer(x, state, offset)
+    
+    with torch.no_grad():
+        x_att, state_next = layer(x, state, offset)
 
     assert x_att.shape == (batch_size, seq_len, dim_input)
     assert state_next.shape == (batch_size, state_len, dim_input)
