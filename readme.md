@@ -331,6 +331,14 @@ pip install -r requirements.txt
 - PyTorch 2.0+
 - xformers 0.0.26+
 - NumPy 1.25+
+- Datasets 2.19.1+
+- Tiktoken 0.7.0+
+- Orjson 3.10.3+
+- Polars 0.20.29+
+- Zstandard 0.22.0+
+- Accelerate 0.20.1+
+- ScheduleFree 1.2.5+
+- TorchMetrics 1.4.0+
 
 [Top](#om-llm)
 
@@ -339,7 +347,6 @@ pip install -r requirements.txt
 - Investigate the properties of the `ARCformer` initial state token sequence after training.
   - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
 - Investigate the impact of the state token sequence length on the length generalization of the model.
-- Hopfield memory!
 
 [Top](#om-llm)
 
