@@ -28,7 +28,7 @@ def test_model():
     cope = True
     state_len = segment_len // 8
     
-    init_convs = [1, 2, 3, 4]
+    init_convs = [1, 2, 3]
     max_init_convs = 1 if len(init_convs) == 0 else max(init_convs)
     
     dropout = 0.1
