@@ -33,6 +33,7 @@
         }
     ],
     "dropout": 0.1,
+    "betas": [1.0, 1.0, 1.0],
     "diff_attn": false,
     "attn_dropout": 0.1,
     "attn_proj_rank": 64,
