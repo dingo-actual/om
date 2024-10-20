@@ -9,16 +9,17 @@ def test_model():
     num_layers = 8
     vocab_size = 50284
     
-    dim_input = 768
-    num_heads = 12
+    dim_input = 1024
+    num_heads = 8
     dim_hidden = 4 * dim_input
     if dim_hidden % 32 != 0:
         dim_hidden += 32 - dim_hidden % 32
-    dims_key = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
-    dims_value = [dim_input // num_heads, 2 * dim_input // num_heads, 4 * dim_input // num_heads]
-    num_iters = [1, 1, 1]
+    dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
+    dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
+    num_iters = [2, 2, 2]
+    betas = [1.0, 1.0, 1.0]
     final_mlp_multiplier = 1
-    attn_proj_rank = 2 * dim_input // num_heads
+    attn_proj_rank = -1
     
     activation = "gelu"
     mlp_1221 = True
@@ -32,7 +33,7 @@ def test_model():
     
     dropout = 0.1
     attn_dropout = 0.1
-    diff_attn = True
+    diff_attn = False
     
     batch_size = 2
     num_segments = 4
@@ -78,6 +79,7 @@ def test_model():
         attn_normalize=attn_normalize,
         cope=cope,
         position_embedders=position_embedders,
+        betas=betas,
         dropout=dropout,
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,
