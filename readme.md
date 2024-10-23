@@ -291,6 +291,7 @@ The `OmLLM` class can be instantiated with the following parameters:
 - `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention blocks.
+- `betas` (`List[Optional[float]]`): A list of betas for Hopfield attention.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformers. (Default: 0.0)
 - `diff_attn` (`bool`): Whether to use diff attention. (Default: False)
 - `attn_dropout` (`float`): The dropout rate for the attention blocks. (Default: 0.0)
