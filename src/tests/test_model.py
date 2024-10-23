@@ -17,7 +17,7 @@ def test_model():
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [2, 2, 2]
-    betas = [1.0, 1.0, 1.0]
+    betas = [None, None, None]
     final_mlp_multiplier = 1
     attn_proj_rank = -1
     
@@ -28,7 +28,7 @@ def test_model():
     cope = True
     state_len = segment_len // 8
     
-    init_convs = [1, 2, 3]
+    init_convs = [2, 3]
     max_init_convs = 1 if len(init_convs) == 0 else max(init_convs)
     
     dropout = 0.1

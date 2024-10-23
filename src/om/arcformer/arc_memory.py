@@ -23,7 +23,7 @@ class ARC(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
-        betas: List[float],
+        betas: List[Optional[float]],
         attn_proj_rank: int,
         num_layers: int,
         layer_num: int,
@@ -43,6 +43,7 @@ class ARC(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens).
             attn_normalize (bool): Whether to normalize the attention inputs.
             dropout (float): The dropout rate.
+            betas (List[Optional[float]]): Betas for Hopfield memory.
             attn_proj_rank (int): The rank of the attention projection.
             num_layers (int): Number of ARC transformer layers in the parent model.
             layer_num (int): The position of the layer.
@@ -155,7 +156,7 @@ class StatefulCausalMHMA(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
-        betas: List[float],
+        betas: List[Optional[float]],
         attn_proj_rank: int,
         cope: bool,
         diff_attn: bool,
@@ -174,7 +175,7 @@ class StatefulCausalMHMA(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): The dropout rate.
-            betas (List[float]): The betas for Hopfield attention.
+            betas (List[Optional[float]]): The betas for Hopfield attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -251,7 +252,7 @@ class StatefulCausalMultiAttention(nn.Module):
         state_len: int,
         attn_normalize: bool,
         dropout: float,
-        betas: List[float],
+        betas: List[Optional[float]],
         attn_proj_rank: int,
         cope: bool,
         diff_attn: bool,
@@ -269,7 +270,7 @@ class StatefulCausalMultiAttention(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): Dropout rate.
-            betas (List[float]): The betas for the Hopfield attention.
+            betas (List[Optional[float]]): The betas for the Hopfield attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -893,7 +894,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         state_len: int,
         attn_normalize: bool = True,
         dropout: float = 0.0,
-        beta: float = 1.0,
+        beta: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
     ):
@@ -907,7 +908,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
-            beta (float, optional): The beta value (inverse temperature). Defaults to 1.0.
+            beta (Optional[float], optional): The beta value (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use CoPE. Defaults to False.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
@@ -1029,7 +1030,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 attn_bias = attn_bias.log()
                 attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
                 
-            mem = memory_efficient_attention(q, k, self.beta * v, attn_bias=attn_bias, p=self.dropout)
+            mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta)
             if ix < self.num_iters - 1:
                 mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
         
@@ -1047,7 +1048,7 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
         layer_num: int,
         attn_normalize: bool = True,
         dropout: float = 0.0,
-        beta: float = 1.0,
+        beta: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
     ):
@@ -1062,7 +1063,8 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             layer_num (int): The position of the layer.
             attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
-            beta (float, optional): The beta parameter (inverse temperature). Defaults to 1.0.
+            beta (Optional[float], optional): The beta parameter (inverse temperature). Defaults to None.
+            cope (bool, optional): Whether to use COPE positional embeddings. Defaults to False.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalDiffHopfieldAttentionHead, self).__init__()
@@ -1236,8 +1238,8 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
             lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
             
-            att1 = memory_efficient_attention(q1, k1, self.beta * v, attn_bias=attn_bias_1, p=self.dropout)
-            att2 = memory_efficient_attention(q2, k2, self.beta * v, attn_bias=attn_bias_2, p=self.dropout)
+            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta)
+            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta)
             
             mem = att1 - lambda_ * att2
             

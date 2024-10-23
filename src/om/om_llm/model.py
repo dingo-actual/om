@@ -21,7 +21,7 @@ class OmLLM(torch.nn.Module):
         attn_normalize: bool,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
-        betas: List[float],
+        betas: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
@@ -47,7 +47,7 @@ class OmLLM(torch.nn.Module):
             attn_normalize (bool): Normalize the inputs to ARCformer memory calculations.
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
-            betas (List[float]): Betas for Hopfield memory.
+            betas (List[Optional[float]]): Betas for Hopfield memory.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection. If -1 will use min(dims_value). Defaults to -1.
