@@ -1,5 +1,5 @@
 {
-    "name": "p50k_edit",
+    "name": "gpt2",
     "special_tokens": {
         "<|im_start|>": 50281,
         "<|im_end|>": 50256,

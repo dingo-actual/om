@@ -1,8 +1,8 @@
 import tiktoken
 
-enc_base = tiktoken.get_encoding("p50k_edit")
+enc_base = tiktoken.get_encoding("gpt2")
 enc = tiktoken.Encoding(
-    name="p50k_edit",
+    name="gpt2",
     pat_str=enc_base._pat_str,
     mergeable_ranks=enc_base._mergeable_ranks,
     special_tokens={
