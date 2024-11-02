@@ -12,8 +12,8 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
 
 from .eval_net import eval_net
-from ..om_llm import OmLLM
-from ..data import ProportionalDataset
+from ...om_llm import OmLLM
+from ...data import ProportionalDataset
 
 
 def train_stage(

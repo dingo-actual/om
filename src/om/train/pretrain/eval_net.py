@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
 
-from ..om_llm import OmLLM
+from ...om_llm import OmLLM
 
 
 def eval_net(
