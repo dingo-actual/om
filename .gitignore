@@ -4,3 +4,4 @@ data_one_pct/*
 src/tests/*
 download_data.py
 train.py
+pretrain.sh

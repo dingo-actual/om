@@ -55,6 +55,7 @@ def train_stage(
         mixed_precision="bf16", 
         gradient_accumulation_steps=gradient_accumulation_steps
     )
+    accelerator.save_state()
     
     lr = opt_kwargs["lr"]
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
