@@ -43,7 +43,7 @@ class ARC(nn.Module):
             state_len (int): Length of the state (i.e., number of tokens).
             attn_normalize (bool): Whether to normalize the attention inputs.
             dropout (float): The dropout rate.
-            betas (List[Optional[float]]): Betas for Hopfield memory.
+            betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             num_layers (int): Number of ARC transformer layers in the parent model.
             layer_num (int): The position of the layer.
@@ -175,7 +175,7 @@ class StatefulCausalMHMA(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): The dropout rate.
-            betas (List[Optional[float]]): The betas for Hopfield attention.
+            betas (List[Optional[float]]): The betas for Hopfield attention / scaling factors for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -270,7 +270,7 @@ class StatefulCausalMultiAttention(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): Dropout rate.
-            betas (List[Optional[float]]): The betas for the Hopfield attention.
+            betas (List[Optional[float]]): The betas for the Hopfield attention / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -317,6 +317,7 @@ class StatefulCausalMultiAttention(nn.Module):
                         layer_num=layer_num,
                         attn_normalize=attn_normalize,
                         dropout=dropout,
+                        scaling_factor=betas[0],
                         cope=cope,
                         position_embedder=position_embedders[0],
                     )
@@ -348,6 +349,7 @@ class StatefulCausalMultiAttention(nn.Module):
                         state_len=state_len,
                         attn_normalize=attn_normalize,
                         dropout=dropout,
+                        scaling_factor=betas[0],
                         cope=cope,
                         position_embedder=position_embedders[0]
                     )
@@ -381,6 +383,7 @@ class StatefulCausalMultiAttention(nn.Module):
                             layer_num=layer_num,
                             attn_normalize=attn_normalize,
                             dropout=dropout,
+                            scaling_factor=betas[ix],
                             cope=cope,
                             position_embedder=position_embedders[ix],
                         )
@@ -421,6 +424,7 @@ class StatefulCausalMultiAttention(nn.Module):
                             state_len=state_len,
                             attn_normalize=attn_normalize,
                             dropout=dropout,
+                            scaling_factor=betas[ix],
                             cope=cope,
                             position_embedder=position_embedders[ix]
                         )
@@ -497,6 +501,7 @@ class StatefulCausalAttentionHead(nn.Module):
         state_len: int,
         attn_normalize: bool = True,
         dropout: float = 0.0,
+        scaling_factor: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
     ):
@@ -510,6 +515,7 @@ class StatefulCausalAttentionHead(nn.Module):
             state_len (int): The length of the state tensor.
             attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
+            scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             cope (bool, optional): Whether to use CoPE. Defaults to False.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
@@ -522,6 +528,7 @@ class StatefulCausalAttentionHead(nn.Module):
         self.state_len = state_len
         self.attn_normalize = attn_normalize
         self.dropout = dropout
+        self.scaling_factor = scaling_factor
         self.cope = cope
         self.position_embedder = position_embedder
         
@@ -587,7 +594,7 @@ class StatefulCausalAttentionHead(nn.Module):
             attn_bias = attn_bias.log()
             attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
             
-        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout)
+        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
 
         return att
 
@@ -669,6 +676,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         layer_num: int,
         attn_normalize: bool = True,
         dropout: float = 0.0,
+        scaling_factor: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
     ):
@@ -683,6 +691,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             layer_num (int): The position of the layer.
             attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
+            scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalDiffAttentionHead, self).__init__()
@@ -695,6 +704,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         self.layer_num = layer_num
         self.attn_normalize = attn_normalize
         self.dropout = dropout
+        self.scaling_factor = scaling_factor
         self.cope = cope
         self.position_embedder = position_embedder
         
@@ -793,8 +803,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
-        att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout)
-        att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout)
+        att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.scaling_factor)
+        att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.scaling_factor)
         
         att = att1 - lambda_ * att2
 
