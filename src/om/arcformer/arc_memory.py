@@ -107,7 +107,7 @@ class ARC(nn.Module):
             self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input))
 
 
-    def forward(self, x: torch.Tensor, state: Optional[torch.Tuple], offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor], offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent stateful attention to the input tensor x.
 

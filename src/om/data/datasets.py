@@ -22,6 +22,11 @@ class FilesDataset(IterableDataset):
         Args:
             fpaths (List[str]): List of paths to the files.
             segment_len (int): Length of the segments for each sub-sample.
+            enc (Encoding): Tokenizer to use.
+            prefix_str (str, optional): Prefix to add to each sample. Defaults to "".
+            suffix_str (str, optional): Suffix to add to each sample. Defaults to "".
+            pad_str (str, optional): String to use for pre-padding samples. Defaults to "".
+            num_pad (int, optional): Number of pre-padding tokens. Defaults to 0.
         """
         super(FilesDataset, self).__init__()
         
@@ -46,13 +51,16 @@ class FilesDataset(IterableDataset):
         self.current_file_ix = 0
         self.current_obs_ix = 0
         
-        self.open_current_file()
+        _ = self.open_current_file()
         
         self.current_file_ix += 1
 
-    def open_current_file(self):
+    def open_current_file(self) -> bool:
         """Open the next file."""
-        with open(self.fpaths[self.current_file_ix], "r") as fp:
+        if self.current_file_ix >= len(self.fpaths):
+            return False
+        
+        with open(self.fpaths[self.current_file_ix], "r", encoding="utf-8", errors="ignore") as fp:
             current_file = fp.read()
         
         current_file = self.parse(current_file)
@@ -60,7 +68,9 @@ class FilesDataset(IterableDataset):
             self.prefix_str + line.strip() + self.suffix_str 
             for line in current_file
         ]
-        self.current_file = self.enc.encode_batch(current_file)
+        self.current_file = self.enc.encode_batch(current_file, allowed_special={"<|im_start|>", "<|im_end|>", "<|pad|>"})
+        
+        return True
             
     def __iter__(self):
         """Iterate over the dataset."""
@@ -70,7 +80,7 @@ class FilesDataset(IterableDataset):
         """Return the next sample in the dataset.
         
         Returns:
-            str: Current sample.
+            torch.Tensor: Current sample.
         """
         # Fill the buffer if necessary
         while len(self.buffer) < self.segment_len - self.num_pad:
@@ -80,11 +90,10 @@ class FilesDataset(IterableDataset):
                 self.current_file_ix += 1
                 self.current_obs_ix = 0
 
-                # If no more files, raise StopIteration
-                if self.current_file_ix == len(self.fpaths):
+                # Try to open current file; if no more files, raise StopIteration
+                success = self.open_current_file()
+                if not success:
                     raise StopIteration
-                else:
-                    self.open_current_file()
             else:
                 # Add next line to buffer
                 self.buffer.extend(self.current_file[self.current_obs_ix])

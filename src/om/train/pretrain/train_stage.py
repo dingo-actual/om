@@ -50,6 +50,8 @@ def train_stage(
     makedirs(f"{writer_dir}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
     writer = SummaryWriter(f"{writer_dir}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
     
+    num_pad = dataloader_train.dataset.datasets[0].num_pad
+    
     accelerator = Accelerator(
         project_dir=checkpoint_dir_stage, 
         mixed_precision="bf16", 
@@ -85,9 +87,9 @@ def train_stage(
             optimizer.zero_grad()
             
             inputs = batch[:, :-1]
-            targets = batch[:, 1:]
+            targets = batch[:, num_pad + 1:]
             
-            tokens_processed += batch.size(0) * batch.size(1)
+            tokens_processed += batch.size(0) * (batch.size(1) - num_pad)
             
             logits, _, _ = model(inputs)
             loss = loss_fn(logits, targets)
