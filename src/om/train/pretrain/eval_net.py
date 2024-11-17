@@ -20,7 +20,7 @@ def eval_net(
     batch_ix: int
 ) -> None:
     model = model.eval()
-    optimizer = optimizer.eval()
+    optimizer.eval()
     
     loss_total = 0.0
     pplx_total = 0.0
@@ -52,5 +52,5 @@ def eval_net(
         writer.add_scalar("Loss/Validation", eval_loss, batch_ix)
         writer.add_scalar("Perplexity/Validation", eval_pplx, batch_ix)
             
-    model.train()
+    model = model.train()
     optimizer.train()

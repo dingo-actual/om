@@ -80,7 +80,7 @@ def train_stage(
     tokens_processed = 0
     
     model = model.train()
-    optimizer = optimizer.train()
+    optimizer.train()
     
     for batch_ix, batch in enumerate(dataloader_train):
         with accelerator.accumulate(model):
@@ -92,7 +92,7 @@ def train_stage(
             tokens_processed += batch.size(0) * (batch.size(1) - num_pad)
             
             logits, _, _ = model(inputs)
-            loss = loss_fn(logits, targets)
+            loss = loss_fn(logits.transpose(-1, -2), targets)
         
             accelerator.backward(loss)
             
@@ -110,14 +110,14 @@ def train_stage(
             time_str = time_crnt.strftime("%Y-%m-%d %H:%M:%S")
             accelerator.wait_for_everyone()
             model = model.eval()
-            optimizer = optimizer.eval()
+            optimizer.eval()
             
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
             makedirs(checkpoint_dir_crnt)
             accelerator.save_state(checkpoint_dir_crnt)
             
             model = model.train()
-            optimizer = optimizer.train()
+            optimizer.train()
             time_last = time_crnt
         
         if (batch_ix + 1) % log_every == 0:
