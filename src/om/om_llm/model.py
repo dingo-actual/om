@@ -193,30 +193,32 @@ class OmLLM(torch.nn.Module):
             ix_hi = ix_hi + conv_offset_hi
 
             x_seg = x[:, ix_lo:ix_hi]
-            x_seg = self.embedder(x_seg)
+            x_seg_emb = self.embedder(x_seg)
+            
+            x_seg_emb_ = x_seg_emb.clone()
             
             if len(self.init_convs) > 0:
                 x_seg_convs = [
-                    conv(x_seg.transpose(1, 2)).transpose(1, 2) for conv in self.convs
+                    conv(x_seg_emb.transpose(1, 2)).transpose(1, 2) for conv in self.convs
                 ]
                 for k, x_seg_conv in zip(self.init_convs, x_seg_convs):
-                    x_seg[:, k-1:, :] += x_seg_conv
+                    x_seg_emb_[:, k-1:, :] += x_seg_conv
                     
-                x_seg = x_seg[:, drop_num:, :]
+                x_seg_next = x_seg_emb_[:, drop_num:, :]
             
             states_next = []
         
             for layer, state in zip(self.layers, states):
-                x_seg, state_next = layer(x_seg, state, offset)
+                x_seg_next, state_next = layer(x_seg_next, state, offset)
                 states_next.append(state_next)
             
             states = states_next
             
             if next_token:
                 if segment_num == num_segments - 1:
-                    out = self.proj_out(x_seg[:, -1, :])
+                    out = self.proj_out(x_seg_next[:, -1, :])
             else:
-                out.append(self.proj_out(x_seg))
+                out.append(self.proj_out(x_seg_next))
         
         if not next_token:
             out = torch.cat(out, dim=1)
