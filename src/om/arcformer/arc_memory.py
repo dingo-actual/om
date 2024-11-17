@@ -1000,7 +1000,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             q_state_end = self.proj_q_state_end(mem_state_end)
             v_state_end = self.proj_v_state_end(mem_state_end)
             
-            if self.cope:
+            if self.cope and ix == 0:
                 logits = q @ k.transpose(-2, -1)
                 gates = torch.sigmoid(logits)
                 pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
@@ -1024,7 +1024,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             v = torch.cat([v_state_start, v, v_state_end], dim=1)
             
             # If position embedder is specified, add positional embeddings to q and k
-            if self.position_embedder is not None:
+            if self.position_embedder is not None and ix == 0:
                 k = self.position_embedder(k, offset=offset)
                 q = self.position_embedder(q, offset=offset)
             
@@ -1175,7 +1175,7 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             q_state_end = self.proj_q_state_end(mem_state_end)
             v_state_end = self.proj_v_state_end(mem_state_end)
             
-            if self.cope:
+            if self.cope and ix == 0:
                 q1, q2 = split_last_dim(q)
                 k1, k2 = split_last_dim(k)
                 
@@ -1220,7 +1220,7 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             k1, k2 = split_last_dim(k)
             
             # If position embedder is specified, add positional embeddings to q and k
-            if self.position_embedder is not None:
+            if self.position_embedder is not None and ix == 0:
                 q1 = self.position_embedder(q1, offset=offset)
                 q2 = self.position_embedder(q2, offset=offset)
                 k1 = self.position_embedder(k1, offset=offset)
