@@ -129,14 +129,14 @@ class ARCformer(nn.Module):
              - State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
-        x_, state = self.attn(x, state, offset)
-        x_ = self.attn_norm(self.dropout1(x_) + x)
-        x_ = self.dropout2(self.mlp(x_))
+        attn, state = self.attn(x, state, offset)
+        x = self.attn_norm(self.dropout1(attn) + x)
+        mlp_out = self.dropout2(self.mlp(x))
         
         # If no MLP multiplier, then add residual connection.
         if self.mlp_multiplier == 1:
-            x_ = self.mlp_norm(x_ + x)
+            x = self.mlp_norm(mlp_out + x)
         else:
-            x_ = self.mlp_norm(x_)
+            x = self.mlp_norm(mlp_out)
 
-        return x_, state
+        return x, state
