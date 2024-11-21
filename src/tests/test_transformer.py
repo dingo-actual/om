@@ -26,7 +26,7 @@ def test_arc_transformer():
     
     dropout = 0.1
     attn_dropout = 0.1
-    diff_attn = True
+    diff_attn = False
     layer_num = 0
     
     position_embedders = [
@@ -35,6 +35,7 @@ def test_arc_transformer():
             seq_len=segment_len + 2 * state_len,
             dim_embedding_pct=0.25,
             base=10000,
+            device="cuda:0"
         ) for dim_key in dims_key
     ]
     cope = True

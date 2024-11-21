@@ -617,25 +617,17 @@ class StatefulCausalAttentionHead(nn.Module):
             x_state_start = self.norm_in_state_start(x_state_start)
             x_state_end = self.norm_in_state_end(x_state_end)
         
-        k = self.proj_k(x)
-        q = self.proj_q(x)
-        v = self.proj_v(x)
+        k = self.proj_k(x).to(torch.float32)
+        q = self.proj_q(x).to(torch.float32)
+        v = self.proj_v(x).to(torch.float32)
         
-        k_state_start = self.proj_k_state_start(x_state_start)
-        q_state_start = self.proj_q_state_start(x_state_start)
-        v_state_start = self.proj_v_state_start(x_state_start)
+        k_state_start = self.proj_k_state_start(x_state_start).to(torch.float32)
+        q_state_start = self.proj_q_state_start(x_state_start).to(torch.float32)
+        v_state_start = self.proj_v_state_start(x_state_start).to(torch.float32)
         
-        k_state_end = self.proj_k_state_end(x_state_end)
-        q_state_end = self.proj_q_state_end(x_state_end)
-        v_state_end = self.proj_v_state_end(x_state_end)
-        
-        self.k = k
-        self.k_state_start = k_state_start
-        self.k_state_end = k_state_end
-        
-        self.v = v
-        self.v_state_start = v_state_start
-        self.v_state_end = v_state_end
+        k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
+        q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
+        v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
         
         if self.cope:
             logits = q @ k.transpose(-2, -1)
@@ -646,7 +638,7 @@ class StatefulCausalAttentionHead(nn.Module):
             pos_ceil = pos.ceil().long()
             pos_floor = pos.floor().long()
             
-            logits_int = q @ self.cope_emb
+            logits_int = q @ self.cope_emb.to(torch.float32)
             logits_ceil = logits_int.gather(-1, pos_ceil)
             logits_floor = logits_int.gather(-1, pos_floor)
             
@@ -660,7 +652,7 @@ class StatefulCausalAttentionHead(nn.Module):
         q = torch.cat([q_state_start, q, q_state_end], dim=1)
         v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
-        att = self.apply_attention(q, k, v, offset=offset, bias=bias)
+        att = self.apply_attention(q, k, v, offset=offset, bias=bias).to(x.dtype)
         
         return att
     
@@ -829,25 +821,17 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             x_state_start = self.norm_in_state_start(x_state_start)
             x_state_end = self.norm_in_state_end(x_state_end)
         
-        k = self.proj_k(x)
-        q = self.proj_q(x)
-        v = self.proj_v(x)
+        k = self.proj_k(x).to(torch.float32)
+        q = self.proj_q(x).to(torch.float32)
+        v = self.proj_v(x).to(torch.float32)
         
-        k_state_start = self.proj_k_state_start(x_state_start)
-        q_state_start = self.proj_q_state_start(x_state_start)
-        v_state_start = self.proj_v_state_start(x_state_start)
+        k_state_start = self.proj_k_state_start(x_state_start).to(torch.float32)
+        q_state_start = self.proj_q_state_start(x_state_start).to(torch.float32)
+        v_state_start = self.proj_v_state_start(x_state_start).to(torch.float32)
         
-        k_state_end = self.proj_k_state_end(x_state_end)
-        q_state_end = self.proj_q_state_end(x_state_end)
-        v_state_end = self.proj_v_state_end(x_state_end)
-        
-        self.k = k
-        self.k_state_start = k_state_start
-        self.k_state_end = k_state_end
-        
-        self.v = v
-        self.v_state_start = v_state_start
-        self.v_state_end = v_state_end
+        k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
+        q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
+        v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
         
         if self.cope:
             q1, q2 = split_last_dim(q)
@@ -869,10 +853,10 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             pos_ceil_2 = pos2.ceil().long()
             pos_floor_2 = pos2.floor().long()
             
-            logits_int_1 = q1 @ self.cope_emb_1
+            logits_int_1 = q1 @ self.cope_emb_1.to(torch.float32)
             logits_ceil_1 = logits_int_1.gather(-1, pos_ceil_1)
             logits_floor_1 = logits_int_1.gather(-1, pos_floor_1)
-            logits_int_2 = q2 @ self.cope_emb_2
+            logits_int_2 = q2 @ self.cope_emb_2.to(torch.float32)
             logits_ceil_2 = logits_int_2.gather(-1, pos_ceil_2)
             logits_floor_2 = logits_int_2.gather(-1, pos_floor_2)
             
@@ -889,7 +873,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         q = torch.cat([q_state_start, q, q_state_end], dim=1)
         v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
-        att = self.apply_attention(q, k, v, offset=offset, bias=(bias1, bias2))
+        att = self.apply_attention(q, k, v, offset=offset, bias=(bias1, bias2)).to(x.dtype)
         
         return self.out_norm(att)
     
@@ -988,17 +972,17 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         mem_state_end = self.proj_hidden_state_end(x_state_end)
         
         for ix in range(self.num_iters):
-            k = self.proj_k(mem)
-            q = self.proj_q(mem)
-            v = self.proj_v(mem)
+            k = self.proj_k(mem).to(torch.float32)
+            q = self.proj_q(mem).to(torch.float32)
+            v = self.proj_v(mem).to(torch.float32)
             
-            k_state_start = self.proj_k_state_start(mem_state_start)
-            q_state_start = self.proj_q_state_start(mem_state_start)
-            v_state_start = self.proj_v_state_start(mem_state_start)
+            k_state_start = self.proj_k_state_start(mem_state_start).to(torch.float32)
+            q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
+            v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
             
-            k_state_end = self.proj_k_state_end(mem_state_end)
-            q_state_end = self.proj_q_state_end(mem_state_end)
-            v_state_end = self.proj_v_state_end(mem_state_end)
+            k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
+            q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
+            v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
             if self.cope and ix == 0:
                 logits = q @ k.transpose(-2, -1)
@@ -1009,7 +993,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 pos_ceil = pos.ceil().long()
                 pos_floor = pos.floor().long()
                 
-                logits_int = q @ self.cope_emb
+                logits_int = q @ self.cope_emb.to(torch.float32)
                 logits_ceil = logits_int.gather(-1, pos_ceil)
                 logits_floor = logits_int.gather(-1, pos_floor)
                 
@@ -1040,7 +1024,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 attn_bias = attn_bias.log()
                 attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
                 
-            mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta)
+            mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta).to(x.dtype)
             if ix < self.num_iters - 1:
                 mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
         
@@ -1163,17 +1147,17 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
         mem_state_end = self.proj_hidden_state_end(x_state_end)
         
         for ix in range(self.num_iters):
-            k = self.proj_k(mem)
-            q = self.proj_q(mem)
-            v = self.proj_v(mem)
+            k = self.proj_k(mem).to(torch.float32)
+            q = self.proj_q(mem).to(torch.float32)
+            v = self.proj_v(mem).to(torch.float32)
             
-            k_state_start = self.proj_k_state_start(mem_state_start)
-            q_state_start = self.proj_q_state_start(mem_state_start)
-            v_state_start = self.proj_v_state_start(mem_state_start)
+            k_state_start = self.proj_k_state_start(mem_state_start).to(torch.float32)
+            q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
+            v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
             
-            k_state_end = self.proj_k_state_end(mem_state_end)
-            q_state_end = self.proj_q_state_end(mem_state_end)
-            v_state_end = self.proj_v_state_end(mem_state_end)
+            k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
+            q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
+            v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
             if self.cope and ix == 0:
                 q1, q2 = split_last_dim(q)
@@ -1195,10 +1179,10 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
                 pos_ceil_2 = pos2.ceil().long()
                 pos_floor_2 = pos2.floor().long()
                 
-                logits_int_1 = q1 @ self.cope_emb_1
+                logits_int_1 = q1 @ self.cope_emb_1.to(torch.float32)
                 logits_ceil_1 = logits_int_1.gather(-1, pos_ceil_1)
                 logits_floor_1 = logits_int_1.gather(-1, pos_floor_1)
-                logits_int_2 = q2 @ self.cope_emb_2
+                logits_int_2 = q2 @ self.cope_emb_2.to(torch.float32)
                 logits_ceil_2 = logits_int_2.gather(-1, pos_ceil_2)
                 logits_floor_2 = logits_int_2.gather(-1, pos_floor_2)
                 
@@ -1248,8 +1232,8 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
             lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
             
-            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta)
-            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta)
+            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
+            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
             
             mem = att1 - lambda_ * att2
             
