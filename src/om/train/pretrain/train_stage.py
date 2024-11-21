@@ -3,7 +3,7 @@ from os import makedirs
 from os.path import exists
 from typing import Any, Dict
 
-from accelerate import Accelerator
+from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
 import safetensors
 from schedulefree import AdamWScheduleFree
 import torch
@@ -51,11 +51,12 @@ def train_stage(
     writer = SummaryWriter(f"{writer_dir}/stage{stage_num}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}")
     
     num_pad = dataloader_train.dataset.datasets[0].num_pad
-    
+    ddp_kwargs = DistributedDataParallelKwargs(comm_hook=DDPCommunicationHookType.BF16)
     accelerator = Accelerator(
         project_dir=checkpoint_dir_stage, 
         mixed_precision="bf16", 
-        gradient_accumulation_steps=gradient_accumulation_steps
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        kwargs_handlers=[ddp_kwargs]
     )
     accelerator.save_state()
     
@@ -92,8 +93,10 @@ def train_stage(
             tokens_processed += batch.size(0) * (batch.size(1) - num_pad)
             
             logits, _, _ = model(inputs)
-            loss = loss_fn(logits.transpose(-1, -2), targets)
-        
+            
+            with accelerator.autocast():
+                loss = loss_fn(logits.transpose(-1, -2), targets)
+            
             accelerator.backward(loss)
             
             if (batch_ix + 1) % log_every == 0:
