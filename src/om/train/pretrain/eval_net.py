@@ -1,6 +1,6 @@
 from accelerate import Accelerator
-from schedulefree import AdamWScheduleFree
 import torch
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
@@ -10,7 +10,7 @@ from ...om_llm import OmLLM
 
 def eval_net(
     model: OmLLM, 
-    optimizer: AdamWScheduleFree, 
+    optimizer: Optimizer, 
     loss_fn: torch.nn.Module,
     perpelxity: Perplexity,
     dataloader_eval: DataLoader, 

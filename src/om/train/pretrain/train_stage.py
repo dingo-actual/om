@@ -4,8 +4,8 @@ from os.path import exists
 from typing import Any, Dict
 
 from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
+from heavyball import PrecondScheduleSFPaLMSOAP, utils
 import safetensors
-from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -60,6 +60,8 @@ def train_stage(
     )
     accelerator.save_state()
     
+    utils.set_torch()
+    
     lr = opt_kwargs["lr"]
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
     opt_kwargs["lr"] = adj_lr
@@ -78,7 +80,7 @@ def train_stage(
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
+    optimizer = PrecondScheduleSFPaLMSOAP(param_groups, **opt_kwargs)
     dataloader_train = DataLoader(dataset_train, **dataloader_train_kwargs)
     dataloader_val = DataLoader(dataset_val, **dataloader_val_kwargs)
     perplexity = Perplexity()
@@ -113,8 +115,6 @@ def train_stage(
                 param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
                 grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad]))
             
-            if accelerator.sync_gradients:
-                accelerator.clip_grad_value_(model.parameters(), 1.0)
             optimizer.step()
         
         time_crnt = datetime.datetime.now()
