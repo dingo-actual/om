@@ -68,7 +68,17 @@ def train_stage(
     adj_warmup_steps = warmup_steps * accelerator.gradient_accumulation_steps
     opt_kwargs["warmup_steps"] = adj_warmup_steps
     
-    optimizer = AdamWScheduleFree(model.parameters(), **opt_kwargs)
+    wd_ignore_groups = ["bias", "LayerNorm"]
+    wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
+    no_wd_params = [p for n, p in model.named_parameters() if any(nd in n for nd in wd_ignore_groups)]
+    
+    param_groups = [
+        {"params": wd_params, "weight_decay": opt_kwargs["weight_decay"]},
+        {"params": no_wd_params, "weight_decay": 0.0}
+    ]
+    _ = opt_kwargs.pop("weight_decay")
+    
+    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
     dataloader_train = DataLoader(dataset_train, **dataloader_train_kwargs)
     dataloader_val = DataLoader(dataset_val, **dataloader_val_kwargs)
     perplexity = Perplexity()
