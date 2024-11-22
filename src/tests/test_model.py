@@ -39,23 +39,28 @@ def test_model():
     num_segments = 4
     next_token = False
     
+    device = "cuda:0"
+    
     position_embedder_1 = RoPEEmbeddings(
         dim=dims_key[0],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     position_embedder_2 = RoPEEmbeddings(
         dim=dims_key[1],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     position_embedder_3 = RoPEEmbeddings(
         dim=dims_key[2],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     
     position_embedders = [
@@ -98,6 +103,9 @@ def test_model():
         x = x.to("cuda:0")
     
     model = model.to(torch.bfloat16)
+    for name, param in model.named_parameters():
+        if "LayerNorm" in name:
+            param.data = param.data.to(torch.float32)
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
         preds, states, offset = model(x, next_token=next_token)

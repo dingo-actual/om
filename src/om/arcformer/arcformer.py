@@ -130,13 +130,13 @@ class ARCformer(nn.Module):
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
         attn, state = self.attn(x, state, offset)
-        x = self.attn_norm(self.dropout1(attn) + x)
+        x = self.attn_norm((self.dropout1(attn) + x).to(torch.float32)).to(x.dtype)
         mlp_out = self.dropout2(self.mlp(x))
         
         # If no MLP multiplier, then add residual connection.
         if self.mlp_multiplier == 1:
-            x = self.mlp_norm(mlp_out + x)
+            x = self.mlp_norm((mlp_out + x).to(torch.float32)).to(x.dtype)
         else:
-            x = self.mlp_norm(mlp_out)
+            x = self.mlp_norm(mlp_out.to(torch.float32)).to(x.dtype)
 
         return x, state

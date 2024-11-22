@@ -613,9 +613,9 @@ class StatefulCausalAttentionHead(nn.Module):
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
-            x = self.norm_in(x)
-            x_state_start = self.norm_in_state_start(x_state_start)
-            x_state_end = self.norm_in_state_end(x_state_end)
+            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
+            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
+            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
@@ -817,9 +817,9 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
-            x = self.norm_in(x)
-            x_state_start = self.norm_in_state_start(x_state_start)
-            x_state_end = self.norm_in_state_end(x_state_end)
+            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
+            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
+            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
@@ -963,9 +963,9 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
-            x = self.norm_in(x)
-            x_state_start = self.norm_in_state_start(x_state_start)
-            x_state_end = self.norm_in_state_end(x_state_end)
+            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
+            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
+            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         mem = self.proj_hidden(x)
         mem_state_start = self.proj_hidden_state_start(x_state_start)
@@ -1138,9 +1138,9 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
-            x = self.norm_in(x)
-            x_state_start = self.norm_in_state_start(x_state_start)
-            x_state_end = self.norm_in_state_end(x_state_end)
+            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
+            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
+            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         mem = self.proj_hidden(x)
         mem_state_start = self.proj_hidden_state_start(x_state_start)

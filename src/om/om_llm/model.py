@@ -78,6 +78,9 @@ class OmLLM(torch.nn.Module):
                     for k in init_convs
                 ]
             )
+            self.max_conv_len = max(init_convs)
+        else:
+            self.max_conv_len = 1
         
         layers = []
         for ix in range(num_layers - 1):
@@ -155,12 +158,7 @@ class OmLLM(torch.nn.Module):
               - Input location offset.
         """
         _, seq_len = x.shape
-        
-        if len(self.init_convs) > 0:
-            drop_num = max(self.init_convs) - 1
-        else:
-            drop_num = 0
-            
+        drop_num = self.max_conv_len - 1
         seq_len = seq_len - drop_num
         
         if len(states) == 0:
@@ -226,4 +224,4 @@ class OmLLM(torch.nn.Module):
         if self.vocab_offset > 0:
             out[:, :, -self.vocab_offset:] = -float("inf")
         
-        return out, states, ix_hi
+        return out, states, ix_hi - (self.max_conv_len - 1)

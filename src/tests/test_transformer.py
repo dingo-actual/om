@@ -76,6 +76,9 @@ def test_arc_transformer():
         state = state.cuda()
 
     layer = layer.to(torch.bfloat16)
+    for name, param in layer.named_parameters():
+        if "LayerNorm" in name:
+            param.data = param.data.to(torch.float32)
     layer.eval()  # Set the layer to evaluation mode
     
     with torch.no_grad():

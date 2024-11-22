@@ -1,3 +1,4 @@
+from heavyball import PrecondScheduleSFPaLMSOAP, utils
 from schedulefree import AdamWScheduleFree
 import torch
 
@@ -38,23 +39,28 @@ def test_model_training():
     batch_size = 4
     num_segments = 4
     
+    device = "cuda:0"
+    
     position_embedder_1 = RoPEEmbeddings(
         dim=dims_key[0],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     position_embedder_2 = RoPEEmbeddings(
         dim=dims_key[1],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     position_embedder_3 = RoPEEmbeddings(
         dim=dims_key[2],
         seq_len=segment_len + 2 * state_len,
         dim_embedding_pct=0.25,
-        base=10000
+        base=10000,
+        device=device
     )
     
     position_embedders = [
@@ -94,8 +100,22 @@ def test_model_training():
         model = model.to("cuda:0")
     
     model = model.to(torch.bfloat16)
+    for name, param in model.named_parameters():
+        if "LayerNorm" in name:
+            param.data = param.data.to(torch.float32)
     
-    optimizer = AdamWScheduleFree(model.parameters(), lr=1e-3, warmup_steps=10, weight_decay=0.001)
+    wd_ignore_groups = ["bias", "LayerNorm"]
+    wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
+    no_wd_params = [p for n, p in model.named_parameters() if any(nd in n for nd in wd_ignore_groups)]
+    
+    param_groups = [
+        {"params": wd_params, "weight_decay": 0.1},
+        {"params": no_wd_params, "weight_decay": 0.0}
+    ]
+    
+    utils.set_torch()
+    
+    optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
     loss_fn = torch.nn.CrossEntropyLoss()
     
     model = model.train()
