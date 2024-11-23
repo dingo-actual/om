@@ -1,3 +1,4 @@
+import argparse
 from os import listdir, mkdir
 from os.path import join
 from typing import List
@@ -16,6 +17,8 @@ class ChunkFileWriter:
         self.chunk_size = chunk_size
         self.chunk_data = []
         
+        self.tokens_written = dict()
+        
     def add(self, data: List[int]):
         """Add data to the current chunk."""
         self.chunk_data.append(data)
@@ -26,9 +29,12 @@ class ChunkFileWriter:
     def flush(self):
         """Flush any remaining data to disk."""
         if len(self.chunk_data) > 0:
-            fpath_out = join(self.out_dir, f"{self.file_num:010d}.json")
+            fname = f"{self.file_num:010d}.json"
+            fpath_out = join(self.out_dir, fname)
             with open(fpath_out, "wb") as fp:
-                fp.write(orjson.dumps())
+                fp.write(orjson.dumps(self.chunk_data))
+
+            self.tokens_written[fname] = sum([len(seq) for seq in self.chunk_data])
 
             self.file_num += 1
             self.chunk_data = []
@@ -41,7 +47,6 @@ def preprocess_data(
     chunk_size: int,
     prepend_str: str = "",
     append_str: str = "",
-    pad_str: str = "",
     num_pad: int = 0,
 ):
     """Preprocess the data."""
@@ -69,15 +74,60 @@ def preprocess_data(
             data = orjson.loads(fp.read())
             
         data = [prepend_str + line + append_str for line in data]
-        if num_pad > 0 and pad_str != "":
-            data = [[num_pad] * num_pad + line for line in data]
         data_enc = enc.encode_batch(data, allowed_special={"<|im_start|>", "<|im_end|>", "<|pad|>"})
         
         for line_enc in data_enc:
             for ix, cutoff in enumerate(cutoffs):
-                if len(line_enc) <= cutoff:
+                if len(line_enc) <= cutoff - num_pad:
                     writers[ix].add(line_enc)
                     break
-                
-    for writer in writers:
+    
+    tokens_summary = dict()
+    
+    prev_cutoff = 0
+    for ix, (writer, cutoff) in enumerate(zip(writers, cutoffs)):
         writer.flush()
+
+        if ix < len(cutoffs) - 1:
+            cutoff_str = f"{prev_cutoff}-{cutoff}"
+        else:
+            cutoff_str = f"{prev_cutoff}+"
+        prev_cutoff = cutoff
+            
+        tokens_summary[cutoff_str] = {
+            "tokens_per_file": writer.tokens_written,
+            "tokens_total": sum(writer.tokens_written.values()),
+        }
+        
+    with open(join(out_dir, "tokens_summary.json"), "wb") as fp:
+        fp.write(orjson.dumps(tokens_summary))
+        
+        
+parser = argparse.ArgumentParser(
+    prog="Preprocess data", 
+    description="Tokenizes data, sorting by sequence length ranges."
+)
+parser.add_argument(
+    "configs_fpath",
+    action="store",
+    type=str,
+    nargs=1,
+    help="Path to the configs file.",
+)
+
+
+if __name__=="__main__":
+    args = parser.parse_args()
+    with open(args.configs_fpath[0], "rb") as fp:
+        configs = orjson.loads(fp.read())
+
+    for config in configs:
+        preprocess_data(
+            data_dir=config["data_dir"],
+            out_dir=config["out_dir"],
+            cutoffs=config["cutoffs"],
+            chunk_size=config["chunk_size"],
+            prepend_str=config["prepend_str"],
+            append_str=config["append_str"],
+            num_pad=config["num_pad"],
+        )

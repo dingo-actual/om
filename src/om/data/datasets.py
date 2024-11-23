@@ -37,14 +37,14 @@ class FilesDataset(IterableDataset):
         self.suffix_str = suffix_str
         self.pad_str = pad_str
         
-        self.num_pad = num_pad
-        if num_pad <= 0:
-            self.pad_token = -1
-        elif pad_str == "":
+        if num_pad <= 0 or pad_str == "":
             self.num_pad = 0
             self.pad_token = -1
+            self.padding = None
         else:
+            self.num_pad = num_pad
             self.pad_token = self.enc.encode_single_token(pad_str)
+            self.padding = [self.pad_token] * self.num_pad
 
         self.buffer = []
         
@@ -60,15 +60,8 @@ class FilesDataset(IterableDataset):
         if self.current_file_ix >= len(self.fpaths):
             return False
         
-        with open(self.fpaths[self.current_file_ix], "r", encoding="utf-8", errors="ignore") as fp:
-            current_file = fp.read()
-        
-        current_file = self.parse(current_file)
-        current_file = [
-            self.prefix_str + line.strip() + self.suffix_str 
-            for line in current_file
-        ]
-        self.current_file = self.enc.encode_batch(current_file, allowed_special={"<|im_start|>", "<|im_end|>", "<|pad|>"})
+        with open(self.fpaths[self.current_file_ix], "rb") as fp:
+            self.current_file = orjson.loads(fp.read())
         
         return True
             
@@ -99,14 +92,10 @@ class FilesDataset(IterableDataset):
                 self.buffer.extend(self.current_file[self.current_obs_ix])
                 self.current_obs_ix += 1
         
-        padding = [self.pad_token for _ in range(self.num_pad)]
-        out = padding + self.buffer[:self.segment_len - self.num_pad]
+        out = self.padding + self.buffer[:self.segment_len - self.num_pad]
         self.buffer = self.buffer[self.segment_len - self.num_pad:]
                 
         return torch.tensor(out)
-    
-    def parse(self, text: str) -> List[str]:
-        return orjson.loads(text.strip())
 
 class ProportionalDataset(IterableDataset):
     def __init__(
