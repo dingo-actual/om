@@ -3,6 +3,7 @@ import torch
 from ..om.arcformer import RoPEEmbeddings
 from ..om.arcformer.util import count_optimized_parameters
 from ..om.om_llm import OmLLM
+from ..om.utils import set_om_dtypes
 
 
 def test_model():
@@ -102,10 +103,7 @@ def test_model():
         model = model.to("cuda:0")
         x = x.to("cuda:0")
     
-    model = model.to(torch.bfloat16)
-    for name, param in model.named_parameters():
-        if "LayerNorm" in name:
-            param.data = param.data.to(torch.float32)
+    model = set_om_dtypes(model, torch.bfloat16)
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
         preds, states, offset = model(x, next_token=next_token)

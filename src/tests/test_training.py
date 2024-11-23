@@ -1,9 +1,9 @@
 from heavyball import PrecondScheduleSFPaLMSOAP, utils
-from schedulefree import AdamWScheduleFree
 import torch
 
 from ..om.arcformer import RoPEEmbeddings
 from ..om.om_llm import OmLLM
+from ..om.utils import set_om_dtypes
 
 
 def test_model_training():
@@ -99,10 +99,7 @@ def test_model_training():
     if torch.cuda.is_available():
         model = model.to("cuda:0")
     
-    model = model.to(torch.bfloat16)
-    for name, param in model.named_parameters():
-        if "LayerNorm" in name:
-            param.data = param.data.to(torch.float32)
+    model = set_om_dtypes(model, torch.bfloat16)
     
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
