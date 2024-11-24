@@ -47,6 +47,19 @@ def split_last_dim(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     return x[..., :x.size(-1) // 2], x[..., x.size(-1) // 2:]
 
+def reverse_state_end(x: torch.Tensor, state_len: int) -> torch.Tensor:
+    """Reverses the end state portion of a tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim).
+        state_len (int): Length of the state.
+
+    Returns:
+        torch.Tensor: Tensor with reversed end state portion. Has shape (batch_size, seq_len + 2 * state_len, dim).
+    """
+    x[:, -state_len:, :] = x[:, -state_len:, :].flip(1)
+    return x
+
 
 if __name__ == "__main__":
     # Run unit tests

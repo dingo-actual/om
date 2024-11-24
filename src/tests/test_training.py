@@ -1,7 +1,7 @@
 from heavyball import PrecondScheduleSFPaLMSOAP, utils
 import torch
+from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..om.arcformer import RoPEEmbeddings
 from ..om.om_llm import OmLLM
 from ..om.utils import set_om_dtypes
 
@@ -38,36 +38,7 @@ def test_model_training():
     
     batch_size = 4
     num_segments = 4
-    
-    device = "cuda:0"
-    
-    position_embedder_1 = RoPEEmbeddings(
-        dim=dims_key[0],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    position_embedder_2 = RoPEEmbeddings(
-        dim=dims_key[1],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    position_embedder_3 = RoPEEmbeddings(
-        dim=dims_key[2],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    
-    position_embedders = [
-        position_embedder_1,
-        position_embedder_2,
-        position_embedder_3
-    ]
+    position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     
     model = OmLLM(
         num_layers=num_layers,
@@ -130,7 +101,7 @@ def test_model_training():
         inputs = x[:, :-1]
         targets = x[:, max_init_convs:]
         
-        logits, _, _ = model(inputs, next_token=False)
+        logits, _ = model(inputs, next_token=False)
         
         loss = loss_fn(logits.transpose(-1, -2), targets)
         

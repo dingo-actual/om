@@ -2,10 +2,10 @@ from typing import List, Optional, Tuple
 
 import torch
 from torch import nn
+from xformers.components.positional_embedding import RotaryEmbedding
 
 from .activations import ACTIVATIONS
 from .arc_memory import ARC
-from .positional_embeddings import RoPEEmbeddings
 
 
 class ARCformer(nn.Module):
@@ -26,7 +26,7 @@ class ARCformer(nn.Module):
         num_layers: int,
         layer_num: int,
         cope: bool,
-        position_embedders: List[Optional[RoPEEmbeddings]],
+        position_embedders: List[Optional[RotaryEmbedding]],
         betas: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
@@ -51,7 +51,7 @@ class ARCformer(nn.Module):
             num_layers (int): Number of ARC transformer layers in the parent model.
             layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE for the memory modules.
-            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
+            position_embedders (List[Optional[RotaryEmbedding]]): Position embedding modules for the memory modules.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factors for SDP attention.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             diff_attn (bool, optional): Whether to use diff attention. Defaults to False.
@@ -115,13 +115,12 @@ class ARCformer(nn.Module):
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, state: torch.Tensor, offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
             state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
-            offset (int): Offset for position embeddings.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
@@ -129,7 +128,7 @@ class ARCformer(nn.Module):
              - State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
-        attn, state = self.attn(x, state, offset)
+        attn, state = self.attn(x, state)
         x = self.attn_norm((self.dropout1(attn) + x).to(torch.float32)).to(x.dtype)
         mlp_out = self.dropout2(self.mlp(x))
         

@@ -1,8 +1,9 @@
 from typing import List, Optional, Tuple
 
 import torch
+from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..arcformer import ARCformer, RoPEEmbeddings
+from ..arcformer import ARCformer
 
 class OmLLM(torch.nn.Module):
     def __init__(
@@ -20,7 +21,7 @@ class OmLLM(torch.nn.Module):
         state_len: int,
         attn_normalize: bool,
         cope: bool,
-        position_embedders: List[Optional[RoPEEmbeddings]],
+        position_embedders: List[Optional[RotaryEmbedding]],
         betas: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
@@ -46,7 +47,7 @@ class OmLLM(torch.nn.Module):
             state_len (int): State length (in tokens).
             attn_normalize (bool): Normalize the inputs to ARCformer memory calculations.
             cope (bool): Use CoPE for ARCformer memory.
-            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
+            position_embedders (List[Optional[RotaryEmbedding]]): Position embedders for each memory layer in ARCformer.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
@@ -140,7 +141,6 @@ class OmLLM(torch.nn.Module):
     def forward(self, 
                 x: torch.Tensor, 
                 states: List[torch.Tensor] = [], 
-                offset: int = 0,
                 next_token: bool = False
                 ) -> Tuple[torch.Tensor, List[torch.Tensor], int]:
         """Forward model pass.
@@ -148,14 +148,12 @@ class OmLLM(torch.nn.Module):
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len)
             states (List[torch.Tensor], optional): State tensors for each ARCformer block. Defaults to [].
-            offset (int, optional): Input location offset. Defaults to 0.
             next_token (bool, optional): Whether to generate predictions for only the final token. Defaults to False.
 
         Returns:
             Tuple[torch.Tensor, List[torch.Tensor], int]: 
               - Logits for the next token at each position in the input.
               - State tensors for each ARCformer block.
-              - Input location offset.
         """
         _, seq_len = x.shape
         drop_num = self.max_conv_len - 1
@@ -207,7 +205,7 @@ class OmLLM(torch.nn.Module):
             states_next = []
         
             for layer, state in zip(self.layers, states):
-                x_seg_next, state_next = layer(x_seg_next, state, offset)
+                x_seg_next, state_next = layer(x_seg_next, state)
                 states_next.append(state_next)
             
             states = states_next
@@ -224,4 +222,4 @@ class OmLLM(torch.nn.Module):
         if self.vocab_offset > 0:
             out[:, :, -self.vocab_offset:] = -float("inf")
         
-        return out, states, ix_hi - (self.max_conv_len - 1)
+        return out, states

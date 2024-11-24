@@ -1,8 +1,9 @@
 # tests/test_transformer.py
 
 import torch
+from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..om.arcformer import ARCformer, RoPEEmbeddings
+from ..om.arcformer import ARCformer
 from ..om.arcformer.util import count_optimized_parameters
 
 
@@ -29,15 +30,7 @@ def test_arc_transformer():
     diff_attn = False
     layer_num = 0
     
-    position_embedders = [
-        RoPEEmbeddings(
-            dim=dim_key,
-            seq_len=segment_len + 2 * state_len,
-            dim_embedding_pct=0.25,
-            base=10000,
-            device="cuda:0"
-        ) for dim_key in dims_key
-    ]
+    position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     cope = True
 
     layer = ARCformer(
@@ -89,5 +82,3 @@ def test_arc_transformer():
     
     param_ct = count_optimized_parameters(layer)
     print(f"Total optimized parameters: {param_ct:,d}")
-    
-    del layer

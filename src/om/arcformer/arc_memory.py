@@ -3,10 +3,10 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 from torch import nn
+from xformers.components.positional_embedding import RotaryEmbedding
 from xformers.ops import memory_efficient_attention, LowerTriangularMask
 
-from .positional_embeddings import RoPEEmbeddings
-from .util import extract_state, split_last_dim
+from .util import extract_state, reverse_state_end, split_last_dim
 
 
 class ARC(nn.Module):
@@ -29,7 +29,7 @@ class ARC(nn.Module):
         layer_num: int,
         cope: bool,
         diff_attn: bool,
-        position_embedders: List[Optional[RoPEEmbeddings]]
+        position_embedders: List[Optional[RotaryEmbedding]]
     ):
         """Initialize module.
 
@@ -49,7 +49,7 @@ class ARC(nn.Module):
             layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
-            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
+            position_embedders (List[Optional[RotaryEmbedding]]): Position embedding modules.
         """
         super(ARC, self).__init__()
 
@@ -107,14 +107,13 @@ class ARC(nn.Module):
             self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input))
 
 
-    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor], offset: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent stateful attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
             state (Optional[torch.Tensor]): State tensor of shape (batch_size, state_len, dim_input).
-            offset (int): Offset for the position embeddings.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: 
               - Output tensor of shape (batch_size, segment_len, dim_input)
@@ -130,7 +129,7 @@ class ARC(nn.Module):
         x = torch.cat([state, x, state], dim=1)
         
         # Apply attention
-        x = self.attn(x, offset=offset - self.state_len)
+        x = self.attn(x)
         
         # Extract state from result
         _, att, state_end = extract_state(x, self.state_len)
@@ -161,7 +160,7 @@ class StatefulCausalMHMA(nn.Module):
         cope: bool,
         diff_attn: bool,
         layer_num: int,
-        position_embedders: List[Optional[RoPEEmbeddings]],
+        position_embedders: List[Optional[RotaryEmbedding]],
     ):
         """Initializes the module
 
@@ -180,7 +179,7 @@ class StatefulCausalMHMA(nn.Module):
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer.
-            position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
+            position_embedders (List[Optional[RotaryEmbedding]]): The position embedder to use.
         """
         super(StatefulCausalMHMA, self).__init__()
         
@@ -220,12 +219,11 @@ class StatefulCausalMHMA(nn.Module):
             ]
         )
         
-    def forward(self, x: torch.Tensor, offset: int = 0) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Applies stateful causal multi-layer multi-head attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_input).
-            offset (int, optional): Offset for the position embeddings. Defaults to 0.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dims_value[0] * num_heads).
@@ -233,9 +231,7 @@ class StatefulCausalMHMA(nn.Module):
         out_mult = 1. if not self.diff_attn else (1. - self.attn_heads[0].attn_modules[0].lambda_init)
         
         return out_mult * torch.concat(
-            [
-                attn_head(x, offset=offset) for attn_head in self.attn_heads
-            ], 
+            [attn_head(x) for attn_head in self.attn_heads], 
             dim=-1
         )
     
@@ -257,7 +253,7 @@ class StatefulCausalMultiAttention(nn.Module):
         cope: bool,
         diff_attn: bool,
         layer_num: int,
-        position_embedders: List[Optional[RoPEEmbeddings]],
+        position_embedders: List[Optional[RotaryEmbedding]],
     ):
         """Initializes the module
 
@@ -275,7 +271,7 @@ class StatefulCausalMultiAttention(nn.Module):
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer. Only used if diff_attn is True.
-            position_embedder (Optional[RoPEEmbeddings]): The position embedder to use.
+            position_embedder (List[Optional[RotaryEmbedding]]): The position embedder to use.
         """
         super(StatefulCausalMultiAttention, self).__init__()
         
@@ -452,13 +448,12 @@ class StatefulCausalMultiAttention(nn.Module):
                 
         self.attn_modules = nn.ModuleList(attn_modules)
         
-    def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Applies the StatefulCausalMultiAttention layer to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, attn_proj_rank).
@@ -466,7 +461,7 @@ class StatefulCausalMultiAttention(nn.Module):
         """
         if self.diff_attn:
             for ix in range(len(self.attn_modules)):
-                x = self.attn_modules[ix](x, offset=offset)
+                x = self.attn_modules[ix](x)
                 if ix < len(self.attn_modules) - 1:
                     x_state_start, x, x_state_end = extract_state(x, self.state_len)
                     
@@ -477,7 +472,7 @@ class StatefulCausalMultiAttention(nn.Module):
                     x = torch.concat([x_state_start, x, x_state_end], dim=1)
         else:
             for attn_module in self.attn_modules:
-                x = attn_module(x, offset=offset)
+                x = attn_module(x)
         
         if self.use_out_proj:
             x_state_start, x, x_state_end = extract_state(x, self.state_len)
@@ -503,7 +498,7 @@ class StatefulCausalAttentionHead(nn.Module):
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RoPEEmbeddings] = None,
+        position_embedder: Optional[RotaryEmbedding] = None,
     ):
         """Initializes the module
 
@@ -517,7 +512,7 @@ class StatefulCausalAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             cope (bool, optional): Whether to use CoPE. Defaults to False.
-            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalAttentionHead, self).__init__()
         
@@ -553,7 +548,7 @@ class StatefulCausalAttentionHead(nn.Module):
         
         if cope:
             self.cope_emb = nn.Parameter(
-                torch.randn(1, self.dim_key, self.state_len)
+                torch.randn(1, self.dim_key, self.seq_len + 2 * self.state_len)
             )
     
     def apply_attention(
@@ -561,7 +556,6 @@ class StatefulCausalAttentionHead(nn.Module):
         q: torch.Tensor, 
         k: torch.Tensor, 
         v: torch.Tensor, 
-        offset: Optional[int] = None,
         bias: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
@@ -571,7 +565,6 @@ class StatefulCausalAttentionHead(nn.Module):
             q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, dim_key).
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
-            offset (Optional[int]): Optional offset to apply to the position embeddings.
             bias (Optional[torch.Tensor]): Attention bias vector of shape (batch_size, seq_len, seq_len).
             
         Returns:
@@ -579,32 +572,36 @@ class StatefulCausalAttentionHead(nn.Module):
         """
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            k = self.position_embedder(k, offset=offset)
-            q = self.position_embedder(q, offset=offset)
+            q = reverse_state_end(q, self.state_len)
+            k = reverse_state_end(k, self.state_len)
+            
+            q, k = self.position_embedder(q, k)
+            
+            q = reverse_state_end(q, self.state_len)
+            k = reverse_state_end(k, self.state_len)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias is None:
             attn_bias = LowerTriangularMask()
         else:
-            device = k.device
+            device = q.device
             attn_bias = torch.tril(
-                torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                 diagonal=0,
             )
             attn_bias = attn_bias.log()
-            attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
+            attn_bias += bias.to(dtype=q.dtype)
             
         att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
 
         return att
 
-    def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalAttention to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
@@ -629,11 +626,15 @@ class StatefulCausalAttentionHead(nn.Module):
         q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
         v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
         
+        k = torch.cat([k_state_start, k, k_state_end], dim=1)
+        q = torch.cat([q_state_start, q, q_state_end], dim=1)
+        v = torch.cat([v_state_start, v, v_state_end], dim=1)
+        
         if self.cope:
             logits = q @ k.transpose(-2, -1)
             gates = torch.sigmoid(logits)
             pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
-            pos = pos.clamp(max=self.state_len - 1)
+            pos = pos.clamp(max=self.seq_len + 2 * self.state_len - 1)
             
             pos_ceil = pos.ceil().long()
             pos_floor = pos.floor().long()
@@ -648,11 +649,7 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             bias = None
         
-        k = torch.cat([k_state_start, k, k_state_end], dim=1)
-        q = torch.cat([q_state_start, q, q_state_end], dim=1)
-        v = torch.cat([v_state_start, v, v_state_end], dim=1)
-        
-        att = self.apply_attention(q, k, v, offset=offset, bias=bias).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=bias).to(x.dtype)
         
         return att
     
@@ -670,7 +667,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RoPEEmbeddings] = None,
+        position_embedder: Optional[RotaryEmbedding] = None,
     ):
         """Initializes the module
 
@@ -684,7 +681,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
-            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalDiffAttentionHead, self).__init__()
         
@@ -730,10 +727,10 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         if cope:
             self.cope_emb_1 = nn.Parameter(
-                torch.randn(1, self.dim_key, self.state_len)
+                torch.randn(1, self.dim_key, self.seq_len + 2 * self.state_len)
             )
             self.cope_emb_2 = nn.Parameter(
-                torch.randn(1, self.dim_key, self.state_len)
+                torch.randn(1, self.dim_key, self.seq_len + 2 * self.state_len)
             )
             
         self.out_norm = nn.LayerNorm(2 * dim_value, eps=1e-5)
@@ -743,7 +740,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         q: torch.Tensor, 
         k: torch.Tensor, 
         v: torch.Tensor, 
-        offset: Optional[int] = None,
         bias: Tuple[Optional[torch.Tensor], Optional[torch.Tensor]] = (None, None)
     ) -> torch.Tensor:
         """
@@ -753,7 +749,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_key).
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
-            offset (Optional[int]): Optional offset to apply to the position embeddings.
             bias (Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]): Attention bias tensors of shape (batch_size, seq_len, seq_len).
             
         Returns:
@@ -768,30 +763,38 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            q1 = self.position_embedder(q1, offset=offset)
-            q2 = self.position_embedder(q2, offset=offset)
-            k1 = self.position_embedder(k1, offset=offset)
-            k2 = self.position_embedder(k2, offset=offset)
+            q1 = reverse_state_end(q1, self.state_len)
+            q2 = reverse_state_end(q2, self.state_len)
+            k1 = reverse_state_end(k1, self.state_len)
+            k2 = reverse_state_end(k2, self.state_len)
+            
+            q1, k1 = self.position_embedder(q1, k1)
+            q2, k2 = self.position_embedder(q2, k2)
+            
+            q1 = reverse_state_end(q1, self.state_len)
+            q2 = reverse_state_end(q2, self.state_len)
+            k1 = reverse_state_end(k1, self.state_len)
+            k2 = reverse_state_end(k2, self.state_len)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias1 is None:
-            attn_bias_1 = torch.triu(torch.full((self.seq_len, self.seq_len), fill_value=float("-inf")), diagonal=1)
-            attn_bias_2 = torch.triu(torch.full((self.seq_len, self.seq_len), fill_value=float("-inf")), diagonal=1)
+            attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
+            attn_bias_2 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
         else:
-            device = k.device
+            device = q.device
             attn_bias_1 = torch.tril(
-                torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                 diagonal=0,
             )
             attn_bias_1 = attn_bias_1.log()
-            attn_bias_1[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias1.to(dtype=k.dtype)
+            attn_bias_1 += bias1.to(dtype=q.dtype)
             
             attn_bias_2 = torch.tril(
-                torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                 diagonal=0,
             )
             attn_bias_2 = attn_bias_2.log()
-            attn_bias_2[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias2.to(dtype=k.dtype)
+            attn_bias_2 += bias2.to(dtype=q.dtype)
         
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
@@ -802,13 +805,12 @@ class StatefulCausalDiffAttentionHead(nn.Module):
 
         return att
 
-    def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalDiffAttention to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
@@ -832,6 +834,10 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
         q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
         v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
+        
+        k = torch.cat([k_state_start, k, k_state_end], dim=1)
+        q = torch.cat([q_state_start, q, q_state_end], dim=1)
+        v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
         if self.cope:
             q1, q2 = split_last_dim(q)
@@ -869,11 +875,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             bias1 = None
             bias2 = None
         
-        k = torch.cat([k_state_start, k, k_state_end], dim=1)
-        q = torch.cat([q_state_start, q, q_state_end], dim=1)
-        v = torch.cat([v_state_start, v, v_state_end], dim=1)
-        
-        att = self.apply_attention(q, k, v, offset=offset, bias=(bias1, bias2)).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=(bias1, bias2)).to(x.dtype)
         
         return self.out_norm(att)
     
@@ -890,7 +892,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         dropout: float = 0.0,
         beta: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RoPEEmbeddings] = None,
+        position_embedder: Optional[RotaryEmbedding] = None,
     ):
         """Initializes the module
 
@@ -904,7 +906,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             beta (Optional[float], optional): The beta value (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use CoPE. Defaults to False.
-            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalHopfieldAttentionHead, self).__init__()
         
@@ -945,16 +947,15 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         
         if cope:
             self.cope_emb = nn.Parameter(
-                torch.randn(1, self.dim_hidden, self.state_len)
+                torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
             )
 
-    def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalHopfieldAttention to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
@@ -984,11 +985,15 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
             v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
+            k = torch.cat([k_state_start, k, k_state_end], dim=1)
+            q = torch.cat([q_state_start, q, q_state_end], dim=1)
+            v = torch.cat([v_state_start, v, v_state_end], dim=1)
+            
             if self.cope and ix == 0:
                 logits = q @ k.transpose(-2, -1)
                 gates = torch.sigmoid(logits)
                 pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
-                pos = pos.clamp(max=self.state_len - 1)
+                pos = pos.clamp(max=self.seq_len + 2 * self.state_len - 1)
                 
                 pos_ceil = pos.ceil().long()
                 pos_floor = pos.floor().long()
@@ -1003,26 +1008,27 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             else:
                 bias = None
             
-            k = torch.cat([k_state_start, k, k_state_end], dim=1)
-            q = torch.cat([q_state_start, q, q_state_end], dim=1)
-            v = torch.cat([v_state_start, v, v_state_end], dim=1)
-            
             # If position embedder is specified, add positional embeddings to q and k
             if self.position_embedder is not None and ix == 0:
-                k = self.position_embedder(k, offset=offset)
-                q = self.position_embedder(q, offset=offset)
+                q = reverse_state_end(q, self.state_len)
+                k = reverse_state_end(k, self.state_len)
+                
+                q, k = self.position_embedder(q, k)
+                
+                q = reverse_state_end(q, self.state_len)
+                k = reverse_state_end(k, self.state_len)
             
             # If bias is specified, apply it to the attention for non-state tokens
-            if bias is None:
+            if bias is None or ix > 0:
                 attn_bias = LowerTriangularMask()
             else:
-                device = k.device
+                device = q.device
                 attn_bias = torch.tril(
-                    torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                     diagonal=0,
                 )
                 attn_bias = attn_bias.log()
-                attn_bias[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias.to(dtype=k.dtype)
+                attn_bias += bias.to(dtype=q.dtype)
                 
             mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta).to(x.dtype)
             if ix < self.num_iters - 1:
@@ -1044,7 +1050,7 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
         dropout: float = 0.0,
         beta: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RoPEEmbeddings] = None,
+        position_embedder: Optional[RotaryEmbedding] = None,
     ):
         """Initializes the module
 
@@ -1059,7 +1065,7 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             beta (Optional[float], optional): The beta parameter (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use COPE positional embeddings. Defaults to False.
-            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalDiffHopfieldAttentionHead, self).__init__()
         
@@ -1115,21 +1121,20 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
         
         if cope:
             self.cope_emb_1 = nn.Parameter(
-                torch.randn(1, self.dim_hidden, self.state_len)
+                torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
             )
             self.cope_emb_2 = nn.Parameter(
-                torch.randn(1, self.dim_hidden, self.state_len)
+                torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
             )
             
         self.out_norm = nn.LayerNorm(2 * dim_hidden, eps=1e-5)
     
-    def forward(self, x: torch.Tensor, offset: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalAttention to the input tensor.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
-            offset (int): Offset for the position embeddings.
 
         Returns:
             Output tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
@@ -1159,6 +1164,10 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
             v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
+            k = torch.cat([k_state_start, k, k_state_end], dim=1)
+            q = torch.cat([q_state_start, q, q_state_end], dim=1)
+            v = torch.cat([v_state_start, v, v_state_end], dim=1)
+            
             if self.cope and ix == 0:
                 q1, q2 = split_last_dim(q)
                 k1, k2 = split_last_dim(k)
@@ -1170,9 +1179,9 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
                 gates2 = torch.sigmoid(logits2)
                 
                 pos1 = gates1.flip(-1).cumsum(dim=-1).flip(-1)
-                pos1 = pos1.clamp(max=self.state_len - 1)
+                pos1 = pos1.clamp(max=self.seq_len + 2 * self.state_len - 1)
                 pos2 = gates2.flip(-1).cumsum(dim=-1).flip(-1)
-                pos2 = pos2.clamp(max=self.state_len - 1)
+                pos2 = pos2.clamp(max=self.seq_len + 2 * self.state_len - 1)
                 
                 pos_ceil_1 = pos1.ceil().long()
                 pos_floor_1 = pos1.floor().long()
@@ -1194,10 +1203,6 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             else:
                 bias1 = None
                 bias2 = None
-            
-            k = torch.cat([k_state_start, k, k_state_end], dim=1)
-            q = torch.cat([q_state_start, q, q_state_end], dim=1)
-            v = torch.cat([v_state_start, v, v_state_end], dim=1)
                 
             # Split q and k into q1, q2, k1, k2
             q1, q2 = split_last_dim(q)
@@ -1205,30 +1210,38 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
             # If position embedder is specified, add positional embeddings to q and k
             if self.position_embedder is not None and ix == 0:
-                q1 = self.position_embedder(q1, offset=offset)
-                q2 = self.position_embedder(q2, offset=offset)
-                k1 = self.position_embedder(k1, offset=offset)
-                k2 = self.position_embedder(k2, offset=offset)
+                q1 = reverse_state_end(q1, self.state_len)
+                q2 = reverse_state_end(q2, self.state_len)
+                k1 = reverse_state_end(k1, self.state_len)
+                k2 = reverse_state_end(k2, self.state_len)
+                
+                q1, k1 = self.position_embedder(q1, k1)
+                q2, k2 = self.position_embedder(q2, k2)
+                
+                q1 = reverse_state_end(q1, self.state_len)
+                q2 = reverse_state_end(q2, self.state_len)
+                k1 = reverse_state_end(k1, self.state_len)
+                k2 = reverse_state_end(k2, self.state_len)
             
             # If bias is specified, apply it to the attention for non-state tokens
-            if bias1 is None:
-                attn_bias_1 = torch.triu(torch.full((self.seq_len, self.seq_len), fill_value=float("-inf")), diagonal=1)
-                attn_bias_2 = torch.triu(torch.full((self.seq_len, self.seq_len), fill_value=float("-inf")), diagonal=1)
+            if bias1 is None or ix > 0:
+                attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
+                attn_bias_2 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
             else:
-                device = k.device
+                device = q.device
                 attn_bias_1 = torch.tril(
-                    torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                     diagonal=0,
                 )
                 attn_bias_1 = attn_bias_1.log()
-                attn_bias_1[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias1.to(dtype=k.dtype)
+                attn_bias_1 += bias1.to(dtype=q.dtype)
                 
                 attn_bias_2 = torch.tril(
-                    torch.ones((k.size(0), k.size(1), k.size(1)), device=device, dtype=k.dtype), 
+                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
                     diagonal=0,
                 )
                 attn_bias_2 = attn_bias_2.log()
-                attn_bias_2[:, self.state_len:-self.state_len, self.state_len:-self.state_len] += bias2.to(dtype=k.dtype)
+                attn_bias_2 += bias2.to(dtype=q.dtype)
             
             lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
             

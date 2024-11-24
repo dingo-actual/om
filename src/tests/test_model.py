@@ -1,6 +1,6 @@
 import torch
+from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..om.arcformer import RoPEEmbeddings
 from ..om.arcformer.util import count_optimized_parameters
 from ..om.om_llm import OmLLM
 from ..om.utils import set_om_dtypes
@@ -40,34 +40,8 @@ def test_model():
     num_segments = 4
     next_token = False
     
-    device = "cuda:0"
-    
-    position_embedder_1 = RoPEEmbeddings(
-        dim=dims_key[0],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    position_embedder_2 = RoPEEmbeddings(
-        dim=dims_key[1],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    position_embedder_3 = RoPEEmbeddings(
-        dim=dims_key[2],
-        seq_len=segment_len + 2 * state_len,
-        dim_embedding_pct=0.25,
-        base=10000,
-        device=device
-    )
-    
     position_embedders = [
-        position_embedder_1,
-        position_embedder_2,
-        position_embedder_3
+        RotaryEmbedding(dim) for dim in dims_key
     ]
     
     model = OmLLM(
@@ -106,7 +80,7 @@ def test_model():
     model = set_om_dtypes(model, torch.bfloat16)
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
-        preds, states, offset = model(x, next_token=next_token)
+        preds, states = model(x, next_token=next_token)
 
     
     if next_token:
@@ -115,9 +89,7 @@ def test_model():
         assert preds.shape == (batch_size, seq_len, vocab_size)
     for state in states:
         assert state.shape == (batch_size, state_len, dim_input)
-    assert offset == x.size(1)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
     
-    del model
