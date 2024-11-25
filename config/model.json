@@ -17,7 +17,7 @@
     "betas": [0.03125, 0.08838834764831843, 0.1875],
     "diff_attn": false,
     "attn_dropout": 0.1,
-    "attn_proj_rank": 128,
+    "attn_proj_rank": 64,
     "init_convs": [2, 3],
     "final_mlp_multiplier": 1,
     "mlp_1221": true

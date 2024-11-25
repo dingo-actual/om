@@ -15,7 +15,7 @@ def test_arc_transformer():
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [2, 2, 2]
     betas = [None, None, None]
-    attn_proj_rank = dim_input // num_heads
+    attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
     mlp_1221 = True
