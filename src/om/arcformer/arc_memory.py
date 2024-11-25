@@ -7,6 +7,7 @@ from xformers.components.positional_embedding import RotaryEmbedding
 from xformers.ops import memory_efficient_attention, LowerTriangularMask
 
 from .util import extract_state, reverse_state_end, split_last_dim
+from ..utils import check_if_linux
 
 
 class ARC(nn.Module):
@@ -570,6 +571,8 @@ class StatefulCausalAttentionHead(nn.Module):
         Returns:
             torch.Tensor: Output tensors of shape (batch_size, seq_len + 2 * state_len, dim_value).
         """
+        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
             q = reverse_state_end(q, self.state_len)
@@ -582,7 +585,14 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias is None:
-            attn_bias = LowerTriangularMask()
+            if use_xformers_attn:
+                attn_bias = LowerTriangularMask()
+            else:
+                attn_bias = torch.tril(
+                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
+                    diagonal=0,
+                )
+                attn_bias = attn_bias.log()
         else:
             device = q.device
             attn_bias = torch.tril(
@@ -591,8 +601,13 @@ class StatefulCausalAttentionHead(nn.Module):
             )
             attn_bias = attn_bias.log()
             attn_bias += bias.to(dtype=q.dtype)
-            
-        att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
+        
+        if use_xformers_attn:
+            att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
+        else:
+            att = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor
+            )
 
         return att
 
@@ -754,6 +769,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         Returns:
             torch.Tensor: Output tensors of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
         """
+        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        
         # Split q and k into q1, q2, k1, k2
         q1, q2 = split_last_dim(q)
         k1, k2 = split_last_dim(k)
@@ -798,8 +815,16 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
-        att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.scaling_factor)
-        att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.scaling_factor)
+        if use_xformers_attn:
+            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.scaling_factor)
+            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.scaling_factor)
+        else:
+            att1 = torch.nn.functional.scaled_dot_product_attention(
+                q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.scaling_factor
+            )
+            att2 = torch.nn.functional.scaled_dot_product_attention(
+                q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.scaling_factor
+            )
         
         att = att1 - lambda_ * att2
 
@@ -961,6 +986,8 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
                 
         """
+        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
@@ -1020,7 +1047,14 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             
             # If bias is specified, apply it to the attention for non-state tokens
             if bias is None or ix > 0:
-                attn_bias = LowerTriangularMask()
+                if use_xformers_attn:
+                    attn_bias = LowerTriangularMask()
+                else:
+                    attn_bias = torch.tril(
+                        torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
+                        diagonal=0,
+                    )
+                    attn_bias = attn_bias.log()
             else:
                 device = q.device
                 attn_bias = torch.tril(
@@ -1029,8 +1063,13 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 )
                 attn_bias = attn_bias.log()
                 attn_bias += bias.to(dtype=q.dtype)
-                
-            mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta).to(x.dtype)
+            
+            if use_xformers_attn:
+                mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta).to(x.dtype)
+            else:
+                mem = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.beta
+                ).to(x.dtype)
             if ix < self.num_iters - 1:
                 mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
         
@@ -1140,6 +1179,8 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             Output tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
                 
         """
+        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        
         x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
@@ -1245,8 +1286,16 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
             lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
             
-            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
-            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
+            if use_xformers_attn:
+                att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
+                att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
+            else:
+                att1 = torch.nn.functional.scaled_dot_product_attention(
+                    q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.beta
+                ).to(x.dtype)
+                att2 = torch.nn.functional.scaled_dot_product_attention(
+                    q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.beta
+                ).to(x.dtype)
             
             mem = att1 - lambda_ * att2
             
