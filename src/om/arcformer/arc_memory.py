@@ -137,7 +137,7 @@ class ARC(nn.Module):
         # Get next state
         state = self.proj_out_state(state_end)
         
-        # Append output to buffer
+        # Prepare output to be passed to MLP
         x = self.proj_out(att)
 
         return x, state
@@ -226,7 +226,7 @@ class StatefulCausalMHMA(nn.Module):
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_input).
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dims_value[0] * num_heads).
+            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, attn_proj_rank * num_heads).
         """
         out_mult = 1. if not self.diff_attn else (1. - self.attn_heads[0].attn_modules[0].lambda_init)
         
