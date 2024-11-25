@@ -12,31 +12,12 @@
     "state_len": 256,
     "attn_normalize": true,
     "cope": true,
-    "position_embedders": [
-        {
-            "dim": 256,
-            "seq_len": 2560,
-            "dim_embedding_pct": 0.25,
-            "base": 10000
-        },
-        {
-            "dim": 128,
-            "seq_len": 2560,
-            "dim_embedding_pct": 0.25,
-            "base": 10000
-        },
-        {
-            "dim": 64,
-            "seq_len": 2560,
-            "dim_embedding_pct": 0.25,
-            "base": 10000
-        }
-    ],
+    "position_embedders": [null, null, null],
     "dropout": 0.1,
     "betas": [0.03125, 0.08838834764831843, 0.1875],
     "diff_attn": false,
     "attn_dropout": 0.1,
-    "attn_proj_rank": 64,
+    "attn_proj_rank": 128,
     "init_convs": [2, 3],
     "final_mlp_multiplier": 1,
     "mlp_1221": true

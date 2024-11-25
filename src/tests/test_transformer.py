@@ -15,7 +15,7 @@ def test_arc_transformer():
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [2, 2, 2]
     betas = [None, None, None]
-    attn_proj_rank = -1
+    attn_proj_rank = dim_input // num_heads
     
     activation = "gelu"
     mlp_1221 = True
@@ -30,7 +30,8 @@ def test_arc_transformer():
     diff_attn = False
     layer_num = 0
     
-    position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
+    # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
+    position_embedders = [None for _ in dims_key]
     cope = True
 
     layer = ARCformer(
