@@ -5,6 +5,7 @@ from xformers.components.positional_embedding import RotaryEmbedding
 
 from ..om.arcformer import ARCformer
 from ..om.arcformer.util import count_optimized_parameters
+from ..om.utils import set_om_dtypes
 
 
 def test_arc_transformer():
@@ -62,21 +63,17 @@ def test_arc_transformer():
     seq_len = segment_len
     x = torch.randn(batch_size, seq_len, dim_input).to(torch.bfloat16)
     state = torch.randn(batch_size, state_len, dim_input).to(torch.bfloat16)
-    offset = 0
     
     if torch.cuda.is_available():
         layer = layer.cuda()
         x = x.cuda()
         state = state.cuda()
 
-    layer = layer.to(torch.bfloat16)
-    for name, param in layer.named_parameters():
-        if "LayerNorm" in name:
-            param.data = param.data.to(torch.float32)
+    layer = set_om_dtypes(layer, torch.bfloat16)
     layer.eval()  # Set the layer to evaluation mode
     
     with torch.no_grad():
-        x_att, state_next = layer(x, state, offset)
+        x_att, state_next = layer(x, state)
 
     assert x_att.shape == (batch_size, seq_len, dim_input)
     assert state_next.shape == (batch_size, state_len, dim_input)

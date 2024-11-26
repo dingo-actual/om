@@ -6,8 +6,7 @@ from torch import nn
 from xformers.components.positional_embedding import RotaryEmbedding
 from xformers.ops import memory_efficient_attention, LowerTriangularMask
 
-from .util import extract_state, reverse_state_end, split_last_dim
-from ..utils import check_if_linux
+from .util import check_if_linux, extract_state, reverse_state_end, split_last_dim
 
 
 class ARC(nn.Module):

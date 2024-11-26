@@ -1,3 +1,5 @@
+import os
+import platform
 from typing import Tuple
 
 import torch
@@ -59,6 +61,20 @@ def reverse_state_end(x: torch.Tensor, state_len: int) -> torch.Tensor:
     """
     x[:, -state_len:, :] = x[:, -state_len:, :].flip(1)
     return x
+
+def check_if_linux() -> bool:
+    """Check if the current operating system is Linux."""
+    if platform.system() == "Linux":
+        if os.path.exists('/proc/version'):
+            with open('/proc/version', 'r') as f:
+                if "microsoft" in f.read().lower():
+                    return False
+                else:
+                    return True
+        else:
+            raise FileNotFoundError("Could not find /proc/version")
+    else:
+        return False
 
 
 if __name__ == "__main__":

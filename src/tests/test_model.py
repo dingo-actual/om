@@ -93,4 +93,3 @@ def test_model():
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
-    

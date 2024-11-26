@@ -73,7 +73,7 @@ def test_model_training():
     
     model = set_om_dtypes(model, torch.bfloat16)
     
-    wd_ignore_groups = ["bias", "LayerNorm"]
+    wd_ignore_groups = ["bias", "norm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
     no_wd_params = [p for n, p in model.named_parameters() if any(nd in n for nd in wd_ignore_groups)]
     
