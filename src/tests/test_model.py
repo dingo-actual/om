@@ -29,8 +29,8 @@ def test_model():
     cope = True
     state_len = segment_len // 8
     
-    init_convs = [2, 3]
-    max_init_convs = 1 if len(init_convs) == 0 else max(init_convs)
+    init_ngrams = [2, 3]
+    max_init_ngrams = 1 if len(init_ngrams) == 0 else max(init_ngrams)
     
     dropout = 0.1
     attn_dropout = 0.1
@@ -65,13 +65,13 @@ def test_model():
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,
         attn_proj_rank=attn_proj_rank,
-        init_convs=init_convs,
+        init_ngrams=init_ngrams,
         final_mlp_multiplier=final_mlp_multiplier,
         mlp_1221=mlp_1221,
     )
     
     seq_len = segment_len * num_segments
-    x = vocab_size * torch.rand(batch_size, seq_len + max_init_convs - 1)
+    x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
     x = x.to(torch.long)
 
     if torch.cuda.is_available():

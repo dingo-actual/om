@@ -4,6 +4,7 @@ import torch
 from xformers.components.positional_embedding import RotaryEmbedding
 
 from ..arcformer import ARCformer
+from .ngram_embedding import NGramEmbedding
 
 class OmLLM(torch.nn.Module):
     def __init__(
@@ -27,7 +28,7 @@ class OmLLM(torch.nn.Module):
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
         attn_proj_rank: int = -1,
-        init_convs: List[int] = [],
+        init_ngrams: List[int] = [],
         final_mlp_multiplier: int = 1,
         mlp_1221: bool = False,
     ):
@@ -52,7 +53,8 @@ class OmLLM(torch.nn.Module):
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection. If -1 will use min(dims_value). Defaults to -1.
-            init_convs (List[int], optional): Initial convolutional layer hidden sizes. Defaults to [].
+            init_ngrams (List[int], optional): Initial n-gram projection layer hidden sizes. Defaults to [] (unigrams).
+            init_ngrams_ranks (List[int], optional): Initial n-gram projection layer ranks. Defaults to [] (unigrams).
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
             mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
         """
@@ -71,17 +73,22 @@ class OmLLM(torch.nn.Module):
         for p in self.embedder.parameters():
             torch.nn.init.normal_(p, mean=0, std=(2. / 5. ) ** 0.5)
         
-        self.init_convs = sorted(init_convs)
-        if len(init_convs) > 0:
-            self.convs = torch.nn.ModuleList(
+        self.init_ngram_lengths = sorted(init_ngrams)
+        if len(init_ngrams) > 0:
+            self.ngram_embs = torch.nn.ModuleList(
                 [
-                    torch.nn.Conv1d(dim_input, dim_input, kernel_size=k)
-                    for k in init_convs
+                    NGramEmbedding(
+                        dim_input=dim_input,
+                        ngram_size=k,
+                        max_ngram_size=max(init_ngrams)
+                        
+                    )
+                    for k in init_ngrams
                 ]
             )
-            self.max_conv_len = max(init_convs)
+            self.max_ngram = max(init_ngrams)
         else:
-            self.max_conv_len = 1
+            self.max_ngram = 1
         
         layers = []
         for ix in range(num_layers - 1):
@@ -156,7 +163,7 @@ class OmLLM(torch.nn.Module):
               - State tensors for each ARCformer block.
         """
         _, seq_len = x.shape
-        drop_num = self.max_conv_len - 1
+        drop_num = self.max_ngram - 1
         seq_len = seq_len - drop_num
         
         if len(states) == 0:
@@ -174,31 +181,31 @@ class OmLLM(torch.nn.Module):
             ix_lo = ix_hi
             ix_hi = min(ix_lo + self.segment_len, seq_len + drop_num)
             
-            if len(self.init_convs) > 0:
+            if len(self.init_ngram_lengths) > 0:
                 if segment_num > 0:
-                    conv_offset_lo = max(self.init_convs) - 1
-                    conv_offset_hi = 0
+                    ngram_offset_lo = max(self.init_ngram_lengths) - 1
+                    ngram_offset_hi = 0
                 else:
-                    conv_offset_lo = 0
-                    conv_offset_hi = max(self.init_convs) - 1
+                    ngram_offset_lo = 0
+                    ngram_offset_hi = max(self.init_ngram_lengths) - 1
             else:
-                conv_offset_lo = 0
-                conv_offset_hi = 0
+                ngram_offset_lo = 0
+                ngram_offset_hi = 0
                 
-            ix_lo = ix_lo - conv_offset_lo
-            ix_hi = ix_hi + conv_offset_hi
+            ix_lo = ix_lo - ngram_offset_lo
+            ix_hi = ix_hi + ngram_offset_hi
 
             x_seg = x[:, ix_lo:ix_hi]
             x_seg_emb = self.embedder(x_seg)
             
             x_seg_emb_ = x_seg_emb.clone()
             
-            if len(self.init_convs) > 0:
-                x_seg_convs = [
-                    conv(x_seg_emb.transpose(1, 2)).transpose(1, 2) for conv in self.convs
+            if len(self.init_ngram_lengths) > 0:
+                x_seg_ngram_embs = [
+                    ngram_emb(x_seg_emb) for ngram_emb in self.ngram_embs
                 ]
-                for k, x_seg_conv in zip(self.init_convs, x_seg_convs):
-                    x_seg_emb_[:, k-1:, :] += x_seg_conv
+                for k, x_seg_ngram_emb in zip(self.init_ngram_lengths, x_seg_ngram_embs):
+                    x_seg_emb_[:, k:, :] += x_seg_ngram_emb[:, 1:, :]
                     
                 x_seg_next = x_seg_emb_[:, drop_num:, :]
             
