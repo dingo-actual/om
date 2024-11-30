@@ -8,7 +8,7 @@
     - [Novel Contributions (at time of writing) and Publication](#novel-contributions-at-time-of-writing-and-publication)
     - [Architecture Details](#architecture-details)
       - [Attentive Recent Cell (ARC)](#attentive-recent-cell-arc)
-      - [Initial Convolutional Layers](#initial-convolutional-layers)
+      - [Initial n-Gram Layers](#initial-n-gram-layers)
       - [A Note on the Final MLP](#a-note-on-the-final-mlp)
   - [`ARC`: Attentive Recurrent Cell](#arc-attentive-recurrent-cell)
     - [`ARC` Usage](#arc-usage)
@@ -46,9 +46,9 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
   - This allows for effective arbitrary-length input sequences
 - Multi-pass transformer memory
   - This allows for greater expressivity and noise-robustness in the memory portion of the transformer
-- Initial convolutional layers
+- Initial "stacked n-gram embedding" linear projection layers
   - This allows for the model to:
-    - Learn effectively, regardless of the choice of tokenizer
+    - Learn effectively, regardless of the choice of tokenizer and only a modest increase in parameter count
     - Potentially eliminate the need for a tokenizer
 
 To the best of my knowledge, these features are novel. If you find any references to these features in the literature, please let me know. My email is [ryan@beta-reduce.net](ryan@beta-reduce.net)
@@ -99,11 +99,11 @@ From here, the operations are similar to those of an ordinary transformer.
 
 [Top](#om-llm)
 
-#### Initial Convolutional Layers
+#### Initial n-Gram Layers
 
-The second layer of Om LLM is an (optional) series of 1-d convolutional layers that act on the initial embeddings. Each of these layers has a number of filters equal to the embedding dimension of the model. The result of the convolutions are added to the input sequence (after truncation). Because the truncation is necessary to maintain the embedding dimension, we must either re-use the past `k-1` inputs, or pre-pad our input with `k-1` pad tokens, where `k` is the largest kernel size used in the convolutions. The sum of the input, together with the result of the convolutions, is then passed through an `ARC`. Note that these convolutions are only performed for the first `ARCformer` layer in the model.
+The second layer of Om LLM is an (optional) series of low-rank linear projections that act on "stacked" token embeddings (i.e., n-grams of the token embeddings). Each of these layers has a rank equal to $1/N$ where $N$ is the number of tokens (this choice of rank is more for computational convenience than empirical linguistic findings such as Zipf's Law). This responds directly to the result of the low-rank n-gram representations that are added to the input sequence (after truncation). Because the truncation is necessary to maintain the embedding dimension, we must either re-use the past `n-1` inputs, or pre-pad our input with `n-1` `<|pad|>` tokens, where `n` is the largest `n` used in all `n`-gram embeddings. The sum of the input, together with the result of the n-gram embeddings, is then passed through an `ARC`. Note that these n-gram embeddings are only calculated for the first `ARCformer` layer in the model.
 
-The rationale for the convolutions is to learn an adjustment to the specific tokens used by the tokenizer, as well as to potentially allow the model to learn directly from characters, using the convolutional layers as a kind of "learned tokenizer."
+The rationale for the n-gram embeddings is to learn an adjustment to the specific tokens used by the tokenizer, as well as to potentially allow the model to learn directly from characters, using the n-gram embedding layers as a kind of "learned tokenizer."
 
 [Top](#om-llm)
 
