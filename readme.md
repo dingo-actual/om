@@ -14,13 +14,10 @@
     - [`ARC` Usage](#arc-usage)
   - [`ARCformer`: Attentive Recurrent Cell (ARC) Transformer](#arcformer-attentive-recurrent-cell-arc-transformer)
     - [`ARCformer` Usage](#arcformer-usage)
-  - [`RoPEEmbeddings`](#ropeembeddings)
-    - [`RoPEEmbeddings` Usage](#ropeembeddings-usage)
   - [`OmLLM`](#omllm)
     - [`OmLLM` Usage](#omllm-usage)
   - [Installation](#installation)
   - [Requirements](#requirements)
-  - [Future Work](#future-work)
   - [Contributing](#contributing)
   - [License](#license)
 
@@ -111,6 +108,8 @@ The rationale for the n-gram embeddings is to learn an adjustment to the specifi
 
 The final MLP has a parameter to multiply the dimensions of the final two dimensions in the MLP. If this is specified, the final residual connection is dropped. By utilizing this parameter, we can give a larger parameter budget to the final output decision, which has been hypothesized to be a bottleneck in smaller models.
 
+> Note: If useful, it is only likely to be useful for models with embedding dimension of 1024 or less. See [this paper](https://arxiv.org/abs/2404.07647) for more details.
+
 [Top](#om-llm)
 
 ## `ARC`: Attentive Recurrent Cell
@@ -121,7 +120,6 @@ The forward pass of `ARC` requires three inputs:
 
 - A `Tensor` sub-sequence of the input
 - A current state token sequence `Tensor`, and
-- An `int` offset, representing the location of the current sub-sequence in the input sequence.
 
 It will produce two outputs `Tensor`s:
 
@@ -147,12 +145,12 @@ The `ARC` class can be instantiated with the following parameters:
 - `layer_num` (`int`): Position of the current layer (used for diff attention lambda calculation and state token sequence initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
 - `diff_attn` (`bool`): Whether to use diff attention.
-- `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
+- `position_embedders` (`List[Optional[xformers.RotaryEmbedding]]`): A list of optional positional embedding objects for each layer in the attention block.
 
 Once instantiated, an `ARC` object can be called as follows:
 
 ```python
-output, state_token_sequence = arc(input_sequence, state_token_sequence, offset)
+output, state_token_sequence = arc(input_sequence, state_token_sequence)
 ```
 
 The `output` `Tensor` will have the same shape as the input sequence, and can be passed to the MLP portion of an `ARCformer`. The `state_token_sequence` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARC` layer.
@@ -163,9 +161,8 @@ The `output` `Tensor` will have the same shape as the input sequence, and can be
 
 The ARC Transformer (`ARCformer`) is a middle-level component of Om LLM. It represents a transformer-like architecture that incorporates multi-pass memory, as well as "state token sequence" recurrence. The forward pass of `ARCformer` requires three inputs:
 
-- A `Tensor` sub-sequence of the input
-- A current state token sequence `Tensor` (the initial state for each `ARCformer` is a learned parameter), and
-- An `int` offset, representing the location of the current sub-sequence in the input sequence.
+- A `Tensor` sub-sequence of the input, and
+- A current state token sequence `Tensor` (the initial state for each `ARCformer` is a learned parameter)
 
 It will produce two outputs `Tensor`s:
 
@@ -199,7 +196,7 @@ The `ARCformer` class can be instantiated with the following parameters:
 - `num_layers` (`int`): The number of `ARCformer` layers in the parent `OmLLM` model (used for weight initialization).
 - `layer_num` (`int`): Position of the current layer (used for diff attention lambda calculation and state token sequence initialization).
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
-- `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention block.
+- `position_embedders` (`List[Optional[xformers.RotaryEmbedding]]`): A list of optional positional embedding objects for each layer in the attention block.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformer. (Default: 0.0)
 - `attn_dropout` (`float`): The dropout rate for attention calculations. (Default: 0.0)
 - `diff_attn` (`bool`): Whether to use diff attention.
@@ -211,38 +208,10 @@ The `ARCformer` class can be instantiated with the following parameters:
 Once instantiated, an `ARCformer` object can be called as follows:
 
 ```python
-output, state_token_sequence_next = arcformer(input_sequence, state_token_sequence, offset)
+output, state_token_sequence_next = arcformer(input_sequence, state_token_sequence)
 ```
 
 The `output` `Tensor` will have the same shape as the input sequence (unless `mlp_multiplier` is not 1, in which case the final dimension in `output` dimension will be `mlp_multiplier` times the final dimension in the input), and can be passed to the next `ARCformer` in the model. The `state_token_sequence_next` `Tensor` will have the same shape as `state_token_sequence`, and can be passed as the `state=` argument for the next sub-sequence processed by this `ARCformer`.
-
-[Top](#om-llm)
-
-## `RoPEEmbeddings`
-
-RoPEEmbeddings is a class that implements the RoPE (Rotary Position Embedding) positional embedding scheme, as described in the paper "RoFormer: Enhanced Transformer with Rotary Position Embedding" by Jianlin Su et al. ([arxiv](https://arxiv.org/abs/2104.09864)). It has minor modifications made to support `ARC`'s recurrent structure.
-
-[Top](#om-llm)
-
-### `RoPEEmbeddings` Usage
-
-The `RoPEEmbeddings` class can be instantiated with the following parameters:
-
-- `dim` (`int`): Key/Query dimension of the corresponding attention layer.
-- `seq_len` (`int`): Maximum sequence length.
-- `dim_embedding_pct` (`float`): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
-- `base` (`int`, optional): Base used for calculating thetas. Defaults to 10000.
-
-Once instantiated, a `RoPEEmbeddings` object can be called as follows:
-
-```python
-q_rope = rope(q, offset)
-k_rope = rope(k, offset)
-
-att = sdp_attention(q_rope, k_rope, v)
-```
-
-Although users are unlikely to directly interface with a `RoPEEmbeddings` object, it's necessary to instantiate them when using RoPE in an `OmLLM` object.
 
 [Top](#om-llm)
 
@@ -254,14 +223,12 @@ The inputs to an `OmLLM` object are:
 
 - A `Tensor` of token/character indices.
 - A list of initial state token sequences (one for each `ARCformer` layer in the model). If an empty list is provided, the learned initial state token sequences will be used for each `ARCformer`. This argument is the means through which inference with a cached context is performed.
-- An `int` offset for the input text (default: 0). This can be set to a nonzero value when performing inference with a cached context (where the value will be equal to the length of the cached context).
 - A `bool` indicating whether or not to only produce predictions for the next token. If `False`, next-token predictions will be produced for the entire input.
 
 The outputs of an `OmLLM` object are:
 
 - A `Tensor` of logits for next tokens; this can either be a sequence of such logit vectors, or a single logit vector, depending on whether the user has specified to only predict the next token.
 - A list of state token sequence `Tensor`s at the final input. This can be cached to perform context caching.
-- An `int` offset for the input sequence. This can be used to perform context caching.
 
 [Top](#om-llm)
 
@@ -290,7 +257,7 @@ The `OmLLM` class can be instantiated with the following parameters:
 - `state_len` (`int`): The length of the state token sequence.
 - `attn_normalize` (`bool`): Whether to normalize the inputs to SDP attention.
 - `cope` (`bool`): Whether to use CoPE positional embeddings.
-- `position_embedders` (`List[Optional[RoPEEmbeddings]]`): A list of optional positional embedding objects for each layer in the attention blocks.
+- `position_embedders` (`List[Optional[xformers.RotaryEmbedding]]`): A list of optional positional embedding objects for each layer in the attention blocks.
 - `betas` (`List[Optional[float]]`): A list of betas for Hopfield attention.
 - `dropout` (`float`): The dropout rate for the MLP portion of the transformers. (Default: 0.0)
 - `diff_attn` (`bool`): Whether to use diff attention. (Default: False)
@@ -303,14 +270,12 @@ The `OmLLM` class can be instantiated with the following parameters:
 Once instantiated, an `OmLLM` object can be called as follows:
 
 ```python
-output, state_token_sequence_end, offset = omllm(input_sequence, state_token_sequence, offset, next_token_flag)
+output, state_token_sequence_end = omllm(input_sequence, state_token_sequence, next_token_flag)
 ```
 
 The `output` `Tensor` will contain logits for each next-token prediction. If `next_token_flag` is `False` (the default) it will have dimensions `(batch_size, seq_len, vocab_size_adj)`, where `vocab_size_adj` is equal to the input vocab size plus an offset to make the number divisible by 8 (which is done to make downstream softmax computations more efficient on CUDA devices -- note, all "padded" logits are set to `-inf`); if `next_token_flag` is `True`, the `Tensor` will have dimensions `(batch_size, vocab_size_adj)` and represent only the logits for the final next-token in the input.
 
 The `state_token_sequence_end` `Tensor` will have the same shape as `state_token_sequence`, and can be stored to be used as the initial state token sequence for the next call to the model (context caching).
-
-The `offset` `int` will be the offset for the input sequence. This can be used to perform context caching.
 
 [Top](#om-llm)
 
@@ -340,14 +305,6 @@ pip install -r requirements.txt
 - Accelerate 0.20.1+
 - ScheduleFree 1.2.5+
 - TorchMetrics 1.4.0+
-
-[Top](#om-llm)
-
-## Future Work
-
-- Investigate the properties of the `ARCformer` initial state token sequence after training.
-  - Hopefully, this allows for the initial state token sequence to be initialized in a static fashion, rather than being learned (which may make training more difficult).
-- Investigate the impact of the state token sequence length on the length generalization of the model.
 
 [Top](#om-llm)
 
