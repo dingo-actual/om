@@ -79,8 +79,7 @@ class OmLLM(torch.nn.Module):
                 [
                     NGramEmbedding(
                         dim_input=dim_input,
-                        ngram_size=k,
-                        max_ngram_size=max(init_ngrams)
+                        ngram_size=k
                         
                     )
                     for k in init_ngrams
@@ -205,7 +204,7 @@ class OmLLM(torch.nn.Module):
                     ngram_emb(x_seg_emb) for ngram_emb in self.ngram_embs
                 ]
                 for k, x_seg_ngram_emb in zip(self.init_ngram_lengths, x_seg_ngram_embs):
-                    x_seg_emb_[:, k:, :] += x_seg_ngram_emb[:, 1:, :]
+                    x_seg_emb_[:, k-1:, :] += x_seg_ngram_emb
                     
                 x_seg_next = x_seg_emb_[:, drop_num:, :]
             
