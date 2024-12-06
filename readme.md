@@ -80,7 +80,7 @@ The mechanics of the multi-pass memory (with multiple attention blocks) are illu
 
 ![Memory Multi-Pass Step](images/multi_pass_mem.png)
 
-If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
+If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to either a user-defined dimension (with default `dim_input // num_heads`). This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
 
 This allows us to use arbitrary sequences of memory dimensions, while only adding a small number of parameters to the model.
 
