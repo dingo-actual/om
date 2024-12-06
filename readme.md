@@ -33,7 +33,7 @@ Om LLM is a project that implements an advanced large language model (LLM) archi
 - Cache-able context
 - Multi-pass memory transformer
 - Ability to handle sequences of characters, or sequences of tokens
-- Reduced dependence on tokenizer through use of initial convolutional layers
+- Reduced dependence on tokenizer through use of initial n-gram embedding layers
 
 [Top](#om-llm)
 
@@ -78,9 +78,11 @@ The mechanics of the multi-pass memory (with multiple attention blocks) are illu
 
 ![Memory Multi-Pass Step](images/multi_pass_mem.png)
 
-If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done (with the assumption that the first value dimension is the smallest) to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
+If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
 
-This allows us to use sequences of increasingly large memory dimensions, while only adding a small number of parameters to the model.
+This allows us to use arbitrary sequences of memory dimensions, while only adding a small number of parameters to the model.
+
+> **IMPORTANT**: This needs to be explained further because it's a very important feature of the model. Right now, there's no mention of how this relates to modern Hopfield networks, or how the variation of dimension and temperature affects the model. I apologize everyone. I was young and carefree when I first wrote this section.
 
 This projection is illustrated below:
 
