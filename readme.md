@@ -72,6 +72,8 @@ The attention step is illustrated below:
 
 In the following, we will refer to the operations performed thus far as an "attention block." One of the novel ideas expressed in Om LLM is the use of a sequence of attention blocks, rather than a single attention block.
 
+> **IMPORTANT**: This needs to be explained further because it's a very important feature of the model. Right now, there's no mention of how this relates to modern Hopfield networks, or how the variation of dimension and temperature affects the model. I apologize everyone. I was young and carefree when I first wrote this section.
+
 Note that a single attention block represents an approximate nearest-neighbor lookup, and the result that's learned is a number of "prototype regions" within the value dimension and the effective number of "prototype regions" that can be expressed through the projection matrices. Instead, if we perform multiple such approximate nearest-neighbor lookups, the model can learn a distributed representation in the form of "paths" between "prototype regions." This more expressive form of memory comes at a limited additional computational cost and adds a negligible number of parameters to the model.
 
 The mechanics of the multi-pass memory (with multiple attention blocks) are illustrated below:
@@ -81,8 +83,6 @@ The mechanics of the multi-pass memory (with multiple attention blocks) are illu
 If the final value dimension in the sequence differs from the first value dimension, the model performs a projection from the final value dimension to the first value dimension. This is done to reduce the number of parameters needed when projecting from the output dimension of the memory operation back to the input dimension.
 
 This allows us to use arbitrary sequences of memory dimensions, while only adding a small number of parameters to the model.
-
-> **IMPORTANT**: This needs to be explained further because it's a very important feature of the model. Right now, there's no mention of how this relates to modern Hopfield networks, or how the variation of dimension and temperature affects the model. I apologize everyone. I was young and carefree when I first wrote this section.
 
 This projection is illustrated below:
 
