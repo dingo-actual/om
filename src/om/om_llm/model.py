@@ -27,6 +27,7 @@ class OmLLM(torch.nn.Module):
         dropout: float = 0.0,
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
+        attn_logit_dropout: float = 0.0,
         attn_proj_rank: int = -1,
         init_ngrams: List[int] = [],
         final_mlp_multiplier: int = 1,
@@ -51,7 +52,8 @@ class OmLLM(torch.nn.Module):
             position_embedders (List[Optional[RotaryEmbedding]]): Position embedders for each memory layer in ARCformer.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
-            attn_dropout (float, optional): Attention dropout. Defaults to 0.0.
+            attn_dropout (float, optional): Dropout rate for attention outputs. Defaults to 0.0.
+            attn_logit_dropout (float, optional): Dropout rate for attention logits. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection. If -1 will use min(dims_value). Defaults to -1.
             init_ngrams (List[int], optional): Initial n-gram projection layer hidden sizes. Defaults to [] (unigrams).
             init_ngrams_ranks (List[int], optional): Initial n-gram projection layer ranks. Defaults to [] (unigrams).
@@ -111,6 +113,7 @@ class OmLLM(torch.nn.Module):
                     dropout=dropout,
                     diff_attn=diff_attn,
                     attn_dropout=attn_dropout,
+                    attn_logit_dropout=attn_logit_dropout,
                     attn_proj_rank=attn_proj_rank,
                     mlp_1221=mlp_1221
                 )
@@ -135,6 +138,7 @@ class OmLLM(torch.nn.Module):
                 dropout=dropout,
                 diff_attn=diff_attn,
                 attn_dropout=attn_dropout,
+                attn_logit_dropout=attn_logit_dropout,
                 attn_proj_rank=attn_proj_rank,
                 mlp_multiplier=final_mlp_multiplier,
                 mlp_1221=mlp_1221

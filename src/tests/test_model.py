@@ -34,6 +34,7 @@ def test_model():
     
     dropout = 0.1
     attn_dropout = 0.1
+    attn_logit_dropout = 0.1
     diff_attn = False
     
     batch_size = 2
@@ -64,6 +65,7 @@ def test_model():
         dropout=dropout,
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,
+        attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
         init_ngrams=init_ngrams,
         final_mlp_multiplier=final_mlp_multiplier,

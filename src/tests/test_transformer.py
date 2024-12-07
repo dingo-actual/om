@@ -28,6 +28,7 @@ def test_arc_transformer():
     
     dropout = 0.1
     attn_dropout = 0.1
+    attn_logit_dropout = 0.1
     diff_attn = False
     layer_num = 0
     
@@ -54,6 +55,7 @@ def test_arc_transformer():
         dropout=dropout,
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,
+        attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
         mlp_multiplier=mlp_multiplier,
         mlp_1221=mlp_1221

@@ -31,6 +31,7 @@ class ARCformer(nn.Module):
         dropout: float = 0.0,
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
+        attn_logit_dropout: float = 0.0,
         attn_proj_rank: int = -1,
         mlp_multiplier: int = 1,
         mlp_1221: bool = False,
@@ -55,7 +56,8 @@ class ARCformer(nn.Module):
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factors for SDP attention.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             diff_attn (bool, optional): Whether to use diff attention. Defaults to False.
-            attn_dropout (float, optional): Dropout rate for attention. Defaults to 0.0.
+            attn_dropout (float, optional): Dropout rate for attention outputs. Defaults to 0.0.
+            attn_logit_dropout (float, optional): Dropout rate for attention logits. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use dim_input // num_heads. Defaults to -1.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
             mlp_1221 (bool, optional): Whether to use the 1-2-2-1 MLP architecture. Defaults to False.
@@ -72,7 +74,7 @@ class ARCformer(nn.Module):
             segment_len=segment_len, 
             state_len=state_len, 
             attn_normalize=attn_normalize,
-            dropout=attn_dropout,
+            dropout=attn_logit_dropout,
             betas=betas,
             attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
             num_layers=num_layers,
@@ -87,7 +89,7 @@ class ARCformer(nn.Module):
         self.layer_num = layer_num
         self.diff_attn = diff_attn
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
-        self.dropout1 = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(attn_dropout)
         
         # MLP
         if activation not in ACTIVATIONS:
