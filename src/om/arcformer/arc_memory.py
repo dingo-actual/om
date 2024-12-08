@@ -107,35 +107,42 @@ class ARC(nn.Module):
             self.init_state = torch.nn.Parameter(torch.randn(1, state_len, dim_input))
 
 
-    def forward(self, x: torch.Tensor, state: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: torch.Tensor, skip_update_state: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies recurrent stateful attention to the input tensor x.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
-            state (Optional[torch.Tensor]): State tensor of shape (batch_size, state_len, dim_input).
+            state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: 
               - Output tensor of shape (batch_size, segment_len, dim_input)
               - State tensor of shape (batch_size, state_len, dim_input)
         """
-        if state is None:
-            state = self.init_state
-        
         if state.size(0) != x.size(0):
             state = state.repeat(x.size(0), 1, 1)
         
-        # Prepend and append state to x_seg
-        x = torch.cat([state, x, state], dim=1)
+        if skip_update_state:
+            # Prepend state to x_seg
+            x = torch.cat([state, x], dim=1)
+        else:
+            # Prepend and append state to x_seg
+            x = torch.cat([state, x, state], dim=1)
         
         # Apply attention
-        x = self.attn(x)
+        x = self.attn(x, skip_update_state=skip_update_state)
         
-        # Extract state from result
-        _, att, state_end = extract_state(x, self.state_len)
-        
-        # Get next state
-        state = self.proj_out_state(state_end)
+        if skip_update_state:
+            # Extract state from result
+            state = torch.zeros_like(state)
+            att = x[:, self.state_len:, :]
+        else:
+            # Extract state from result
+            _, att, state_end = extract_state(x, self.state_len)
+            
+            # Get next state
+            state = self.proj_out_state(state_end)
         
         # Prepare output to be passed to MLP
         x = self.proj_out(att)
@@ -219,19 +226,21 @@ class StatefulCausalMHMA(nn.Module):
             ]
         )
         
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """Applies stateful causal multi-layer multi-head attention to the input tensor x.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_input).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_input) or (batch_size, seq_len + state_len, dim_input).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, attn_proj_rank * num_heads).
+            torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, attn_proj_rank * num_heads) if skip_update_state is False
+            and (batch_size, seq_len + state_len, attn_proj_rank * num_heads) if skip_update_state is True.
         """
         out_mult = 1. if not self.diff_attn else (1. - self.attn_heads[0].attn_modules[0].lambda_init)
         
         return out_mult * torch.concat(
-            [attn_head(x) for attn_head in self.attn_heads], 
+            [attn_head(x, skip_update_state=skip_update_state) for attn_head in self.attn_heads], 
             dim=-1
         )
     
@@ -448,40 +457,58 @@ class StatefulCausalMultiAttention(nn.Module):
                 
         self.attn_modules = nn.ModuleList(attn_modules)
         
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """
         Applies the StatefulCausalMultiAttention layer to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, attn_proj_rank).
+            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, attn_proj_rank) if skip_update_state is False
+            and (batch_size, seq_len + state_len, attn_proj_rank) if skip_update_state is True.
                 
         """
         if self.diff_attn:
             for ix in range(len(self.attn_modules)):
                 x = self.attn_modules[ix](x)
                 if ix < len(self.attn_modules) - 1:
-                    x_state_start, x, x_state_end = extract_state(x, self.state_len)
+                    if skip_update_state:
+                        x_state_start = x[:, :self.state_len, :]
+                        x = x[:, self.state_len:, :]
+                    else:
+                        x_state_start, x, x_state_end = extract_state(x, self.state_len)
                     
                     x = self.proj_modules[ix](x)
                     x_state_start = self.proj_modules_state_start[ix](x_state_start)
-                    x_state_end = self.proj_modules_state_end[ix](x_state_end)
+                    if not skip_update_state:
+                        x_state_end = self.proj_modules_state_end[ix](x_state_end)
                     
-                    x = torch.concat([x_state_start, x, x_state_end], dim=1)
+                    if skip_update_state:
+                        x = torch.concat([x_state_start, x], dim=1)
+                    else:
+                        x = torch.concat([x_state_start, x, x_state_end], dim=1)
         else:
             for attn_module in self.attn_modules:
                 x = attn_module(x)
         
         if self.use_out_proj:
-            x_state_start, x, x_state_end = extract_state(x, self.state_len)
+            if skip_update_state:
+                x_state_start = x[:, :self.state_len, :]
+                x = x[:, self.state_len:, :]
+            else:
+                x_state_start, x, x_state_end = extract_state(x, self.state_len)
             
             x = self.proj_out(x)
             x_state_start = self.proj_out_state_start(x_state_start)
-            x_state_end = self.proj_out_state_end(x_state_end)
+            if not skip_update_state:
+                x_state_end = self.proj_out_state_end(x_state_end)
             
-            x = torch.concat([x_state_start, x, x_state_end], dim=1)
+            if skip_update_state:
+                x = torch.concat([x_state_start, x], dim=1)
+            else:
+                x = torch.concat([x_state_start, x, x_state_end], dim=1)
             
         return x
     
@@ -556,31 +583,36 @@ class StatefulCausalAttentionHead(nn.Module):
         q: torch.Tensor, 
         k: torch.Tensor, 
         v: torch.Tensor, 
-        bias: Optional[torch.Tensor] = None
+        bias: Optional[torch.Tensor] = None,
+        skip_update_state: bool = False
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
 
         Args:
-            q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, dim_key).
-            k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key).
-            v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
+            q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_key).
             bias (Optional[torch.Tensor]): Attention bias vector of shape (batch_size, seq_len, seq_len).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
             
         Returns:
-            torch.Tensor: Output tensors of shape (batch_size, seq_len + 2 * state_len, dim_value).
+            torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is False
+            and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
         """
         use_xformers_attn = check_if_linux() and "cuda" in self.device
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            q = reverse_state_end(q, self.state_len)
-            k = reverse_state_end(k, self.state_len)
+            if not skip_update_state:
+                q = reverse_state_end(q, self.state_len)
+                k = reverse_state_end(k, self.state_len)
             
             q, k = self.position_embedder(q, k)
             
-            q = reverse_state_end(q, self.state_len)
-            k = reverse_state_end(k, self.state_len)
+            if not skip_update_state:
+                q = reverse_state_end(q, self.state_len)
+                k = reverse_state_end(k, self.state_len)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias is None:
@@ -610,23 +642,30 @@ class StatefulCausalAttentionHead(nn.Module):
 
         return att
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalAttention to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
+            skip_update_state (bool): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
+            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is False
+            and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
                 
         """
-        x_state_start, x, x_state_end = extract_state(x, self.state_len)
+        if skip_update_state:
+            x_state_start = x[:, :self.state_len, :]
+            x = x[:, self.state_len:, :]
+        else:
+            x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
             x = self.norm_in(x.to(torch.float32)).to(x.dtype)
             x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
+            if not skip_update_state:
+                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
@@ -636,19 +675,26 @@ class StatefulCausalAttentionHead(nn.Module):
         q_state_start = self.proj_q_state_start(x_state_start).to(torch.float32)
         v_state_start = self.proj_v_state_start(x_state_start).to(torch.float32)
         
-        k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
-        q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
-        v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
+        if not skip_update_state:
+            k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
+            q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
+            v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
         
-        k = torch.cat([k_state_start, k, k_state_end], dim=1)
-        q = torch.cat([q_state_start, q, q_state_end], dim=1)
-        v = torch.cat([v_state_start, v, v_state_end], dim=1)
+        if skip_update_state:
+            k = torch.cat([k_state_start, k], dim=1)
+            q = torch.cat([q_state_start, q], dim=1)
+            v = torch.cat([v_state_start, v], dim=1)
+        else:
+            k = torch.cat([k_state_start, k, k_state_end], dim=1)
+            q = torch.cat([q_state_start, q, q_state_end], dim=1)
+            v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
         if self.cope:
             logits = q @ k.transpose(-2, -1)
             gates = torch.sigmoid(logits)
             pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
-            pos = pos.clamp(max=self.seq_len + 2 * self.state_len - 1)
+            state_len_mult = 1 if skip_update_state else 2
+            pos = pos.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
             
             pos_ceil = pos.ceil().long()
             pos_floor = pos.floor().long()
@@ -663,7 +709,7 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             bias = None
         
-        att = self.apply_attention(q, k, v, bias=bias).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(x.dtype)
         
         return att
     
@@ -754,7 +800,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         q: torch.Tensor, 
         k: torch.Tensor, 
         v: torch.Tensor, 
-        bias: Tuple[Optional[torch.Tensor], Optional[torch.Tensor]] = (None, None)
+        bias: Tuple[Optional[torch.Tensor], Optional[torch.Tensor]] = (None, None),
+        skip_update_state: bool = False
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -764,9 +811,11 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
             bias (Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]): Attention bias tensors of shape (batch_size, seq_len, seq_len).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
             
         Returns:
-            torch.Tensor: Output tensors of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
+            torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
+            and (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is True.
         """
         use_xformers_attn = check_if_linux() and "cuda" in self.device
         
@@ -779,18 +828,20 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            q1 = reverse_state_end(q1, self.state_len)
-            q2 = reverse_state_end(q2, self.state_len)
-            k1 = reverse_state_end(k1, self.state_len)
-            k2 = reverse_state_end(k2, self.state_len)
+            if not skip_update_state:
+                q1 = reverse_state_end(q1, self.state_len)
+                q2 = reverse_state_end(q2, self.state_len)
+                k1 = reverse_state_end(k1, self.state_len)
+                k2 = reverse_state_end(k2, self.state_len)
             
             q1, k1 = self.position_embedder(q1, k1)
             q2, k2 = self.position_embedder(q2, k2)
             
-            q1 = reverse_state_end(q1, self.state_len)
-            q2 = reverse_state_end(q2, self.state_len)
-            k1 = reverse_state_end(k1, self.state_len)
-            k2 = reverse_state_end(k2, self.state_len)
+            if not skip_update_state:
+                q1 = reverse_state_end(q1, self.state_len)
+                q2 = reverse_state_end(q2, self.state_len)
+                k1 = reverse_state_end(k1, self.state_len)
+                k2 = reverse_state_end(k2, self.state_len)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias1 is None:
@@ -829,23 +880,30 @@ class StatefulCausalDiffAttentionHead(nn.Module):
 
         return att
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalDiffAttention to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
+            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
+            and (batch_size, seq_len + state_len, 2 * dim_value) if skip_update_state is True.
                 
         """
-        x_state_start, x, x_state_end = extract_state(x, self.state_len)
+        if skip_update_state:
+            x_state_start = x[:, :self.state_len, :]
+            x = x[:, self.state_len:, :]
+        else:
+            x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
             x = self.norm_in(x.to(torch.float32)).to(x.dtype)
             x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
+            if not skip_update_state:
+                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
@@ -855,13 +913,19 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         q_state_start = self.proj_q_state_start(x_state_start).to(torch.float32)
         v_state_start = self.proj_v_state_start(x_state_start).to(torch.float32)
         
-        k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
-        q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
-        v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
+        if not skip_update_state:
+            k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
+            q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
+            v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
         
-        k = torch.cat([k_state_start, k, k_state_end], dim=1)
-        q = torch.cat([q_state_start, q, q_state_end], dim=1)
-        v = torch.cat([v_state_start, v, v_state_end], dim=1)
+        if skip_update_state:
+            k = torch.cat([k_state_start, k], dim=1)
+            q = torch.cat([q_state_start, q], dim=1)
+            v = torch.cat([v_state_start, v], dim=1)
+        else:
+            k = torch.cat([k_state_start, k, k_state_end], dim=1)
+            q = torch.cat([q_state_start, q, q_state_end], dim=1)
+            v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
         if self.cope:
             q1, q2 = split_last_dim(q)
@@ -873,10 +937,12 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             gates1 = torch.sigmoid(logits1)
             gates2 = torch.sigmoid(logits2)
             
+            state_len_mult = 1 if skip_update_state else 2
+            
             pos1 = gates1.flip(-1).cumsum(dim=-1).flip(-1)
-            pos1 = pos1.clamp(max=self.state_len - 1)
+            pos1 = pos1.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
             pos2 = gates2.flip(-1).cumsum(dim=-1).flip(-1)
-            pos2 = pos2.clamp(max=self.state_len - 1)
+            pos2 = pos2.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
             
             pos_ceil_1 = pos1.ceil().long()
             pos_floor_1 = pos1.floor().long()
@@ -899,7 +965,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             bias1 = None
             bias2 = None
         
-        att = self.apply_attention(q, k, v, bias=(bias1, bias2)).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state).to(x.dtype)
         
         return self.out_norm(att)
     
@@ -974,29 +1040,37 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
             )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalHopfieldAttention to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value).
+            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is false
+            and (batch_size, seq_len + state_len, dim_value) if skip_update_state is true.
                 
         """
         use_xformers_attn = check_if_linux() and "cuda" in self.device
         
-        x_state_start, x, x_state_end = extract_state(x, self.state_len)
+        if skip_update_state:
+            x_state_start = x[:, :self.state_len, :]
+            x = x[:, self.state_len:, :]
+        else:
+            x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
             x = self.norm_in(x.to(torch.float32)).to(x.dtype)
             x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
+            if not skip_update_state:
+                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         mem = self.proj_hidden(x)
         mem_state_start = self.proj_hidden_state_start(x_state_start)
-        mem_state_end = self.proj_hidden_state_end(x_state_end)
+        if not skip_update_state:
+            mem_state_end = self.proj_hidden_state_end(x_state_end)
         
         for ix in range(self.num_iters):
             k = self.proj_k(mem).to(torch.float32)
@@ -1007,19 +1081,26 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
             v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
             
-            k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
-            q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
-            v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
+            if not skip_update_state:
+                k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
+                q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
+                v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
-            k = torch.cat([k_state_start, k, k_state_end], dim=1)
-            q = torch.cat([q_state_start, q, q_state_end], dim=1)
-            v = torch.cat([v_state_start, v, v_state_end], dim=1)
+            if skip_update_state:
+                k = torch.cat([k_state_start, k], dim=1)
+                q = torch.cat([q_state_start, q], dim=1)
+                v = torch.cat([v_state_start, v], dim=1)
+            else:
+                k = torch.cat([k_state_start, k, k_state_end], dim=1)
+                q = torch.cat([q_state_start, q, q_state_end], dim=1)
+                v = torch.cat([v_state_start, v, v_state_end], dim=1)
             
             if self.cope and ix == 0:
                 logits = q @ k.transpose(-2, -1)
                 gates = torch.sigmoid(logits)
                 pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
-                pos = pos.clamp(max=self.seq_len + 2 * self.state_len - 1)
+                state_len_mult = 1 if skip_update_state else 2
+                pos = pos.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
                 
                 pos_ceil = pos.ceil().long()
                 pos_floor = pos.floor().long()
@@ -1036,13 +1117,15 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             
             # If position embedder is specified, add positional embeddings to q and k
             if self.position_embedder is not None and ix == 0:
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
+                if not skip_update_state:
+                    q = reverse_state_end(q, self.state_len)
+                    k = reverse_state_end(k, self.state_len)
                 
                 q, k = self.position_embedder(q, k)
                 
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
+                if not skip_update_state:
+                    q = reverse_state_end(q, self.state_len)
+                    k = reverse_state_end(k, self.state_len)
             
             # If bias is specified, apply it to the attention for non-state tokens
             if bias is None or ix > 0:
@@ -1070,7 +1153,11 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                     q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.beta
                 ).to(x.dtype)
             if ix < self.num_iters - 1:
-                mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
+                if skip_update_state:
+                    mem_state_start = mem[:, :self.state_len, :]
+                    mem = mem[:, self.state_len:, :]
+                else:
+                    mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
         
         return mem
 
@@ -1167,29 +1254,37 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
         self.out_norm = nn.LayerNorm(2 * dim_hidden, eps=1e-5)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
         """
         Forward pass. Applies StatefulCausalAttention to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in).
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
-            Output tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
+            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
+            and (batch_size, seq_len + state_len, 2 * dim_value) if skip_update_state is True.
                 
         """
         use_xformers_attn = check_if_linux() and "cuda" in self.device
         
-        x_state_start, x, x_state_end = extract_state(x, self.state_len)
+        if skip_update_state:
+            x_state_start = x[:, :self.state_len, :]
+            x = x[:, self.state_len:, :]
+        else:
+            x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
             x = self.norm_in(x.to(torch.float32)).to(x.dtype)
             x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
+            if not skip_update_state:
+                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
         
         mem = self.proj_hidden(x)
         mem_state_start = self.proj_hidden_state_start(x_state_start)
-        mem_state_end = self.proj_hidden_state_end(x_state_end)
+        if not skip_update_state:
+            mem_state_end = self.proj_hidden_state_end(x_state_end)
         
         for ix in range(self.num_iters):
             k = self.proj_k(mem).to(torch.float32)
@@ -1200,13 +1295,19 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
             v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
             
-            k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
-            q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
-            v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
+            if not skip_update_state:
+                k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
+                q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
+                v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
-            k = torch.cat([k_state_start, k, k_state_end], dim=1)
-            q = torch.cat([q_state_start, q, q_state_end], dim=1)
-            v = torch.cat([v_state_start, v, v_state_end], dim=1)
+            if skip_update_state:
+                k = torch.cat([k_state_start, k], dim=1)
+                q = torch.cat([q_state_start, q], dim=1)
+                v = torch.cat([v_state_start, v], dim=1)
+            else:
+                k = torch.cat([k_state_start, k, k_state_end], dim=1)
+                q = torch.cat([q_state_start, q, q_state_end], dim=1)
+                v = torch.cat([v_state_start, v, v_state_end], dim=1)
             
             if self.cope and ix == 0:
                 q1, q2 = split_last_dim(q)
@@ -1218,10 +1319,12 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
                 gates1 = torch.sigmoid(logits1)
                 gates2 = torch.sigmoid(logits2)
                 
+                state_len_mult = 1 if skip_update_state else 2
+                
                 pos1 = gates1.flip(-1).cumsum(dim=-1).flip(-1)
-                pos1 = pos1.clamp(max=self.seq_len + 2 * self.state_len - 1)
+                pos1 = pos1.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
                 pos2 = gates2.flip(-1).cumsum(dim=-1).flip(-1)
-                pos2 = pos2.clamp(max=self.seq_len + 2 * self.state_len - 1)
+                pos2 = pos2.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
                 
                 pos_ceil_1 = pos1.ceil().long()
                 pos_floor_1 = pos1.floor().long()
@@ -1250,18 +1353,20 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             
             # If position embedder is specified, add positional embeddings to q and k
             if self.position_embedder is not None and ix == 0:
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
+                if not skip_update_state:
+                    q1 = reverse_state_end(q1, self.state_len)
+                    q2 = reverse_state_end(q2, self.state_len)
+                    k1 = reverse_state_end(k1, self.state_len)
+                    k2 = reverse_state_end(k2, self.state_len)
                 
                 q1, k1 = self.position_embedder(q1, k1)
                 q2, k2 = self.position_embedder(q2, k2)
                 
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
+                if not skip_update_state:
+                    q1 = reverse_state_end(q1, self.state_len)
+                    q2 = reverse_state_end(q2, self.state_len)
+                    k1 = reverse_state_end(k1, self.state_len)
+                    k2 = reverse_state_end(k2, self.state_len)
             
             # If bias is specified, apply it to the attention for non-state tokens
             if bias1 is None or ix > 0:
@@ -1299,10 +1404,15 @@ class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
             mem = att1 - lambda_ * att2
             
             if ix < self.num_iters - 1:
-                mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
+                if skip_update_state:
+                    mem_state_start = mem[:, :self.state_len, :]
+                    mem = mem[:, self.state_len:, :]
+                else:
+                    mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
                 
                 mem = self.proj_down(mem)
                 mem_state_start = self.proj_down_state_start(mem_state_start)
-                mem_state_end = self.proj_down_state_end(mem_state_end)
+                if not skip_update_state:
+                    mem_state_end = self.proj_down_state_end(mem_state_end)
             
         return self.out_norm(mem)

@@ -117,12 +117,13 @@ class ARCformer(nn.Module):
         self.mlp_norm = nn.LayerNorm(dim_input * mlp_multiplier, eps=1e-5)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: torch.Tensor, skip_update_state: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, segment_len, dim_input).
             state (torch.Tensor): State tensor of shape (batch_size, state_len, dim_input).
+            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
@@ -130,7 +131,7 @@ class ARCformer(nn.Module):
              - State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
         """
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
-        attn, state = self.attn(x, state)
+        attn, state = self.attn(x, state, skip_update_state=skip_update_state)
         x = self.attn_norm((self.dropout1(attn) + x).to(torch.float32)).to(x.dtype)
         mlp_out = self.dropout2(self.mlp(x))
         

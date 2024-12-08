@@ -212,17 +212,22 @@ class OmLLM(torch.nn.Module):
                     
                 x_seg_next = x_seg_emb_[:, drop_num:, :]
             
-            states_next = []
+            skip_update_states = next_token and segment_num == num_segments - 1 and rem > 0
+            
+            if not skip_update_states:
+                states_next = []
         
             for layer, state in zip(self.layers, states):
                 x_seg_next, state_next = layer(x_seg_next, state)
-                states_next.append(state_next)
+                if not skip_update_states:
+                    states_next.append(state_next)
             
-            states = states_next
+            if not skip_update_states:
+                states = states_next
             
             if next_token:
                 if segment_num == num_segments - 1:
-                    out = self.proj_out(x_seg_next[:, -1, :])
+                    out = self.proj_out(x_seg_next[:, -1, :].unsqueeze(1))
             else:
                 out.append(self.proj_out(x_seg_next))
         

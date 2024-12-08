@@ -39,7 +39,6 @@ def test_model():
     
     batch_size = 2
     num_segments = 4
-    next_token = False
     
     # position_embedders = [
     #     RotaryEmbedding(dim) for dim in dims_key
@@ -83,15 +82,15 @@ def test_model():
     model = set_om_dtypes(model, torch.bfloat16)
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
-        preds, states = model(x, next_token=next_token)
-
-    
-    if next_token:
-        assert preds.shape == (batch_size, vocab_size)
-    else:
+        preds, states = model(x, next_token=False)
         assert preds.shape == (batch_size, seq_len, vocab_size)
-    for state in states:
-        assert state.shape == (batch_size, state_len, dim_input)
+        for state in states:
+            assert state.shape == (batch_size, state_len, dim_input)
+    
+        pred, states = model(x, next_token=True)
+        assert pred.shape == (batch_size, 1, vocab_size)
+        for state in states:
+            assert state.shape == (batch_size, state_len, dim_input)
     
     param_ct = count_optimized_parameters(model)
     print(f"Total optimized parameters: {param_ct:,d}")
