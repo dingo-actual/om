@@ -21,7 +21,6 @@ def test_arc_transformer():
     activation = "gelu"
     mlp_1221 = True
     segment_len = 1024
-    attn_normalize = True
     state_len = segment_len // 8
     num_layers = 8
     mlp_multiplier = 1
@@ -46,7 +45,6 @@ def test_arc_transformer():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        attn_normalize=attn_normalize,
         num_layers=num_layers,
         layer_num=layer_num,
         cope=cope,

@@ -21,7 +21,6 @@ class ARC(nn.Module):
         num_heads: int, 
         segment_len: int, 
         state_len: int,
-        attn_normalize: bool,
         dropout: float,
         betas: List[Optional[float]],
         attn_proj_rank: int,
@@ -41,7 +40,6 @@ class ARC(nn.Module):
             num_heads (int): Number of attention heads.
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
-            attn_normalize (bool): Whether to normalize the attention inputs.
             dropout (float): The dropout rate.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
@@ -57,7 +55,6 @@ class ARC(nn.Module):
         self.num_heads = num_heads
         self.segment_len = segment_len
         self.state_len = state_len
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.attn_proj_rank = attn_proj_rank
         self.diff_attn = diff_attn
@@ -81,7 +78,6 @@ class ARC(nn.Module):
             num_heads=num_heads,
             seq_len=segment_len,
             state_len=state_len,
-            attn_normalize=attn_normalize,
             dropout=dropout,
             betas=betas,
             attn_proj_rank=attn_proj_rank,
@@ -160,7 +156,6 @@ class StatefulCausalMHMA(nn.Module):
         num_heads: int,
         seq_len: int,
         state_len: int,
-        attn_normalize: bool,
         dropout: float,
         betas: List[Optional[float]],
         attn_proj_rank: int,
@@ -179,7 +174,6 @@ class StatefulCausalMHMA(nn.Module):
             num_heads (int): Number of attention heads.
             seq_len (int): The maximum length of the input sequence.
             state_len (int): The length of the state tensor.
-            attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): The dropout rate.
             betas (List[Optional[float]]): The betas for Hopfield attention / scaling factors for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
@@ -199,7 +193,6 @@ class StatefulCausalMHMA(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.diff_attn = diff_attn
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.betas = betas
         self.attn_proj_rank = attn_proj_rank
@@ -214,7 +207,6 @@ class StatefulCausalMHMA(nn.Module):
                     num_iters=num_iters,
                     seq_len=seq_len,
                     state_len=state_len,
-                    attn_normalize=attn_normalize,
                     dropout=dropout,
                     betas=betas,
                     attn_proj_rank=attn_proj_rank,
@@ -255,7 +247,6 @@ class StatefulCausalMultiAttention(nn.Module):
         num_iters: List[int],
         seq_len: int,
         state_len: int,
-        attn_normalize: bool,
         dropout: float,
         betas: List[Optional[float]],
         attn_proj_rank: int,
@@ -273,7 +264,6 @@ class StatefulCausalMultiAttention(nn.Module):
             num_iters (List[int]): Number of memory iterations.
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
-            attn_normalize (bool): Whether to normalize the input to the attention projections.
             dropout (float): Dropout rate.
             betas (List[Optional[float]]): The betas for the Hopfield attention / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
@@ -290,7 +280,6 @@ class StatefulCausalMultiAttention(nn.Module):
         self.num_iters = num_iters
         self.seq_len = seq_len
         self.state_len = state_len
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.betas = betas
         self.attn_proj_rank = attn_proj_rank
@@ -321,7 +310,6 @@ class StatefulCausalMultiAttention(nn.Module):
                     seq_len=seq_len,
                     state_len=state_len,
                     layer_num=layer_num,
-                    attn_normalize=attn_normalize,
                     dropout=dropout,
                     scaling_factor=betas[0],
                     cope=cope,
@@ -337,7 +325,6 @@ class StatefulCausalMultiAttention(nn.Module):
                         dim_value=dims_value[0],
                         seq_len=seq_len,
                         state_len=state_len,
-                        attn_normalize=attn_normalize,
                         dropout=dropout,
                         scaling_factor=betas[0],
                         cope=cope,
@@ -352,7 +339,6 @@ class StatefulCausalMultiAttention(nn.Module):
                         num_iters=num_iters[0],
                         seq_len=seq_len,
                         state_len=state_len,
-                        attn_normalize=attn_normalize,
                         dropout=dropout,
                         beta=betas[0],
                         cope=cope,
@@ -370,7 +356,6 @@ class StatefulCausalMultiAttention(nn.Module):
                         seq_len=seq_len,
                         state_len=state_len,
                         layer_num=layer_num,
-                        attn_normalize=attn_normalize,
                         dropout=dropout,
                         scaling_factor=betas[ix],
                         cope=cope,
@@ -395,7 +380,6 @@ class StatefulCausalMultiAttention(nn.Module):
                             dim_value=dims_value[ix],
                             seq_len=seq_len,
                             state_len=state_len,
-                            attn_normalize=attn_normalize,
                             dropout=dropout,
                             scaling_factor=betas[ix],
                             cope=cope,
@@ -410,7 +394,6 @@ class StatefulCausalMultiAttention(nn.Module):
                             num_iters=num_iters[ix],
                             seq_len=seq_len,
                             state_len=state_len,
-                            attn_normalize=attn_normalize,
                             dropout=dropout,
                             beta=betas[ix],
                             cope=cope,
@@ -489,7 +472,6 @@ class StatefulCausalAttentionHead(nn.Module):
         dim_value: int, 
         seq_len: int,
         state_len: int,
-        attn_normalize: bool = True,
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
@@ -503,7 +485,6 @@ class StatefulCausalAttentionHead(nn.Module):
             dim_value (int): The value dimension.
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
-            attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             cope (bool, optional): Whether to use CoPE. Defaults to False.
@@ -516,7 +497,6 @@ class StatefulCausalAttentionHead(nn.Module):
         self.dim_value = dim_value
         self.seq_len = seq_len
         self.state_len = state_len
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.scaling_factor = scaling_factor
         self.cope = cope
@@ -526,12 +506,6 @@ class StatefulCausalAttentionHead(nn.Module):
         self.proj_k = nn.Linear(dim_input, dim_key, bias=False)
         self.proj_q = nn.Linear(dim_input, dim_key, bias=False)
         self.proj_v = nn.Linear(dim_input, dim_value, bias=False)
-        
-        # If normalize is True, define qkv normalizations
-        if self.attn_normalize:
-            self.norm_in = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_input, eps=1e-5)
         
         # State projections from attention layer to the next attention layer
         self.proj_k_state_start = nn.Linear(dim_input, dim_key, bias=False)
@@ -629,12 +603,6 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
-        if self.attn_normalize:
-            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
-            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            if not skip_update_state:
-                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
-        
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
         v = self.proj_v(x).to(torch.float32)
@@ -691,7 +659,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         seq_len: int,
         state_len: int,
         layer_num: int,
-        attn_normalize: bool = True,
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
@@ -706,7 +673,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
             layer_num (int): The position of the layer.
-            attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
@@ -719,7 +685,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.layer_num = layer_num
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.scaling_factor = scaling_factor
         self.cope = cope
@@ -738,12 +703,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         self.proj_k = nn.Linear(dim_input, 2 * dim_key, bias=False)
         self.proj_q = nn.Linear(dim_input, 2  * dim_key, bias=False)
         self.proj_v = nn.Linear(dim_input, 2 * dim_value, bias=False)
-        
-        # If normalize is True, define qkv normalizations
-        if self.attn_normalize:
-            self.norm_in = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_input, eps=1e-5)
         
         # State projections from attention layer to the next attention layer
         self.proj_k_state_start = nn.Linear(dim_input, 2 * dim_key, bias=False)
@@ -867,12 +826,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         else:
             x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
-        if self.attn_normalize:
-            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
-            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            if not skip_update_state:
-                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
-        
         k = self.proj_k(x).to(torch.float32)
         q = self.proj_q(x).to(torch.float32)
         v = self.proj_v(x).to(torch.float32)
@@ -933,9 +886,9 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             bias1 = None
             bias2 = None
         
-        att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state)
         
-        return self.out_norm(att)
+        return self.out_norm(att).to(x.dtype)
     
 class StatefulCausalHopfieldAttentionHead(nn.Module):
     """Implements a Stateful Causal Hopfield Attention Head module."""
@@ -946,7 +899,6 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         num_iters: int,
         seq_len: int,
         state_len: int,
-        attn_normalize: bool = True,
         dropout: float = 0.0,
         beta: Optional[float] = None,
         cope: bool = False,
@@ -960,7 +912,6 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             num_iters (int): The number of memory iterations.
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
-            attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             beta (Optional[float], optional): The beta value (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use CoPE. Defaults to False.
@@ -973,7 +924,6 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         self.num_iters = num_iters
         self.seq_len = seq_len
         self.state_len = state_len
-        self.attn_normalize = attn_normalize
         self.dropout = dropout
         self.beta = beta
         self.cope = cope
@@ -988,20 +938,6 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         self.proj_q = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_k = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_v = nn.Linear(dim_hidden, dim_hidden, bias=False)
-        
-        # If normalize is True, define qkv normalizations
-        if self.attn_normalize:
-            self.norm_q = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_k = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_v = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            
-            self.norm_q_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_k_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_v_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            
-            self.norm_q_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_k_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
-            self.norm_v_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
         
         # State projections from attention layer to the next attention layer
         self.proj_q_state_start = nn.Linear(dim_hidden, dim_hidden, bias=False)
@@ -1053,23 +989,12 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
             v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
-        if self.attn_normalize:
-            k = self.norm_k(k)
-            v = self.norm_v(v)
-            
-            k_state_start = self.norm_k_state_start(k_state_start)
-            v_state_start = self.norm_v_state_start(v_state_start)
-            
-            if not skip_update_state:
-                k_state_end = self.norm_k_state_end(k_state_end)
-                v_state_end = self.norm_v_state_end(v_state_end)
-                
-            if skip_update_state:
-                k = torch.cat([k_state_start, k], dim=1)
-                v = torch.cat([v_state_start, v], dim=1)
-            else:
-                k = torch.cat([k_state_start, k, k_state_end], dim=1)
-                v = torch.cat([v_state_start, v, v_state_end], dim=1)
+        if skip_update_state:
+            k = torch.cat([k_state_start, k], dim=1)
+            v = torch.cat([v_state_start, v], dim=1)
+        else:
+            k = torch.cat([k_state_start, k, k_state_end], dim=1)
+            v = torch.cat([v_state_start, v, v_state_end], dim=1)
         
         for ix in range(self.num_iters):
             q = self.proj_q(mem).to(torch.float32)
@@ -1077,13 +1002,6 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             
             if not skip_update_state:
                 q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
-            
-            if self.attn_normalize:
-                q = self.norm_q(q)
-                q_state_start = self.norm_q_state_start(q_state_start)
-                
-                if not skip_update_state:
-                    q_state_end = self.norm_q_state_end(q_state_end)
                     
             if skip_update_state:
                 q = torch.cat([q_state_start, q], dim=1)

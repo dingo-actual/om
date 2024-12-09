@@ -25,7 +25,6 @@ def test_model():
     activation = "gelu"
     mlp_1221 = True
     segment_len = 2048
-    attn_normalize = True
     cope = True
     state_len = segment_len // 8
     
@@ -57,7 +56,6 @@ def test_model():
         activation=activation,
         segment_len=segment_len,
         state_len=state_len,
-        attn_normalize=attn_normalize,
         cope=cope,
         position_embedders=position_embedders,
         betas=betas,
