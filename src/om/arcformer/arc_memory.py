@@ -308,41 +308,26 @@ class StatefulCausalMultiAttention(nn.Module):
             self.use_out_proj = False
         
         if diff_attn:
+            if any(n != 1 for n in self.num_iters):
+                raise ValueError("num_iters must all be 1 for diff_attn=True")
             proj_modules = []
             proj_modules_state_start = []
             proj_modules_state_end = []
-            if num_iters[0] == 1:
-                attn_modules = [
-                    StatefulCausalDiffAttentionHead(
-                        dim_input=dim_input,
-                        dim_key=dims_key[0],
-                        dim_value=dims_value[0],
-                        seq_len=seq_len,
-                        state_len=state_len,
-                        layer_num=layer_num,
-                        attn_normalize=attn_normalize,
-                        dropout=dropout,
-                        scaling_factor=betas[0],
-                        cope=cope,
-                        position_embedder=position_embedders[0],
-                    )
-                ]
-            else:
-                attn_modules = [
-                    StatefulCausalDiffHopfieldAttentionHead(
-                        dim_input=dim_input,
-                        dim_hidden=dims_key[0],
-                        num_iters=num_iters[0],
-                        seq_len=seq_len,
-                        state_len=state_len,
-                        layer_num=layer_num,
-                        attn_normalize=attn_normalize,
-                        dropout=dropout,
-                        beta=betas[0],
-                        cope=cope,
-                        position_embedder=position_embedders[0]
-                    )
-                ]
+            attn_modules = [
+                StatefulCausalDiffAttentionHead(
+                    dim_input=dim_input,
+                    dim_key=dims_key[0],
+                    dim_value=dims_value[0],
+                    seq_len=seq_len,
+                    state_len=state_len,
+                    layer_num=layer_num,
+                    attn_normalize=attn_normalize,
+                    dropout=dropout,
+                    scaling_factor=betas[0],
+                    cope=cope,
+                    position_embedder=position_embedders[0],
+                )
+            ]
         else:
             if num_iters[0] == 1:
                 attn_modules = [
@@ -377,38 +362,21 @@ class StatefulCausalMultiAttention(nn.Module):
         
         for ix in range(1, len(dims_value)):
             if diff_attn:
-                if num_iters[ix] == 1:
-                    attn_modules.append(
-                        StatefulCausalDiffAttentionHead(
-                            dim_input=dims_value[ix-1],
-                            dim_key=dims_key[ix],
-                            dim_value=dims_value[ix],
-                            seq_len=seq_len,
-                            state_len=state_len,
-                            layer_num=layer_num,
-                            attn_normalize=attn_normalize,
-                            dropout=dropout,
-                            scaling_factor=betas[ix],
-                            cope=cope,
-                            position_embedder=position_embedders[ix],
-                        )
+                attn_modules.append(
+                    StatefulCausalDiffAttentionHead(
+                        dim_input=dims_value[ix-1],
+                        dim_key=dims_key[ix],
+                        dim_value=dims_value[ix],
+                        seq_len=seq_len,
+                        state_len=state_len,
+                        layer_num=layer_num,
+                        attn_normalize=attn_normalize,
+                        dropout=dropout,
+                        scaling_factor=betas[ix],
+                        cope=cope,
+                        position_embedder=position_embedders[ix],
                     )
-                else:
-                    attn_modules.append(
-                        StatefulCausalDiffHopfieldAttentionHead(
-                            dim_input=dims_value[ix-1],
-                            dim_hidden=dims_value[ix],
-                            num_iters=num_iters[ix],
-                            seq_len=seq_len,
-                            state_len=state_len,
-                            layer_num=layer_num,
-                            attn_normalize=attn_normalize,
-                            dropout=dropout,
-                            beta=betas[ix],
-                            cope=cope,
-                            position_embedder=position_embedders[ix]
-                        )
-                    )
+                )
                 proj_modules.append(
                     nn.Linear(2 * dims_value[ix-1], dims_value[ix-1], bias=False)
                 )
@@ -996,7 +964,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             beta (Optional[float], optional): The beta value (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use CoPE. Defaults to False.
-            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RotaryEmbedding], optional): Ignored. Only used to keep the interface consistent with other classes.
         """
         super(StatefulCausalHopfieldAttentionHead, self).__init__()
         
@@ -1009,7 +977,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         self.dropout = dropout
         self.beta = beta
         self.cope = cope
-        self.position_embedder = position_embedder
+        self.position_embedder = None
         
         # Projections from the input to the attention layer
         self.proj_hidden = nn.Linear(dim_input, dim_hidden, bias=False)
@@ -1017,22 +985,31 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         self.proj_hidden_state_end = nn.Linear(dim_input, dim_hidden, bias=False)
         
         # Projections from the attention layer to the next attention layer
-        self.proj_k = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_q = nn.Linear(dim_hidden, dim_hidden, bias=False)
+        self.proj_k = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_v = nn.Linear(dim_hidden, dim_hidden, bias=False)
         
         # If normalize is True, define qkv normalizations
         if self.attn_normalize:
-            self.norm_in = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_input, eps=1e-5)
+            self.norm_q = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_k = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_v = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            
+            self.norm_q_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_k_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_v_state_start = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            
+            self.norm_q_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_k_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
+            self.norm_v_state_end = nn.LayerNorm(self.dim_hidden, eps=1e-5)
         
         # State projections from attention layer to the next attention layer
-        self.proj_k_state_start = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_q_state_start = nn.Linear(dim_hidden, dim_hidden, bias=False)
+        self.proj_k_state_start = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_v_state_start = nn.Linear(dim_hidden, dim_hidden, bias=False)
-        self.proj_k_state_end = nn.Linear(dim_hidden, dim_hidden, bias=False)
+        
         self.proj_q_state_end = nn.Linear(dim_hidden, dim_hidden, bias=False)
+        self.proj_k_state_end = nn.Linear(dim_hidden, dim_hidden, bias=False)
         self.proj_v_state_end = nn.Linear(dim_hidden, dim_hidden, bias=False)
         
         if cope:
@@ -1061,41 +1038,59 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         else:
             x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
-        if self.attn_normalize:
-            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
-            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            if not skip_update_state:
-                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
-        
         mem = self.proj_hidden(x)
         mem_state_start = self.proj_hidden_state_start(x_state_start)
         if not skip_update_state:
             mem_state_end = self.proj_hidden_state_end(x_state_end)
         
-        for ix in range(self.num_iters):
-            k = self.proj_k(mem).to(torch.float32)
-            q = self.proj_q(mem).to(torch.float32)
-            v = self.proj_v(mem).to(torch.float32)
+        k = self.proj_k(mem).to(torch.float32)
+        v = self.proj_v(mem).to(torch.float32)
+        
+        k_state_start = self.proj_k_state_start(mem_state_start).to(torch.float32)
+        v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
+        
+        if not skip_update_state:
+            k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
+            v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
             
-            k_state_start = self.proj_k_state_start(mem_state_start).to(torch.float32)
-            q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
-            v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
+        if self.attn_normalize:
+            k = self.norm_k(k)
+            v = self.norm_v(v)
+            
+            k_state_start = self.norm_k_state_start(k_state_start)
+            v_state_start = self.norm_v_state_start(v_state_start)
             
             if not skip_update_state:
-                k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
-                q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
-                v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
-            
+                k_state_end = self.norm_k_state_end(k_state_end)
+                v_state_end = self.norm_v_state_end(v_state_end)
+                
             if skip_update_state:
                 k = torch.cat([k_state_start, k], dim=1)
-                q = torch.cat([q_state_start, q], dim=1)
                 v = torch.cat([v_state_start, v], dim=1)
             else:
                 k = torch.cat([k_state_start, k, k_state_end], dim=1)
-                q = torch.cat([q_state_start, q, q_state_end], dim=1)
                 v = torch.cat([v_state_start, v, v_state_end], dim=1)
+        
+        for ix in range(self.num_iters):
+            q = self.proj_q(mem).to(torch.float32)
+            q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
             
-            if self.cope and ix == 0:
+            if not skip_update_state:
+                q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
+            
+            if self.attn_normalize:
+                q = self.norm_q(q)
+                q_state_start = self.norm_q_state_start(q_state_start)
+                
+                if not skip_update_state:
+                    q_state_end = self.norm_q_state_end(q_state_end)
+                    
+            if skip_update_state:
+                q = torch.cat([q_state_start, q], dim=1)
+            else:
+                q = torch.cat([q_state_start, q, q_state_end], dim=1)
+            
+            if self.cope:
                 logits = q @ k.transpose(-2, -1)
                 gates = torch.sigmoid(logits)
                 pos = gates.flip(-1).cumsum(dim=-1).flip(-1)
@@ -1115,20 +1110,8 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             else:
                 bias = None
             
-            # If position embedder is specified, add positional embeddings to q and k
-            if self.position_embedder is not None and ix == 0:
-                if not skip_update_state:
-                    q = reverse_state_end(q, self.state_len)
-                    k = reverse_state_end(k, self.state_len)
-                
-                q, k = self.position_embedder(q, k)
-                
-                if not skip_update_state:
-                    q = reverse_state_end(q, self.state_len)
-                    k = reverse_state_end(k, self.state_len)
-            
-            # If bias is specified, apply it to the attention for non-state tokens
-            if bias is None or ix > 0:
+            # If bias is specified, apply it to the attention
+            if bias is None:
                 if use_xformers_attn:
                     attn_bias = LowerTriangularMask()
                 else:
@@ -1160,259 +1143,3 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                     mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
         
         return mem
-
-class StatefulCausalDiffHopfieldAttentionHead(nn.Module):
-    """Implements a Stateful Causal Attention Head module with diff attention."""
-    def __init__(
-        self,
-        dim_input: int,
-        dim_hidden: int,
-        num_iters: int,
-        seq_len: int,
-        state_len: int,
-        layer_num: int,
-        attn_normalize: bool = True,
-        dropout: float = 0.0,
-        beta: Optional[float] = None,
-        cope: bool = False,
-        position_embedder: Optional[RotaryEmbedding] = None,
-    ):
-        """Initializes the module
-
-        Args:
-            dim_input (int): The input dimension.
-            dim_hidden (int): The hidden dimension.
-            num_iters (int): Number of memory iterations.
-            seq_len (int): The maximum length of the sequence.
-            state_len (int): The length of the state tensor.
-            layer_num (int): The position of the layer.
-            attn_normalize (bool, optional): Whether to normalize input to the attention projections. Defaults to True.
-            dropout (float, optional): The dropout rate. Defaults to 0.0.
-            beta (Optional[float], optional): The beta parameter (inverse temperature). Defaults to None.
-            cope (bool, optional): Whether to use COPE positional embeddings. Defaults to False.
-            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
-        """
-        super(StatefulCausalDiffHopfieldAttentionHead, self).__init__()
-        
-        self.dim_input = dim_input
-        self.dim_hidden = dim_hidden
-        self.num_iters = num_iters
-        self.seq_len = seq_len
-        self.state_len = state_len
-        self.layer_num = layer_num
-        self.attn_normalize = attn_normalize
-        self.dropout = dropout
-        self.beta = beta
-        self.cope = cope
-        self.position_embedder = position_embedder
-        
-        # Calculate initial lambda
-        self.lambda_init = 0.8 - 0.6 * np.exp(-0.3 * layer_num)
-        
-        # Initialize lambda params
-        self.lambda_q1 = nn.Parameter(torch.randn((1, dim_hidden)))
-        self.lambda_q2 = nn.Parameter(torch.randn((1, dim_hidden)))
-        self.lambda_k1 = nn.Parameter(torch.randn((dim_hidden, 1)))
-        self.lambda_k2 = nn.Parameter(torch.randn((dim_hidden, 1)))
-        
-        # Projections from input to hidden dimension
-        self.proj_hidden = nn.Linear(dim_input, dim_hidden, bias=False)
-        self.proj_hidden_state_start = nn.Linear(dim_input, dim_hidden, bias=False)
-        self.proj_hidden_state_end = nn.Linear(dim_input, dim_hidden, bias=False)
-        
-        # Projections from the attention layer to the next attention layer
-        self.proj_k = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_q = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_v = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        
-        # If normalize is True, define qkv normalizations
-        if self.attn_normalize:
-            self.norm_in = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_start = nn.LayerNorm(self.dim_input, eps=1e-5)
-            self.norm_in_state_end = nn.LayerNorm(self.dim_input, eps=1e-5)
-        
-        # State projections from attention layer to the next attention layer
-        self.proj_k_state_start = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_q_state_start = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_v_state_start = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_k_state_end = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_q_state_end = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        self.proj_v_state_end = nn.Linear(dim_hidden, 2 * dim_hidden, bias=False)
-        
-        # Projections from 2 * dim hidden to dim_hidden
-        self.proj_down = nn.Linear(2 * dim_hidden, dim_hidden)
-        self.proj_down_state_start = nn.Linear(2 * dim_hidden, dim_hidden)
-        self.proj_down_state_end = nn.Linear(2 * dim_hidden, dim_hidden)
-        
-        if cope:
-            self.cope_emb_1 = nn.Parameter(
-                torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
-            )
-            self.cope_emb_2 = nn.Parameter(
-                torch.randn(1, self.dim_hidden, self.seq_len + 2 * self.state_len)
-            )
-            
-        self.out_norm = nn.LayerNorm(2 * dim_hidden, eps=1e-5)
-    
-    def forward(self, x: torch.Tensor, skip_update_state: bool = False) -> torch.Tensor:
-        """
-        Forward pass. Applies StatefulCausalAttention to the input tensor.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len + 2 * state_len, dim_in) or (batch_size, seq_len + state_len, dim_in).
-            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
-
-        Returns:
-            Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
-            and (batch_size, seq_len + state_len, 2 * dim_value) if skip_update_state is True.
-                
-        """
-        use_xformers_attn = check_if_linux() and "cuda" in self.device
-        
-        if skip_update_state:
-            x_state_start = x[:, :self.state_len, :]
-            x = x[:, self.state_len:, :]
-        else:
-            x_state_start, x, x_state_end = extract_state(x, self.state_len)
-        
-        if self.attn_normalize:
-            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
-            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
-            if not skip_update_state:
-                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
-        
-        mem = self.proj_hidden(x)
-        mem_state_start = self.proj_hidden_state_start(x_state_start)
-        if not skip_update_state:
-            mem_state_end = self.proj_hidden_state_end(x_state_end)
-        
-        for ix in range(self.num_iters):
-            k = self.proj_k(mem).to(torch.float32)
-            q = self.proj_q(mem).to(torch.float32)
-            v = self.proj_v(mem).to(torch.float32)
-            
-            k_state_start = self.proj_k_state_start(mem_state_start).to(torch.float32)
-            q_state_start = self.proj_q_state_start(mem_state_start).to(torch.float32)
-            v_state_start = self.proj_v_state_start(mem_state_start).to(torch.float32)
-            
-            if not skip_update_state:
-                k_state_end = self.proj_k_state_end(mem_state_end).to(torch.float32)
-                q_state_end = self.proj_q_state_end(mem_state_end).to(torch.float32)
-                v_state_end = self.proj_v_state_end(mem_state_end).to(torch.float32)
-            
-            if skip_update_state:
-                k = torch.cat([k_state_start, k], dim=1)
-                q = torch.cat([q_state_start, q], dim=1)
-                v = torch.cat([v_state_start, v], dim=1)
-            else:
-                k = torch.cat([k_state_start, k, k_state_end], dim=1)
-                q = torch.cat([q_state_start, q, q_state_end], dim=1)
-                v = torch.cat([v_state_start, v, v_state_end], dim=1)
-            
-            if self.cope and ix == 0:
-                q1, q2 = split_last_dim(q)
-                k1, k2 = split_last_dim(k)
-                
-                logits1 = q1 @ k1.transpose(-2, -1)
-                logits2 = q2 @ k2.transpose(-2, -1)
-                
-                gates1 = torch.sigmoid(logits1)
-                gates2 = torch.sigmoid(logits2)
-                
-                state_len_mult = 1 if skip_update_state else 2
-                
-                pos1 = gates1.flip(-1).cumsum(dim=-1).flip(-1)
-                pos1 = pos1.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
-                pos2 = gates2.flip(-1).cumsum(dim=-1).flip(-1)
-                pos2 = pos2.clamp(max=self.seq_len + state_len_mult * self.state_len - 1)
-                
-                pos_ceil_1 = pos1.ceil().long()
-                pos_floor_1 = pos1.floor().long()
-                pos_ceil_2 = pos2.ceil().long()
-                pos_floor_2 = pos2.floor().long()
-                
-                logits_int_1 = q1 @ self.cope_emb_1.to(torch.float32)
-                logits_ceil_1 = logits_int_1.gather(-1, pos_ceil_1)
-                logits_floor_1 = logits_int_1.gather(-1, pos_floor_1)
-                logits_int_2 = q2 @ self.cope_emb_2.to(torch.float32)
-                logits_ceil_2 = logits_int_2.gather(-1, pos_ceil_2)
-                logits_floor_2 = logits_int_2.gather(-1, pos_floor_2)
-                
-                w1 = pos1 - pos_floor_1
-                w2 = pos2 - pos_floor_2
-                
-                bias1 = logits_ceil_1 * w1 + logits_floor_1 * (1 - w1)
-                bias2 = logits_ceil_2 * w2 + logits_floor_2 * (1 - w2)
-            else:
-                bias1 = None
-                bias2 = None
-                
-            # Split q and k into q1, q2, k1, k2
-            q1, q2 = split_last_dim(q)
-            k1, k2 = split_last_dim(k)
-            
-            # If position embedder is specified, add positional embeddings to q and k
-            if self.position_embedder is not None and ix == 0:
-                if not skip_update_state:
-                    q1 = reverse_state_end(q1, self.state_len)
-                    q2 = reverse_state_end(q2, self.state_len)
-                    k1 = reverse_state_end(k1, self.state_len)
-                    k2 = reverse_state_end(k2, self.state_len)
-                
-                q1, k1 = self.position_embedder(q1, k1)
-                q2, k2 = self.position_embedder(q2, k2)
-                
-                if not skip_update_state:
-                    q1 = reverse_state_end(q1, self.state_len)
-                    q2 = reverse_state_end(q2, self.state_len)
-                    k1 = reverse_state_end(k1, self.state_len)
-                    k2 = reverse_state_end(k2, self.state_len)
-            
-            # If bias is specified, apply it to the attention for non-state tokens
-            if bias1 is None or ix > 0:
-                attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
-                attn_bias_2 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
-            else:
-                device = q.device
-                attn_bias_1 = torch.tril(
-                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                    diagonal=0,
-                )
-                attn_bias_1 = attn_bias_1.log()
-                attn_bias_1 += bias1.to(dtype=q.dtype)
-                
-                attn_bias_2 = torch.tril(
-                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                    diagonal=0,
-                )
-                attn_bias_2 = attn_bias_2.log()
-                attn_bias_2 += bias2.to(dtype=q.dtype)
-            
-            lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
-            
-            if use_xformers_attn:
-                att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
-                att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.beta).to(dtype=x.dtype)
-            else:
-                att1 = torch.nn.functional.scaled_dot_product_attention(
-                    q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.beta
-                ).to(x.dtype)
-                att2 = torch.nn.functional.scaled_dot_product_attention(
-                    q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.beta
-                ).to(x.dtype)
-            
-            mem = att1 - lambda_ * att2
-            
-            if ix < self.num_iters - 1:
-                if skip_update_state:
-                    mem_state_start = mem[:, :self.state_len, :]
-                    mem = mem[:, self.state_len:, :]
-                else:
-                    mem_state_start, mem, mem_state_end = extract_state(mem, self.state_len)
-                
-                mem = self.proj_down(mem)
-                mem_state_start = self.proj_down_state_start(mem_state_start)
-                if not skip_update_state:
-                    mem_state_end = self.proj_down_state_end(mem_state_end)
-            
-        return self.out_norm(mem)
