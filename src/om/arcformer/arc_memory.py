@@ -604,9 +604,11 @@ class StatefulCausalAttentionHead(nn.Module):
         if use_xformers_attn:
             att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
         else:
-            att = torch.nn.functional.scaled_dot_product_attention(
-                q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor
-            )
+            # !!! TEMPORARY:
+            att = torch.nn.functional.softmax(attn_bias + self.scaling_factor * (q @ k.transpose(-2, -1)), dim=-1) @ v
+            # att = torch.nn.functional.scaled_dot_product_attention(
+            #     q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor
+            # )
 
         return att
 
@@ -623,6 +625,8 @@ class StatefulCausalAttentionHead(nn.Module):
             and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
                 
         """
+        dtype = x.dtype
+        
         if skip_update_state:
             x_state_start = x[:, :self.state_len, :]
             x = x[:, self.state_len:, :]
@@ -630,23 +634,38 @@ class StatefulCausalAttentionHead(nn.Module):
             x_state_start, x, x_state_end = extract_state(x, self.state_len)
         
         if self.attn_normalize:
-            x = self.norm_in(x.to(torch.float32)).to(x.dtype)
-            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32)).to(x_state_start.dtype)
+            x = self.norm_in(x.to(torch.float32))
+            x = x.to(dtype)
+            x_state_start = self.norm_in_state_start(x_state_start.to(torch.float32))
+            x_state_start = x_state_start.to(dtype)
             if not skip_update_state:
-                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32)).to(x_state_end.dtype)
+                x_state_end = self.norm_in_state_end(x_state_end.to(torch.float32))
+                x_state_end = x_state_end.to(dtype)
         
-        k = self.proj_k(x).to(torch.float32)
-        q = self.proj_q(x).to(torch.float32)
-        v = self.proj_v(x).to(torch.float32)
+        k = self.proj_k(x)
+        q = self.proj_q(x)
+        v = self.proj_v(x)
         
-        k_state_start = self.proj_k_state_start(x_state_start).to(torch.float32)
-        q_state_start = self.proj_q_state_start(x_state_start).to(torch.float32)
-        v_state_start = self.proj_v_state_start(x_state_start).to(torch.float32)
+        k = k.to(torch.float32)
+        q = q.to(torch.float32)
+        v = v.to(torch.float32)
+        
+        k_state_start = self.proj_k_state_start(x_state_start)
+        q_state_start = self.proj_q_state_start(x_state_start)
+        v_state_start = self.proj_v_state_start(x_state_start)
+        
+        k_state_start = k_state_start.to(torch.float32)
+        q_state_start = q_state_start.to(torch.float32)
+        v_state_start = v_state_start.to(torch.float32)
         
         if not skip_update_state:
-            k_state_end = self.proj_k_state_end(x_state_end).to(torch.float32)
-            q_state_end = self.proj_q_state_end(x_state_end).to(torch.float32)
-            v_state_end = self.proj_v_state_end(x_state_end).to(torch.float32)
+            k_state_end = self.proj_k_state_end(x_state_end)
+            q_state_end = self.proj_q_state_end(x_state_end)
+            v_state_end = self.proj_v_state_end(x_state_end)
+            
+            k_state_end = k_state_end.to(torch.float32)
+            q_state_end = q_state_end.to(torch.float32)
+            v_state_end = v_state_end.to(torch.float32)
         
         if skip_update_state:
             k = torch.cat([k_state_start, k], dim=1)
@@ -677,7 +696,8 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             bias = None
         
-        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state)
+        att = att.to(dtype)
         
         return att
     
@@ -1130,11 +1150,12 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
                 attn_bias += bias.to(dtype=q.dtype)
             
             if use_xformers_attn:
-                mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta).to(x.dtype)
+                mem = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.beta)
             else:
                 mem = torch.nn.functional.scaled_dot_product_attention(
                     q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.beta
-                ).to(x.dtype)
+                )
+            mem = mem.to(x.dtype)
             if ix < self.num_iters - 1:
                 if skip_update_state:
                     mem_state_start = mem[:, :self.state_len, :]

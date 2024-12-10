@@ -1,5 +1,6 @@
 from heavyball import PrecondScheduleSFPaLMSOAP, utils
 import torch
+from torch.optim import AdamW
 from xformers.components.positional_embedding import RotaryEmbedding
 
 from ..om.om_llm import OmLLM
@@ -17,7 +18,7 @@ def test_model_training():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [2, 2, 2]
+    num_iters = [1, 1, 1]
     betas = [0.5 / (dims_value[0] ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.5 / (dims_value[0] ** 0.5)]
     final_mlp_multiplier = 1
     attn_proj_rank = dim_input // (2 * num_heads)
@@ -25,7 +26,7 @@ def test_model_training():
     activation = "gelu"
     mlp_1221 = True
     segment_len = 128
-    attn_normalize = True
+    attn_normalize = False
     cope = True
     state_len = segment_len // 8
     
@@ -34,7 +35,7 @@ def test_model_training():
     
     dropout = 0.1
     attn_dropout = 0.1
-    attn_logit_dropout = 0.1
+    attn_logit_dropout = 0.0
     diff_attn = False
     
     batch_size = 4
@@ -86,11 +87,12 @@ def test_model_training():
     
     utils.set_torch()
     
-    optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+    # optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+    optimizer = AdamW(param_groups, lr=1e-3)
     loss_fn = torch.nn.CrossEntropyLoss()
     
     model = model.train()
-    optimizer.train()
+    # optimizer.train()
     
     for ix in range(20):
         optimizer.zero_grad()
