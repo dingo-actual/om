@@ -597,6 +597,8 @@ class StatefulCausalAttentionHead(nn.Module):
             and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
                 
         """
+        dtype = x.dtype
+        
         if skip_update_state:
             x_state_start = x[:, :self.state_len, :]
             x = x[:, self.state_len:, :]
@@ -645,7 +647,7 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             bias = None
         
-        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(x.dtype)
+        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(dtype)
         
         return att
     
@@ -820,6 +822,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             and (batch_size, seq_len + state_len, 2 * dim_value) if skip_update_state is True.
                 
         """
+        dtype = x.dtype
+        
         if skip_update_state:
             x_state_start = x[:, :self.state_len, :]
             x = x[:, self.state_len:, :]
@@ -888,7 +892,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state)
         
-        return self.out_norm(att).to(x.dtype)
+        return self.out_norm(att).to(dtype)
     
 class StatefulCausalHopfieldAttentionHead(nn.Module):
     """Implements a Stateful Causal Hopfield Attention Head module."""

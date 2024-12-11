@@ -17,7 +17,7 @@ def test_model_training():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [2, 2, 2]
+    num_iters = [1, 1, 1]
     betas = [0.5 / (dims_value[0] ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.5 / (dims_value[0] ** 0.5)]
     final_mlp_multiplier = 1
     attn_proj_rank = dim_input // (2 * num_heads)
