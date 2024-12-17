@@ -1,7 +1,7 @@
 [
     {
         "stage_num": 1,
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 1,
         "dataloader_train_kwargs": {
             "batch_size": 1024,
             "num_workers": 8,
@@ -15,7 +15,7 @@
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.008,
+            "lr": 3.072,
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "gradient_clip_val": 0.1,
@@ -27,7 +27,7 @@
     },
     {
         "stage_num": 2,
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 4,
         "dataloader_train_kwargs": {
             "batch_size": 128,
             "num_workers": 8,
@@ -41,7 +41,7 @@
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.001,
+            "lr": 0.384,
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "gradient_clip_val": 0.1,
@@ -53,9 +53,9 @@
     },
     {
         "stage_num": 3,
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 8,
         "dataloader_train_kwargs": {
-            "batch_size": 32,
+            "batch_size": 64,
             "num_workers": 8,
             "prefetch_factor": 2,
             "pin_memory": true
@@ -67,7 +67,7 @@
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.00025,
+            "lr": 0.192,
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "gradient_clip_val": 0.1,
@@ -79,21 +79,21 @@
     },
     {
         "stage_num": 4,
-        "gradient_accumulation_steps": 4,
+        "gradient_accumulation_steps": 16,
         "dataloader_train_kwargs": {
-            "batch_size": 8,
-            "num_workers": 4,
+            "batch_size": 32,
+            "num_workers": 8,
             "prefetch_factor": 2,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
-            "batch_size": 8,
-            "num_workers": 4,
+            "batch_size": 32,
+            "num_workers": 8,
             "prefetch_factor": 2,
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.0000625,
+            "lr": 0.096,
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "gradient_clip_val": 0.1,

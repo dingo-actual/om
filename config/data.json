@@ -5,22 +5,22 @@
             "dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\train",
             "match": ".json",
             "files_per_stage": [
-                98,
-                395,
-                593,
-                889
+                1519,
+                138,
+                13,
+                4
             ],
             "batch_size_per_stage": [
-                988,
-                122,
-                26,
-                7
+                986,
+                245,
+                124,
+                63
             ],
             "segment_lens": [
-                512,
-                4096,
-                32768,
-                262144
+                2048,
+                8192,
+                16384,
+                32768
             ]
         },
         {
@@ -28,22 +28,22 @@
             "dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\train",
             "match": ".json",
             "files_per_stage": [
-                5,
-                28,
-                199,
-                334
+                87,
+                7,
+                1,
+                2
             ],
             "batch_size_per_stage": [
-                36,
-                6,
-                6,
+                38,
+                11,
+                4,
                 1
             ],
             "segment_lens": [
-                512,
-                4096,
-                32768,
-                262144
+                2048,
+                8192,
+                16384,
+                32768
             ]
         }
     ],
@@ -53,22 +53,22 @@
             "dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\validation",
             "match": ".json",
             "files_per_stage": [
-                11,
-                43,
-                66,
-                99
+                162,
+                16,
+                2,
+                2
             ],
             "batch_size_per_stage": [
-                988,
-                122,
-                26,
-                7
+                986,
+                245,
+                124,
+                63
             ],
             "segment_lens": [
-                512,
-                4096,
-                32768,
-                262144
+                2048,
+                8192,
+                16384,
+                32768
             ]
         },
         {
@@ -76,22 +76,22 @@
             "dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\validation",
             "match": ".json",
             "files_per_stage": [
+                10,
                 1,
-                3,
-                22,
-                37
+                1,
+                2
             ],
             "batch_size_per_stage": [
-                36,
-                6,
-                6,
+                38,
+                11,
+                4,
                 1
             ],
             "segment_lens": [
-                512,
-                4096,
-                32768,
-                262144
+                2048,
+                8192,
+                16384,
+                32768
             ]
         }
     ]
