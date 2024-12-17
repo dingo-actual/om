@@ -5,7 +5,8 @@ from torch import nn
 from xformers.components.positional_embedding import RotaryEmbedding
 
 from .activations import ACTIVATIONS
-from .arc_memory import ARC
+from .arc_memory_unstacked import ARCUnstacked
+from .arc_memory_stacked import ARCStacked
 
 
 class ARCformer(nn.Module):
@@ -34,6 +35,7 @@ class ARCformer(nn.Module):
         attn_proj_rank: int = -1,
         mlp_multiplier: int = 1,
         mlp_1221: bool = False,
+        stacked_attn: bool = True,
     ):
         """Initializes the module.
 
@@ -59,27 +61,47 @@ class ARCformer(nn.Module):
             attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use dim_input // num_heads. Defaults to -1.
             mlp_multiplier (int, optional): Multiplier for the hidden state dimensions of the MLP. Defaults to 1.
             mlp_1221 (bool, optional): Whether to use the 1-2-2-1 MLP architecture. Defaults to False.
+            stacked_attn (bool, optional): Whether to use stacked attention. Defaults to True.
         """
         super(ARCformer, self).__init__()
 
         # Multi-head attention
-        self.attn = ARC(
-            dim_input=dim_input, 
-            dims_key=dims_key, 
-            dims_value=dims_value, 
-            num_iters=num_iters,
-            num_heads=num_heads, 
-            segment_len=segment_len, 
-            state_len=state_len, 
-            dropout=attn_logit_dropout,
-            betas=betas,
-            attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
-            num_layers=num_layers,
-            layer_num=layer_num,
-            cope=cope,
-            diff_attn=diff_attn,
-            position_embedders=position_embedders
-        )
+        if stacked_attn:
+            self.attn = ARCStacked(
+                dim_input=dim_input, 
+                dims_key=dims_key, 
+                dims_value=dims_value, 
+                num_iters=num_iters,
+                num_heads=num_heads, 
+                segment_len=segment_len, 
+                state_len=state_len, 
+                dropout=attn_logit_dropout,
+                betas=betas,
+                attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
+                num_layers=num_layers,
+                layer_num=layer_num,
+                cope=cope,
+                diff_attn=diff_attn,
+                position_embedders=position_embedders
+            )
+        else:
+            self.attn = ARCUnstacked(
+                dim_input=dim_input, 
+                dims_key=dims_key, 
+                dims_value=dims_value, 
+                num_iters=num_iters,
+                num_heads=num_heads, 
+                segment_len=segment_len, 
+                state_len=state_len, 
+                dropout=attn_logit_dropout,
+                betas=betas,
+                attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
+                num_layers=num_layers,
+                layer_num=layer_num,
+                cope=cope,
+                diff_attn=diff_attn,
+                position_embedders=position_embedders
+            )
         self.mlp_multiplier = mlp_multiplier
         self.mlp_1221 = mlp_1221
         self.num_layers = num_layers

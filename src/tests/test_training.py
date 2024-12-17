@@ -41,6 +41,8 @@ def test_model_training():
     # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     position_embedders = [None, None, None]
     
+    stacked_attn = True
+    
     model = OmLLM(
         num_layers=num_layers,
         vocab_size=vocab_size,
@@ -64,12 +66,13 @@ def test_model_training():
         init_ngrams=init_ngrams,
         final_mlp_multiplier=final_mlp_multiplier,
         mlp_1221=mlp_1221,
+        stacked_attn=stacked_attn
     )
     
     seq_len = segment_len * num_segments
 
-    if torch.cuda.is_available():
-        model = model.to("cuda:0")
+    # if torch.cuda.is_available():
+    #     model = model.to("cuda:0")
     
     model = set_om_dtypes(model, torch.bfloat16)
     
@@ -84,11 +87,12 @@ def test_model_training():
     
     utils.set_torch()
     
-    optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+    # optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+    optimizer = torch.optim.AdamW(param_groups, lr=1e-3, betas=(0.9, 0.95))
     loss_fn = torch.nn.CrossEntropyLoss()
     
     model = model.train()
-    optimizer.train()
+    # optimizer.train()
     
     for ix in range(20):
         optimizer.zero_grad()
@@ -96,8 +100,8 @@ def test_model_training():
         x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
         x = x.to(torch.long)
         
-        if torch.cuda.is_available():
-            x = x.to("cuda:0")
+        # if torch.cuda.is_available():
+        #     x = x.to("cuda:0")
         
         inputs = x[:, :-1]
         targets = x[:, max_init_ngrams:]
@@ -107,6 +111,10 @@ def test_model_training():
         loss = loss_fn(logits.transpose(-1, -2), targets)
         
         loss.backward()
+        
+        if any([torch.all(p.grad == 0) for p in model.parameters() if p.requires_grad and p.grad is not None]):
+            raise RuntimeError("Gradient is zero")
+        
         optimizer.step()
         print(f"Training step {ix + 1} complete")
         

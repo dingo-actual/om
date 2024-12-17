@@ -31,6 +31,7 @@ class OmLLM(torch.nn.Module):
         init_ngrams: List[int] = [],
         final_mlp_multiplier: int = 1,
         mlp_1221: bool = False,
+        stacked_attn: bool = True,
     ):
         """Initialize the model.
 
@@ -57,6 +58,7 @@ class OmLLM(torch.nn.Module):
             init_ngrams_ranks (List[int], optional): Initial n-gram projection layer ranks. Defaults to [] (unigrams).
             final_mlp_multiplier (int, optional): Multiplier for the hidden state dimension of the final MLP. Defaults to 1.
             mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
+            stacked_attn (bool, optional): Use stacked attention. Defaults to True.
         """
         super(OmLLM, self).__init__()
         
@@ -112,7 +114,8 @@ class OmLLM(torch.nn.Module):
                     attn_dropout=attn_dropout,
                     attn_logit_dropout=attn_logit_dropout,
                     attn_proj_rank=attn_proj_rank,
-                    mlp_1221=mlp_1221
+                    mlp_1221=mlp_1221,
+                    stacked_attn=stacked_attn,
                 )
             )
         layers.append(
@@ -137,7 +140,8 @@ class OmLLM(torch.nn.Module):
                 attn_logit_dropout=attn_logit_dropout,
                 attn_proj_rank=attn_proj_rank,
                 mlp_multiplier=final_mlp_multiplier,
-                mlp_1221=mlp_1221
+                mlp_1221=mlp_1221,
+                stacked_attn=stacked_attn,
             )
         )
         self.layers = torch.nn.ModuleList(layers)
@@ -208,7 +212,7 @@ class OmLLM(torch.nn.Module):
                     
                 x_seg_next = x_seg_emb_[:, drop_num:, :]
             
-            skip_update_states = next_token and segment_num == num_segments - 1 and rem > 0
+            skip_update_states = next_token and (segment_num == num_segments - 1) and (rem > 0)
             
             if not skip_update_states:
                 states_next = []

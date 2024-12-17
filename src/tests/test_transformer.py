@@ -34,6 +34,8 @@ def test_arc_transformer():
     # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     position_embedders = [None for _ in dims_key]
     cope = True
+    
+    stacked_attn = True
 
     layer = ARCformer(
         dim_input=dim_input,
@@ -56,7 +58,8 @@ def test_arc_transformer():
         attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
         mlp_multiplier=mlp_multiplier,
-        mlp_1221=mlp_1221
+        mlp_1221=mlp_1221,
+        stacked_attn=stacked_attn,
     )
 
     batch_size = 2

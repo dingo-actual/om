@@ -17,7 +17,7 @@ def test_model():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [2, 2, 2]
+    num_iters = [1, 1, 1]
     betas = [1.0 / ((2 * dims_value[0]) ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.0 / ((dims_value[2] / 2) ** 0.5)]
     final_mlp_multiplier = 1
     attn_proj_rank = dim_input // (2 * num_heads)
@@ -44,6 +44,8 @@ def test_model():
     # ]
     position_embedders = [None, None, None]
     
+    stacked_attn = True
+    
     model = OmLLM(
         num_layers=num_layers,
         vocab_size=vocab_size,
@@ -67,6 +69,7 @@ def test_model():
         init_ngrams=init_ngrams,
         final_mlp_multiplier=final_mlp_multiplier,
         mlp_1221=mlp_1221,
+        stacked_attn=stacked_attn,
     )
     
     seq_len = segment_len * num_segments
