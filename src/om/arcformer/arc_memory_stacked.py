@@ -464,15 +464,7 @@ class StatefulCausalAttention(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            if not skip_update_state:
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
-            
             q, k = self.position_embedder(q, k)
-            
-            if not skip_update_state:
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
         
         device = q.device
         
@@ -683,21 +675,9 @@ class StatefulCausalDiffAttention(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            if not skip_update_state:
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
-            
             q1, k1 = self.position_embedder(q1, k1)
             q2, k2 = self.position_embedder(q2, k2)
             
-            if not skip_update_state:
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
-        
         # If bias is specified, apply it to the attention for non-state tokens
         if bias1 is None:
             attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(2), q.size(2)), fill_value=float("-inf")), diagonal=1)

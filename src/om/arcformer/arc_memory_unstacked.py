@@ -290,8 +290,7 @@ class StatefulCausalMultiAttention(nn.Module):
         if dims_value[-1] != attn_proj_rank:
             diff_attn_mult = 2 if diff_attn else 1
             self.proj_out = nn.Linear(diff_attn_mult * dims_value[-1], attn_proj_rank, bias=False)
-            self.proj_out_state_start = nn.Linear(diff_attn_mult * dims_value[-1], attn_proj_rank, bias=False)
-            self.proj_out_state_end = nn.Linear(diff_attn_mult * dims_value[-1], attn_proj_rank, bias=False)
+            self.proj_out_state = nn.Linear(diff_attn_mult * dims_value[-1], attn_proj_rank, bias=False)
             self.use_out_proj = True
         else:
             self.use_out_proj = False
@@ -300,8 +299,7 @@ class StatefulCausalMultiAttention(nn.Module):
             if any(n != 1 for n in self.num_iters):
                 raise ValueError("num_iters must all be 1 for diff_attn=True")
             proj_modules = []
-            proj_modules_state_start = []
-            proj_modules_state_end = []
+            proj_modules_state = []
             attn_modules = [
                 StatefulCausalDiffAttentionHead(
                     dim_input=dim_input,
@@ -365,10 +363,7 @@ class StatefulCausalMultiAttention(nn.Module):
                 proj_modules.append(
                     nn.Linear(2 * dims_value[ix-1], dims_value[ix-1], bias=False)
                 )
-                proj_modules_state_start.append(
-                    nn.Linear(2 * dims_value[ix-1], dims_value[ix-1], bias=False)
-                )
-                proj_modules_state_end.append(
+                proj_modules_state.append(
                     nn.Linear(2 * dims_value[ix-1], dims_value[ix-1], bias=False)
                 )
             else:
@@ -403,8 +398,7 @@ class StatefulCausalMultiAttention(nn.Module):
                     
         if diff_attn:
             self.proj_modules = nn.ModuleList(proj_modules)
-            self.proj_modules_state_start = nn.ModuleList(proj_modules_state_start)
-            self.proj_modules_state_end = nn.ModuleList(proj_modules_state_end)
+            self.proj_modules_state = nn.ModuleList(proj_modules_state)
                 
         self.attn_modules = nn.ModuleList(attn_modules)
         
@@ -432,9 +426,9 @@ class StatefulCausalMultiAttention(nn.Module):
                         x_state_start, x, x_state_end = extract_state(x, self.state_len)
                     
                     x = self.proj_modules[ix](x)
-                    x_state_start = self.proj_modules_state_start[ix](x_state_start)
+                    x_state_start = self.proj_modules_state[ix](x_state_start)
                     if not skip_update_state:
-                        x_state_end = self.proj_modules_state_end[ix](x_state_end)
+                        x_state_end = self.proj_modules_state[ix](x_state_end)
                     
                     if skip_update_state:
                         x = torch.concat([x_state_start, x], dim=1)
@@ -452,9 +446,9 @@ class StatefulCausalMultiAttention(nn.Module):
                 x_state_start, x, x_state_end = extract_state(x, self.state_len)
             
             x = self.proj_out(x)
-            x_state_start = self.proj_out_state_start(x_state_start)
+            x_state_start = self.proj_out_state(x_state_start)
             if not skip_update_state:
-                x_state_end = self.proj_out_state_end(x_state_end)
+                x_state_end = self.proj_out_state(x_state_end)
             
             if skip_update_state:
                 x = torch.concat([x_state_start, x], dim=1)
@@ -543,15 +537,7 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            if not skip_update_state:
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
-            
             q, k = self.position_embedder(q, k)
-            
-            if not skip_update_state:
-                q = reverse_state_end(q, self.state_len)
-                k = reverse_state_end(k, self.state_len)
         
         device = q.device
         
@@ -753,20 +739,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            if not skip_update_state:
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
-            
             q1, k1 = self.position_embedder(q1, k1)
             q2, k2 = self.position_embedder(q2, k2)
-            
-            if not skip_update_state:
-                q1 = reverse_state_end(q1, self.state_len)
-                q2 = reverse_state_end(q2, self.state_len)
-                k1 = reverse_state_end(k1, self.state_len)
-                k2 = reverse_state_end(k2, self.state_len)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias1 is None:
