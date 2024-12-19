@@ -4,9 +4,16 @@ from xformers.components.positional_embedding import RotaryEmbedding
 
 from ..om.om_llm import OmLLM
 from ..om.utils import set_om_dtypes
+from ..om.arcformer.util import check_if_linux
 
 
 def test_model_training():
+    linux = check_if_linux()
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
+    
     num_layers = 4
     vocab_size = 1024
     
@@ -34,14 +41,14 @@ def test_model_training():
     dropout = 0.1
     attn_dropout = 0.1
     attn_logit_dropout = 0.0
-    diff_attn = False
+    diff_attn = True
     
     batch_size = 4
     num_segments = 4
     # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     position_embedders = [None, None, None]
     
-    stacked_attn = True
+    stacked_attn = linux
     
     model = OmLLM(
         num_layers=num_layers,
@@ -71,9 +78,7 @@ def test_model_training():
     
     seq_len = segment_len * num_segments
 
-    # if torch.cuda.is_available():
-    #     model = model.to("cuda:0")
-    
+    model = model.to(device=device)
     model = set_om_dtypes(model, torch.bfloat16)
     
     wd_ignore_groups = ["bias", "norm"]
@@ -85,23 +90,25 @@ def test_model_training():
         {"params": no_wd_params, "weight_decay": 0.0}
     ]
     
-    utils.set_torch()
-    
-    # optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
-    optimizer = torch.optim.AdamW(param_groups, lr=1e-3, betas=(0.9, 0.95))
+    if linux:
+        utils.set_torch()
+        optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+    else:
+        optimizer = torch.optim.AdamW(param_groups, lr=1e-3, betas=(0.9, 0.95))
+        
     loss_fn = torch.nn.CrossEntropyLoss()
     
     model = model.train()
-    # optimizer.train()
+    
+    if linux:
+        optimizer.train()
     
     for ix in range(20):
         optimizer.zero_grad()
         
         x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
         x = x.to(torch.long)
-        
-        # if torch.cuda.is_available():
-        #     x = x.to("cuda:0")
+        x = x.to(device=device)
         
         inputs = x[:, :-1]
         targets = x[:, max_init_ngrams:]

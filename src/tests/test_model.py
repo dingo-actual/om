@@ -7,6 +7,11 @@ from ..om.utils import set_om_dtypes
 
 
 def test_model():
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
+    
     num_layers = 8
     vocab_size = 50283
     
@@ -39,9 +44,7 @@ def test_model():
     batch_size = 2
     num_segments = 4
     
-    # position_embedders = [
-    #     RotaryEmbedding(dim) for dim in dims_key
-    # ]
+    # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
     position_embedders = [None, None, None]
     
     stacked_attn = True
@@ -76,9 +79,8 @@ def test_model():
     x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
     x = x.to(torch.long)
 
-    if torch.cuda.is_available():
-        model = model.to("cuda:0")
-        x = x.to("cuda:0")
+    model = model.to(device=device)
+    x = x.to(device=device)
     
     model = set_om_dtypes(model, torch.bfloat16)
     model.eval()  # Set the model to evaluation mode

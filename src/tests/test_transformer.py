@@ -9,6 +9,11 @@ from ..om.utils import set_om_dtypes
 
 
 def test_arc_transformer():
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
+    
     dim_input = 1024
     num_heads = 8
     dim_hidden = 4 * dim_input
@@ -67,10 +72,9 @@ def test_arc_transformer():
     x = torch.randn(batch_size, seq_len, dim_input).to(torch.bfloat16)
     state = torch.randn(batch_size, state_len, dim_input).to(torch.bfloat16)
     
-    if torch.cuda.is_available():
-        layer = layer.cuda()
-        x = x.cuda()
-        state = state.cuda()
+    layer = layer.to(device=device)
+    x = x.to(device=device)
+    state = state.to(device=device)
 
     layer = set_om_dtypes(layer, torch.bfloat16)
     layer.eval()  # Set the layer to evaluation mode
