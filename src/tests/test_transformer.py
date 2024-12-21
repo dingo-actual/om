@@ -1,9 +1,6 @@
-# tests/test_transformer.py
-
 import torch
-from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..om.arcformer import ARCformer
+from ..om.arcformer import ARCformer, RoPEEmbeddings
 from ..om.arcformer.util import count_optimized_parameters
 from ..om.utils import set_om_dtypes
 
@@ -35,12 +32,19 @@ def test_arc_transformer():
     diff_attn = False
     layer_num = 0
     
-    # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
-    position_embedders = [None for _ in dims_key]
+    stacked_attn = True
+    
+    position_embedders = [
+        RoPEEmbeddings(
+            dim, 
+            seq_len=segment_len + 2 * state_len, 
+            num_dims=4 if stacked_attn else 3, 
+            device=device
+        ) 
+        for dim in dims_key
+    ]
     cope = True
     
-    stacked_attn = True
-
     layer = ARCformer(
         dim_input=dim_input,
         dim_hidden=dim_hidden,

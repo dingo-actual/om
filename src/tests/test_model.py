@@ -1,8 +1,8 @@
 import torch
-from xformers.components.positional_embedding import RotaryEmbedding
 
 from ..om.arcformer.util import count_optimized_parameters
 from ..om.om_llm import OmLLM
+from ..om.arcformer import RoPEEmbeddings
 from ..om.utils import set_om_dtypes
 
 
@@ -43,10 +43,17 @@ def test_model():
     batch_size = 2
     num_segments = 4
     
-    # position_embedders = [RotaryEmbedding(dim) for dim in dims_key]
-    position_embedders = [None, None, None]
-    
     stacked_attn = True
+    
+    position_embedders = [
+        RoPEEmbeddings(
+            dim, 
+            seq_len=segment_len + 2 * state_len, 
+            num_dims=4 if stacked_attn else 3,
+            device=device
+        )
+        for dim in dims_key
+    ]
     
     model = OmLLM(
         num_layers=num_layers,
