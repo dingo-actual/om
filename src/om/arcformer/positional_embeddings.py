@@ -89,11 +89,11 @@ class RoPEEmbeddings(torch.nn.Module):
         
         # If the sequence length is less than the maximum sequence length, perform calculations
         # with truncated cos_component and sin_component, along the sequence axis
-        if x.size(1) < self.seq_len:
-            x_cos = self.thetas.cos()[..., :x_pos.size(1), :].repeat(*repeats) * x_pos
+        if x.size(-2) < self.seq_len:
+            x_cos = self.thetas.cos()[..., :x_pos.size(-2), :].repeat(*repeats) * x_pos
             x_sin = x_pos[..., self.ixs_sin]
             x_sin[..., self.ixs_sin_neg] = -x_sin[..., self.ixs_sin_neg]
-            x_sin *= self.thetas.sin()[..., :x_pos.size(1), :].repeat(*repeats)
+            x_sin *= self.thetas.sin()[..., :x_pos.size(-2), :].repeat(*repeats)
         # Otherwise, perform calculations with the full cos_component and sin_component
         else:
             x_cos = self.thetas.cos().repeat(*repeats) * x_pos

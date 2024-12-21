@@ -563,7 +563,7 @@ class StatefulCausalAttention(nn.Module):
         else:
             bias = None
         
-        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(dtype)
+        att = self.apply_attention(q, k, v, bias=bias).to(dtype)
         
         return att
     
@@ -810,7 +810,7 @@ class StatefulCausalDiffAttention(nn.Module):
             bias1 = None
             bias2 = None
         
-        att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state)
+        att = self.apply_attention(q, k, v, bias=(bias1, bias2))
         
         att = torch.concatenate(
             [norm(att[:, ix, :, :].to(torch.float32).to(dtype)).unsqueeze(1) for ix, norm in enumerate(self.out_norms)],
