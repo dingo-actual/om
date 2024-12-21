@@ -8,7 +8,7 @@
     "num_iters": [1, 1, 1],
     "num_heads": 8,
     "activation": "gelu",
-    "segment_len": 2048,
+    "segment_len": 1024,
     "state_len": 256,
     "cope": true,
     "position_embedders": [null, null, null],
