@@ -24,7 +24,6 @@ def test_model():
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [1, 1, 1]
     betas = [1.0 / ((2 * dims_value[0]) ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.0 / ((dims_value[2] / 2) ** 0.5)]
-    final_mlp_multiplier = 1
     attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
@@ -70,7 +69,6 @@ def test_model():
         attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
         init_ngrams=init_ngrams,
-        final_mlp_multiplier=final_mlp_multiplier,
         mlp_1221=mlp_1221,
         stacked_attn=stacked_attn,
     )

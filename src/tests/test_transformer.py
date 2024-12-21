@@ -28,7 +28,6 @@ def test_arc_transformer():
     segment_len = 1024
     state_len = segment_len // 8
     num_layers = 8
-    mlp_multiplier = 1
     
     dropout = 0.1
     attn_dropout = 0.1
@@ -62,7 +61,6 @@ def test_arc_transformer():
         attn_dropout=attn_dropout,
         attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
-        mlp_multiplier=mlp_multiplier,
         mlp_1221=mlp_1221,
         stacked_attn=stacked_attn,
     )
