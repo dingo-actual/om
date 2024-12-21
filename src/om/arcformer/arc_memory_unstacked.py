@@ -3,10 +3,10 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 from torch import nn
-from xformers.components.positional_embedding import RotaryEmbedding
 from xformers.ops import memory_efficient_attention, LowerTriangularMask
 
-from .util import check_if_linux, extract_state, reverse_state_end, split_last_dim
+from .positional_embeddings import RoPEEmbeddings
+from .util import check_if_linux, extract_state, split_last_dim
 
 
 class ARCUnstacked(nn.Module):
@@ -28,7 +28,7 @@ class ARCUnstacked(nn.Module):
         layer_num: int,
         cope: bool,
         diff_attn: bool,
-        position_embedders: List[Optional[RotaryEmbedding]]
+        position_embedders: List[Optional[RoPEEmbeddings]]
     ):
         """Initialize module.
 
@@ -47,7 +47,7 @@ class ARCUnstacked(nn.Module):
             layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
-            position_embedders (List[Optional[RotaryEmbedding]]): Position embedding modules.
+            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
         """
         super(ARCUnstacked, self).__init__()
 
@@ -162,7 +162,7 @@ class StatefulCausalMHMA(nn.Module):
         cope: bool,
         diff_attn: bool,
         layer_num: int,
-        position_embedders: List[Optional[RotaryEmbedding]],
+        position_embedders: List[Optional[RoPEEmbeddings]],
     ):
         """Initializes the module
 
@@ -180,7 +180,7 @@ class StatefulCausalMHMA(nn.Module):
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer.
-            position_embedders (List[Optional[RotaryEmbedding]]): The position embedder to use.
+            position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
         """
         super(StatefulCausalMHMA, self).__init__()
         
@@ -253,7 +253,7 @@ class StatefulCausalMultiAttention(nn.Module):
         cope: bool,
         diff_attn: bool,
         layer_num: int,
-        position_embedders: List[Optional[RotaryEmbedding]],
+        position_embedders: List[Optional[RoPEEmbeddings]],
     ):
         """Initializes the module
 
@@ -270,7 +270,7 @@ class StatefulCausalMultiAttention(nn.Module):
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer. Only used if diff_attn is True.
-            position_embedder (List[Optional[RotaryEmbedding]]): The position embedder to use.
+            position_embedder (List[Optional[RoPEEmbeddings]]): The position embedder to use.
         """
         super(StatefulCausalMultiAttention, self).__init__()
         
@@ -469,7 +469,7 @@ class StatefulCausalAttentionHead(nn.Module):
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RotaryEmbedding] = None,
+        position_embedder: Optional[RoPEEmbeddings] = None,
     ):
         """Initializes the module
 
@@ -482,7 +482,7 @@ class StatefulCausalAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             cope (bool, optional): Whether to use CoPE. Defaults to False.
-            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalAttentionHead, self).__init__()
         
@@ -517,7 +517,6 @@ class StatefulCausalAttentionHead(nn.Module):
         k: torch.Tensor, 
         v: torch.Tensor, 
         bias: Optional[torch.Tensor] = None,
-        skip_update_state: bool = False
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -527,7 +526,6 @@ class StatefulCausalAttentionHead(nn.Module):
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_key).
             bias (Optional[torch.Tensor]): Attention bias vector of shape (batch_size, seq_len, seq_len).
-            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
             
         Returns:
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is False
@@ -537,7 +535,7 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            q, k = self.position_embedder(q, k)
+            q, k = self.position_embedder(q), self.position_embedder(k)
         
         device = q.device
         
@@ -649,7 +647,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         dropout: float = 0.0,
         scaling_factor: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RotaryEmbedding] = None,
+        position_embedder: Optional[RoPEEmbeddings] = None,
     ):
         """Initializes the module
 
@@ -662,7 +660,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             layer_num (int): The position of the layer.
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
-            position_embedder (Optional[RotaryEmbedding], optional): The position embedder to use. Defaults to None.
+            position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
         """
         super(StatefulCausalDiffAttentionHead, self).__init__()
         
@@ -712,7 +710,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         k: torch.Tensor, 
         v: torch.Tensor, 
         bias: Tuple[Optional[torch.Tensor], Optional[torch.Tensor]] = (None, None),
-        skip_update_state: bool = False
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -722,7 +719,6 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
             bias (Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]): Attention bias tensors of shape (batch_size, seq_len, seq_len).
-            skip_update_state (bool, optional): Whether to skip updating the state. Defaults to False.
             
         Returns:
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
@@ -739,8 +735,8 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
-            q1, k1 = self.position_embedder(q1, k1)
-            q2, k2 = self.position_embedder(q2, k2)
+            q1, k1 = self.position_embedder(q1), self.position_embedder(k1)
+            q2, k2 = self.position_embedder(q2), self.position_embedder(k2)
         
         # If bias is specified, apply it to the attention for non-state tokens
         if bias1 is None:
@@ -876,7 +872,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
         dropout: float = 0.0,
         beta: Optional[float] = None,
         cope: bool = False,
-        position_embedder: Optional[RotaryEmbedding] = None,
+        position_embedder: Optional[RoPEEmbeddings] = None,
     ):
         """Initializes the module
 
@@ -889,7 +885,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             beta (Optional[float], optional): The beta value (inverse temperature). Defaults to None.
             cope (bool, optional): Whether to use CoPE. Defaults to False.
-            position_embedder (Optional[RotaryEmbedding], optional): Ignored. Only used to keep the interface consistent with other classes.
+            position_embedder (Optional[RoPEEmbeddings], optional): Ignored. Only used to keep the interface consistent with other classes.
         """
         super(StatefulCausalHopfieldAttentionHead, self).__init__()
         

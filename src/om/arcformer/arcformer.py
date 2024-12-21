@@ -2,11 +2,11 @@ from typing import List, Optional, Tuple
 
 import torch
 from torch import nn
-from xformers.components.positional_embedding import RotaryEmbedding
 
 from .activations import ACTIVATIONS
 from .arc_memory_unstacked import ARCUnstacked
 from .arc_memory_stacked import ARCStacked
+from .positional_embeddings import RoPEEmbeddings
 
 
 class ARCformer(nn.Module):
@@ -26,7 +26,7 @@ class ARCformer(nn.Module):
         num_layers: int,
         layer_num: int,
         cope: bool,
-        position_embedders: List[Optional[RotaryEmbedding]],
+        position_embedders: List[Optional[RoPEEmbeddings]],
         betas: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
@@ -51,7 +51,7 @@ class ARCformer(nn.Module):
             num_layers (int): Number of ARC transformer layers in the parent model.
             layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE for the memory modules.
-            position_embedders (List[Optional[RotaryEmbedding]]): Position embedding modules for the memory modules.
+            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factors for SDP attention.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             diff_attn (bool, optional): Whether to use diff attention. Defaults to False.

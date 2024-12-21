@@ -1,9 +1,8 @@
 from typing import List, Optional, Tuple
 
 import torch
-from xformers.components.positional_embedding import RotaryEmbedding
 
-from ..arcformer import ARCformer
+from ..arcformer import ARCformer, RoPEEmbeddings
 from .ngram_embedding import NGramEmbedding
 
 class OmLLM(torch.nn.Module):
@@ -21,7 +20,7 @@ class OmLLM(torch.nn.Module):
         segment_len: int,
         state_len: int,
         cope: bool,
-        position_embedders: List[Optional[RotaryEmbedding]],
+        position_embedders: List[Optional[RoPEEmbeddings]],
         betas: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
@@ -47,7 +46,7 @@ class OmLLM(torch.nn.Module):
             segment_len (int): Segment length.
             state_len (int): State length (in tokens).
             cope (bool): Use CoPE for ARCformer memory.
-            position_embedders (List[Optional[RotaryEmbedding]]): Position embedders for each memory layer in ARCformer.
+            position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Dropout rate for attention outputs. Defaults to 0.0.

@@ -9,12 +9,13 @@ class RoPEEmbeddings(torch.nn.Module):
     (https://arxiv.org/abs/2104.09864).
     
     Modifications have been made to make it compatible with ARC."""
-    def __init__(self, dim: int, seq_len: int, dim_embedding_pct: float = 0.5, base: int = 10000, device: str = 'cpu'):
+    def __init__(self, dim: int, seq_len: int, num_dims: int, dim_embedding_pct: float = 0.5, base: int = 10000, device: str = 'cpu'):
         """Instantiate the module.
 
         Args:
             dim (int): Query/Key dimension of the attention layer.
             seq_len (int): Maximum sequence length.
+            num_dims (int): Number of dimensions for inputs.
             dim_embedding_pct (float): Percentage of the total embedding dimension to use for the positional embeddings. Must be within the interval (0, 1]. Defaults to 0.5.
             base (int, optional): Base used for calculating thetas. Defaults to 10000.
         """
@@ -24,12 +25,18 @@ class RoPEEmbeddings(torch.nn.Module):
         self.dim = dim
         self.effective_dim = math.ceil(dim * dim_embedding_pct)
         self.seq_len = seq_len
+        self.num_dims = num_dims
         self.dim_embedding_pct = dim_embedding_pct
         self.base = base
-        self.last_offset = 0
         self.device = device
         
-        self.thetas = torch.empty((1, seq_len, self.effective_dim), dtype=torch.float32, device=device)
+        if num_dims == 3:
+            self.thetas = torch.empty((1, seq_len, self.effective_dim), dtype=torch.float32, device=device)
+        elif num_dims == 4:
+            self.thetas = torch.empty((1, 1, seq_len, self.effective_dim), dtype=torch.float32, device=device)
+        else:
+            raise ValueError("num_dims must be 3 or 4")
+        
         self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
@@ -40,16 +47,10 @@ class RoPEEmbeddings(torch.nn.Module):
         self.ixs_sin[self.ixs_sin_neg] = self.ixs_sin_neg + 1
         self.ixs_sin[self.ixs_sin_neg + 1] = self.ixs_sin_neg
         
-        
-        
-    def _calculate_thetas(self, offset: int = 0) -> None:
+    def _calculate_thetas(self) -> None:
         """Calculate the cosine and sine component matrices for the rotary positional embeddings.
         Uses multidimensional extension of theta as defined in Sec 3.2.2 as well as equation (34)
-        from the RoFormer paper
-
-        Args:
-            offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
-        """
+        from the RoFormer paper"""
         device = self.thetas.device
         dtype = self.thetas.dtype
         # Calculate matrix of angles: thetas[i,j] = base^(-2 * ceil(i/2)) * (j + offset)
@@ -59,47 +60,46 @@ class RoPEEmbeddings(torch.nn.Module):
             dim=0
         )
         # Multiply by index positions, then transpose to get correct shape
-        if offset < 0:
-            mults = torch.cat([torch.ones(-offset, device=device, dtype=dtype), torch.arange(1, self.seq_len + 1 + offset, device=device, dtype=dtype)], dim=0)
-        else:
-            mults = torch.arange(1 + offset, self.seq_len + 1 + offset, device=device, dtype=dtype)
+        mults = torch.arange(1, self.seq_len + 1, device=device, dtype=dtype)
         thetas *= mults.unsqueeze(0)
         self.thetas.data = thetas.transpose(0, 1).unsqueeze(0)
+        if self.num_dims == 4:
+            self.thetas.data.unsqueeze_(0)
         
-    def forward(self, x: torch.Tensor, offset: int = 0) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Applies rotary positional embeddings to the input tensor. Uses a multidimensional
         extension of equation (34) of the RoFormer paper.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim).
-            offset (int, optional): Position offset for ARC compatibility. Defaults to 0.
 
         Returns:
             torch.Tensor: Transformed input tensor with rotary positional embeddings applied.
         """
-        if offset != self.last_offset:
-            self._calculate_thetas(offset=offset)
-            self.last_offset = max(offset, 0)
-        
         if self.dim_embedding_pct < 1.0:
             x_pos = x[..., :self.effective_dim]
             x_pass = x[..., self.effective_dim:]
         else:
             x_pos = x
         
+        if self.num_dims == 3:
+            repeats = [x_pos.size(0), 1, 1]
+        else:
+            repeats = [x_pos.size(0), x_pos.size(1), 1, 1]
+        
         # If the sequence length is less than the maximum sequence length, perform calculations
         # with truncated cos_component and sin_component, along the sequence axis
         if x.size(1) < self.seq_len:
-            x_cos = self.thetas.cos()[:, :x_pos.size(1), :].repeat(x_pos.size(0), 1, 1) * x_pos
+            x_cos = self.thetas.cos()[..., :x_pos.size(1), :].repeat(*repeats) * x_pos
             x_sin = x_pos[..., self.ixs_sin]
-            x_sin[..., self.ixs_sin_neg] = -x_sin[...,self.ixs_sin_neg]
-            x_sin *= self.thetas.sin()[:, :x_pos.size(1), :].repeat(x_pos.size(0), 1, 1)
+            x_sin[..., self.ixs_sin_neg] = -x_sin[..., self.ixs_sin_neg]
+            x_sin *= self.thetas.sin()[..., :x_pos.size(1), :].repeat(*repeats)
         # Otherwise, perform calculations with the full cos_component and sin_component
         else:
-            x_cos = self.thetas.cos().repeat(x_pos.size(0), 1, 1) * x_pos
+            x_cos = self.thetas.cos().repeat(*repeats) * x_pos
             x_sin = x_pos[..., self.ixs_sin]
-            x_sin[..., self.ixs_sin_neg] = -x_sin[...,self.ixs_sin_neg]
-            x_sin *= self.thetas.sin().repeat(x_pos.size(0), 1, 1)
+            x_sin[..., self.ixs_sin_neg] = -x_sin[..., self.ixs_sin_neg]
+            x_sin *= self.thetas.sin().repeat(*repeats)
     
             
         # If the sequence length is less than the maximum sequence length, concatenate positionally embedded
