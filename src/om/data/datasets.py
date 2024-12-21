@@ -64,6 +64,17 @@ class FilesDataset(IterableDataset):
             self.current_file = orjson.loads(fp.read())
         
         return True
+    
+    def reset(self):
+        """Resets the dataset to its initial state."""
+        self.buffer = []
+        
+        self.current_file_ix = 0
+        self.current_obs_ix = 0
+        
+        _ = self.open_current_file()
+        
+        self.current_file_ix += 1
             
     def __iter__(self):
         """Iterate over the dataset."""
@@ -86,6 +97,7 @@ class FilesDataset(IterableDataset):
                 # Try to open current file; if no more files, raise StopIteration
                 success = self.open_current_file()
                 if not success:
+                    self.reset()
                     raise StopIteration
             else:
                 # Add next line to buffer
@@ -142,6 +154,7 @@ class ProportionalDataset(IterableDataset):
         except StopIteration:
             self.skip[self.current_dataset_ix] = True
             if all(self.skip):
+                self.reset()
                 raise StopIteration
             else:
                 return self.__next__()
@@ -150,3 +163,13 @@ class ProportionalDataset(IterableDataset):
             self.current_sample_ix += 1
 
         return sample
+    
+    def reset(self):
+        """Resets the dataset to its initial state"""
+        self.current_dataset_ix = 0
+        self.current_sample_ix = 0
+        
+        self.skip = [False if p > 0 else True for p in self.proportions]
+        
+        for dataset in self.datasets:
+            dataset.reset()
