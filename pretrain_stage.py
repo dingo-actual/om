@@ -6,11 +6,11 @@ from src import *
 from src.om.train.pretrain.train_stage import CHECKPOINT_DIR
 
 
-def main(config_path: str):
+def main(config_dir: str):
     # Get config filepaths
-    data_config_fpath = join(config_path, "data.json")
-    model_config_fpath = join(config_path, "model.json")
-    training_config_fpath = join(config_path, "training.json")
+    data_config_fpath = join(config_dir, "data.json")
+    model_config_fpath = join(config_dir, "model.json")
+    training_config_fpath = join(config_dir, "training.json")
     
     # Load configs
     with open(data_config_fpath, "r") as fp:
@@ -88,9 +88,9 @@ def main(config_path: str):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--config_path", type=str, default="config", help="Path to config directory")
+parser.add_argument("--config_dir", type=str, default="config", help="Path to config directory")
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    main(config_path=args.config_path)
+    main(config_dir=args.config_dir)

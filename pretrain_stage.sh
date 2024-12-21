@@ -1,1 +1,1 @@
-accelerate launch --multi-gpu --mixed-precition=bf16 pretrain_stage.py
+accelerate launch --config-path=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om/config
