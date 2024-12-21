@@ -2,6 +2,3 @@
 *__pycache__*
 data_one_pct/*
 download_data.py
-train.py
-pretrain.sh
-token_counts.json
