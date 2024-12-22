@@ -1,4 +1,4 @@
 {
-    "home": "/home/ubuntu/om-data",
-    "checkpoints": "/home/ubuntu/om-data/checkpoints"
+    "home": "/home/ubuntu/om-llm/om",
+    "checkpoints": "/home/ubuntu/om-llm/checkpoints"
 }

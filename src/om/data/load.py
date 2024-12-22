@@ -88,7 +88,7 @@ def get_dataset_stage(
 
 def get_datasets_stages(
     dirs: List[str], 
-    matches: List[str],
+    matches: List[List[str]],
     datasets_num_files: List[List[int]],
     segment_lens: List[int], 
     batch_sizes: List[int], 
@@ -103,7 +103,7 @@ def get_datasets_stages(
 
     Args:
         dirs (List[str]): Directories for each dataset segment.
-        matches (List[str]): File name match patterns for each dataset segment.
+        matches (List[str]): List of file name match patterns for each dataset segment.
         datasets_num_files (List[List[int]]): Number of files for each dataset segment.
         segment_lens (List[int]): Segment length for each stage.
         batch_sizes (List[int]): Batch size for each stage.
@@ -121,8 +121,6 @@ def get_datasets_stages(
     num_stages = len(batch_proportions)
     num_datasets = len(dirs)
     
-    if not len(matches) == num_datasets:
-        raise ValueError("Number of match expressions must equal number of datasets.")
     if not len(batch_sizes) == num_stages:
         raise ValueError("Number of batch sizes must equal number of stages.")
     if not len(datasets_num_files) == num_stages:
@@ -139,16 +137,17 @@ def get_datasets_stages(
             raise ValueError("Number of dataset proportions must equal number of datasets.")
 
     # Get file paths for each dataset
-    fpaths_all = [
-        get_dataset_fpaths(dir, match) for dir, match in zip(dirs, matches)
-    ]
+    fpaths_all = []
+    for ix, dir in enumerate(dirs):
+        fpaths_all.append([])
+        for match in matches[ix]:
+            fpaths_all[-1].append(get_dataset_fpaths(dir, match))
+    
     # Partition file paths into stages
     fpaths_partitioned = [[None for _ in range(num_datasets)] for _ in range(num_stages)]
     for ix_dataset in range(num_datasets):
         fpaths_dataset = fpaths_all[ix_dataset]
-        num_files_dataset = [num_files[ix_dataset] for num_files in datasets_num_files]
-        fpaths_dataset_partitioned = partition_fpaths(fpaths_dataset, num_files_dataset)
-        for ix_stage, fpaths in enumerate(fpaths_dataset_partitioned):
+        for ix_stage, fpaths in enumerate(fpaths_dataset):
             fpaths_partitioned[ix_stage][ix_dataset] = fpaths
     
     # Loop through stages and create each dataset

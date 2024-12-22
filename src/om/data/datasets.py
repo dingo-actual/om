@@ -37,6 +37,11 @@ class FilesDataset(IterableDataset):
         self.suffix_str = suffix_str
         self.pad_str = pad_str
         
+        if prefix_str != "":
+            self.prefix_seq = self.enc.encode(prefix_str)
+        if suffix_str != "":
+            self.suffix_seq = self.enc.encode(suffix_str)
+        
         if num_pad <= 0 or pad_str == "":
             self.num_pad = 0
             self.pad_token = -1
@@ -101,7 +106,11 @@ class FilesDataset(IterableDataset):
                     raise StopIteration
             else:
                 # Add next line to buffer
+                if self.prefix_str != "":
+                    self.buffer.extend(self.prefix_seq)
                 self.buffer.extend(self.current_file[self.current_obs_ix])
+                if self.suffix_str != "":
+                    self.buffer.extend(self.suffix_seq)
                 self.current_obs_ix += 1
         
         out = self.padding + self.buffer[:self.segment_len - self.num_pad]

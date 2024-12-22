@@ -2,8 +2,13 @@
     "train": [
         {
             "name": "FineWeb",
-            "dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\train",
-            "match": ".json",
+            "dir": "/home/ubuntu/om-llm/data/fineweb_preprocessed/train",
+            "matches": [
+                "0-2048/*.json",
+                "2048-8192/*.json",
+                "8192-16384/*.json",
+                "16384+/*.json"
+            ],
             "files_per_stage": [
                 1519,
                 138,
@@ -25,8 +30,13 @@
         },
         {
             "name": "Python",
-            "dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\train",
-            "match": ".json",
+            "dir": "/home/ubuntu/om-llm/data/python_preprocessed/train",
+            "matches": [
+                "0-2048/*.json",
+                "2048-8192/*.json",
+                "8192-16384/*.json",
+                "16384+/*.json"
+            ],
             "files_per_stage": [
                 87,
                 7,
@@ -50,8 +60,13 @@
     "validation": [
         {
             "name": "FineWeb",
-            "dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\validation",
-            "match": ".json",
+            "dir": "/home/ubuntu/om-llm/data/fineweb_preprocessed/validation",
+            "matches": [
+                "0-2048/*.json",
+                "2048-8192/*.json",
+                "8192-16384/*.json",
+                "16384+/*.json"
+            ],
             "files_per_stage": [
                 162,
                 16,
@@ -73,8 +88,13 @@
         },
         {
             "name": "Python",
-            "dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\validation",
-            "match": ".json",
+            "dir": "/home/ubuntu/om-llm/data/python_preprocessed/validation",
+            "matches": [
+                "0-2048/*.json",
+                "2048-8192/*.json",
+                "8192-16384/*.json",
+                "16384+/*.json"
+            ],
             "files_per_stage": [
                 10,
                 1,
@@ -94,5 +114,10 @@
                 32768
             ]
         }
-    ]
+    ],
+    "shared": {
+        "prefix_str": "",
+        "suffix_str": "",
+        "pad_str": "<|pad|>"
+    }
 }

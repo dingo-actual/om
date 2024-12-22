@@ -9,17 +9,39 @@
     "num_heads": 8,
     "activation": "gelu",
     "segment_len": 1024,
-    "state_len": 256,
+    "state_len": 128,
     "cope": true,
-    "position_embedders": [null, null, null],
-    "betas": [0.044194173824159216, 0.08838834764831843, 0.17677669529663687],
+    "position_embedders": [
+        {
+            "dim": 256,
+            "seq_len": 1280,
+            "num_dims": 4,
+            "device": "cuda:0"
+        },
+        {
+            "dim": 128,
+            "seq_len": 1280,
+            "num_dims": 4,
+            "device": "cuda:0"
+        },
+        {
+            "dim": 64,
+            "seq_len": 1280,
+            "num_dims": 4,
+            "device": "cuda:0"
+        }
+    ],
+    "betas": [
+        0.044194173824159216, 
+        0.08838834764831843, 
+        0.17677669529663687
+    ],
     "dropout": 0.1,
     "diff_attn": false,
     "attn_dropout": 0.1,
     "attn_logit_dropout": 0.0,
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
-    "final_mlp_multiplier": 1,
     "mlp_1221": true,
     "stacked_attn": true
 }

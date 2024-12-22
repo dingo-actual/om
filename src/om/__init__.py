@@ -1,12 +1,14 @@
-from .arcformer import ARCformer
+from .arcformer import ARCformer, RoPEEmbeddings
 from .om_llm import OmLLM
 from .train import train_stage, eval_net
-from .data import get_datasets_stages
+from .data import get_datasets_stages, enc
 
 __all__ = [
     "ARCformer",
     "OmLLM",
-    "train_stage",
+    "RoPEEmbeddings",
+    "enc",
     "eval_net",
     "get_datasets_stages"
+    "train_stage"
 ]

@@ -63,9 +63,10 @@ def get_dataloaders(config_path: str, dataloader_kwargs: Dict[str, Any]) -> Tupl
         
     train_configs = configs["train"]
     validation_configs = configs["validation"]
+    shared_config = configs["shared"]
     
-    datasets_train, batch_sizes = get_datasets_split(train_configs)
-    datasets_val, _ = get_datasets_split(validation_configs)
+    datasets_train, batch_sizes = get_datasets_split(train_configs, shared_config)
+    datasets_val, _ = get_datasets_split(validation_configs, shared_config)
     
     dataloaders_train = [
         DataLoader(
@@ -86,24 +87,25 @@ def get_dataloaders(config_path: str, dataloader_kwargs: Dict[str, Any]) -> Tupl
     
     return dataloaders_train, dataloaders_val
     
-def get_datasets_split(split_config: Dict[str, Any]) -> Tuple[List[ProportionalDataset], List[int]]:
+def get_datasets_split(split_config: Dict[str, Any], shared_config: Dict[str, Any]) -> Tuple[List[ProportionalDataset], List[int]]:
     """Build datasets for given split.
 
     Args:
         split_config (Dict[str, Any]): configuration for dataset on given split
+        shared_config (Dict[str, Any]): shared configuration for all datasets
 
     Returns:
         Tuple[List[Dataset], List[int]]:
         - datasets for given split
         - batch sizes for given split
     """
-    prefix_str = "<|im_start|>"
-    suffix_str = "<|im_end|>"
-    pad_str = "<|pad|>"
-    num_pad = 2
+    prefix_str = shared_config.get("prefix_str", "")
+    suffix_str = shared_config.get("suffix_str", "")
+    pad_str = shared_config.get("pad_str", "")
+    num_pad = shared_config.get("num_pad", 0)
     
     dirs = [conf["dir"] for conf in split_config]
-    match = [conf["match"] for conf in split_config]
+    match_lists = [conf["matches"] for conf in split_config]
     segment_lens = split_config[0]["segment_lens"]
     
     num_stages = len(split_config[0]["files_per_stage"])
@@ -120,7 +122,7 @@ def get_datasets_split(split_config: Dict[str, Any]) -> Tuple[List[ProportionalD
     
     datasets = get_datasets_stages(
         dirs=dirs,
-        matches=match,
+        matches=match_lists,
         datasets_num_files=datasets_num_files,
         segment_lens=segment_lens,
         batch_sizes=batch_sizes,
