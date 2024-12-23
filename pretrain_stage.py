@@ -108,50 +108,58 @@ def main(config_dir: str):
         
     training_config_stage = training_config[stage_ix-1]
     
+    # Get directories
     home_dir = paths_config["home"]
     checkpoint_dir = paths_config["checkpoints"]
     
     checkpoint_dir_stage = f"{checkpoint_dir}/stage{stage_ix}"
     writer_dir = f"{home_dir}/runs/stage{stage_ix}"
     
+    # Create directories if they don't exist
     if not exists(checkpoint_dir_stage):
         makedirs(checkpoint_dir_stage)
     if not exists(writer_dir):
         makedirs(writer_dir)
     
+    # If we're resuming from a previous stage, load the model
     if stage_ix > 1:
         checkpoint_dir_prev_stage = f"{checkpoint_dir}/stage{stage_ix-1}"
         if exists(checkpoint_dir_prev_stage):
             model.load_state_dict(safetensors.torch.load_file(checkpoint_dir_prev_stage))
     
+    # Initialize timestamps
     time_crnt = datetime.datetime.now()
     time_last = time_crnt
     
+    # Create current checkpoint directory
     checkpoint_dir_name = f"{checkpoint_dir_stage}/stage{stage_ix}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}"
     
     if not exists(checkpoint_dir_name):
         makedirs(checkpoint_dir_name)
     
+    # Initialize PyTorch settings and logging
     utils.set_torch()
     writer = SummaryWriter(checkpoint_dir_name)
     
+    # Create dataloaders
     dataloader_train_kwargs = training_config_stage.pop("dataloader_train_kwargs")
     dataloader_val_kwargs = training_config_stage.pop("dataloader_val_kwargs")
     
     dataloader_train = DataLoader(train_datasets[stage_ix-1], **dataloader_train_kwargs)
     dataloader_val = DataLoader(val_datasets[stage_ix-1], **dataloader_val_kwargs)
     
+    # Initialize accelerator
     ddp_kwargs = DistributedDataParallelKwargs(comm_hook=DDPCommunicationHookType.BF16)
+    gradient_accumulation_steps = training_config_stage.pop("gradient_accumulation_steps")
     accelerator = Accelerator(
         project_dir=checkpoint_dir_stage, 
         mixed_precision="bf16", 
-        gradient_accumulation_steps=training_config_stage["gradient_accumulation_steps"],
+        gradient_accumulation_steps=gradient_accumulation_steps,
         kwargs_handlers=[ddp_kwargs]
     )
     accelerator.save_state(output_dir=f"{checkpoint_dir_stage}/state_init")
     
-    _ = training_config_stage.pop("gradient_accumulation_steps")
-    
+    # Extract miscellaneous training parameters
     opt_kwargs = training_config_stage.pop("opt_kwargs")
     log_every = training_config_stage.pop("log_every")
     eval_every = training_config_stage.pop("eval_every")
@@ -177,56 +185,78 @@ def main(config_dir: str):
     _ = opt_kwargs.pop("weight_decay")
     
     optimizer = PaLMForeachSFAdamW(param_groups, **opt_kwargs)
+    
+    # Initialize metrics and loss function
     perplexity = Perplexity()
     loss_fn = torch.nn.CrossEntropyLoss()
     
+    # Register objects for checkpointing
     accelerator.register_for_checkpointing(model, optimizer, perplexity, loss_fn)
     
+    # Prepare objects for training with Accelerate
     model, optimizer, perplexity, loss_fn, dataloader_train, dataloader_val = accelerator.prepare(model, optimizer, perplexity, loss_fn, dataloader_train, dataloader_val)
     
+    # Initialize training loop
     tokens_processed = 0
     
     model = model.train()
     optimizer.train()
     
+    # Main training loop
     for batch_ix, batch in enumerate(dataloader_train):
         with accelerator.accumulate(model):
             optimizer.zero_grad()
             
+            # Extract inputs and targets
             inputs = batch[:, :-1]
             targets = batch[:, num_pad + 1:]
             
+            # Increment tokens processed (minus padding)
             tokens_processed += batch.size(0) * (batch.size(1) - num_pad)
             
+            # Forward pass
             logits, _, _ = model(inputs)
             
+            # Compute loss
             with accelerator.autocast():
                 loss = loss_fn(logits.transpose(-1, -2), targets)
             
+            # Backward pass
             accelerator.backward(loss)
             
+            # Log metrics
             if (batch_ix + 1) % log_every == 0:
                 param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
                 grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
             
+            # Update parameters
             optimizer.step()
         
+        # Update timestamp
         time_crnt = datetime.datetime.now()
         
+        # If more than 1 hour has passed, save checkpoint
         if time_crnt - time_last > datetime.timedelta(minutes=60):
             time_str = time_crnt.strftime("%Y-%m-%d %H:%M:%S")
             accelerator.wait_for_everyone()
             model = model.eval()
             optimizer.eval()
             
+            # Save checkpoint
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
-            makedirs(checkpoint_dir_crnt)
+            if not exists(checkpoint_dir_crnt):
+                makedirs(checkpoint_dir_crnt)
+            
             accelerator.save_state(checkpoint_dir_crnt)
             
+            # Reset model and optimizer to training mode
             model = model.train()
             optimizer.train()
+            
+            # Update timestamp
             time_last = time_crnt
         
+        # Log metrics
         if (batch_ix + 1) % log_every == 0:
             pplx = perplexity(logits, targets)
             
@@ -237,7 +267,8 @@ def main(config_dir: str):
             writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
             writer.add_scalar("Parameter Norm/Train", param_norm.cpu().detach().item(), batch_ix)
             writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
-            
+        
+        # Evaluate model on validation set
         if (batch_ix + 1) % eval_every == 0:
             eval_net(
                 model=model,
@@ -251,6 +282,7 @@ def main(config_dir: str):
                 batch_ix=batch_ix
             )
 
+    # Final evaluation and metrics at end of training
     accelerator.wait_for_everyone()
     
     writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
@@ -272,15 +304,21 @@ def main(config_dir: str):
     writer.flush()
     writer.close()
     
-    makedirs(f"{checkpoint_dir_stage}/checkpoint_FINAL")
+    # Save final checkpoint
+    checkpoint_dir_final = f"{checkpoint_dir_stage}/checkpoint_FINAL"
+    if not exists(checkpoint_dir_final):
+        makedirs(checkpoint_dir_final)
+        
     accelerator.save_state(f"{checkpoint_dir_stage}/checkpoint_FINAL")
     accelerator.save_model(model, checkpoint_dir_stage)
 
 
+# Define command line parser
 parser = argparse.ArgumentParser()
 parser.add_argument("--config_dir", type=str, default="config", help="Path to config directory")
 
 
+# ENTRY POINT: parse arguments and run main function
 if __name__ == "__main__":
     args = parser.parse_args()
     main(config_dir=args.config_dir)
