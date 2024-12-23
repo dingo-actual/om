@@ -1,1 +1,1 @@
-accelerate launch --config-path=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om/config
+accelerate launch --config-path=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om-llm/om/config

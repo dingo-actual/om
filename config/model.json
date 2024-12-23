@@ -16,19 +16,19 @@
             "dim": 256,
             "seq_len": 1280,
             "num_dims": 4,
-            "device": "cuda:0"
+            "device": "cuda"
         },
         {
             "dim": 128,
             "seq_len": 1280,
             "num_dims": 4,
-            "device": "cuda:0"
+            "device": "cuda"
         },
         {
             "dim": 64,
             "seq_len": 1280,
             "num_dims": 4,
-            "device": "cuda:0"
+            "device": "cuda"
         }
     ],
     "betas": [
