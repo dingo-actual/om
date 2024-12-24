@@ -5,8 +5,8 @@ from os import makedirs
 from os.path import join, exists
 
 from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
-from heavyball import PaLMForeachSFAdamW, utils
 import safetensors
+from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -137,8 +137,7 @@ def main(config_dir: str):
     if not exists(checkpoint_dir_name):
         makedirs(checkpoint_dir_name)
     
-    # Initialize PyTorch settings and logging
-    utils.set_torch()
+    # Initialize logging
     writer = SummaryWriter(checkpoint_dir_name)
     
     # Create dataloaders
@@ -184,7 +183,7 @@ def main(config_dir: str):
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = PaLMForeachSFAdamW(param_groups, **opt_kwargs)
+    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
     
     # Initialize metrics and loss function
     perplexity = Perplexity()

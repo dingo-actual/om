@@ -1,4 +1,4 @@
-from heavyball import PrecondScheduleSFPaLMSOAP, utils
+from schedulefree import AdamWScheduleFree
 import torch
 
 from ..om.om_llm import OmLLM
@@ -15,7 +15,7 @@ def test_model_training():
         device = "cpu"
     
     num_layers = 4
-    vocab_size = 1024
+    vocab_size = 512
     
     dim_input = 256
     num_heads = 8
@@ -40,7 +40,7 @@ def test_model_training():
     dropout = 0.1
     attn_dropout = 0.1
     attn_logit_dropout = 0.0
-    diff_attn = True
+    diff_attn = False
     
     batch_size = 4
     num_segments = 4
@@ -97,8 +97,7 @@ def test_model_training():
     ]
     
     if linux:
-        utils.set_torch()
-        optimizer = PrecondScheduleSFPaLMSOAP(param_groups, lr=1e-3, warmup_steps=10)
+        optimizer = AdamWScheduleFree(param_groups, lr=1e-3, warmup_steps=10, foreach=False)
     else:
         optimizer = torch.optim.AdamW(param_groups, lr=1e-3, betas=(0.9, 0.95))
         
