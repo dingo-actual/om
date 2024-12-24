@@ -165,6 +165,8 @@ def main(config_dir: str):
     eval_num_steps = training_config_stage.pop("eval_num_steps")
     
     # Set up optimizer
+    opt_kwargs["betas"] = tuple(opt_kwargs["betas"])
+    
     lr = opt_kwargs["lr"]
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
     opt_kwargs["lr"] = adj_lr
