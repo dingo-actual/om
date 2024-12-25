@@ -111,7 +111,7 @@ def test_model_training():
     for ix in range(20):
         optimizer.zero_grad()
         
-        x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
+        x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams)
         x = x.to(torch.long)
         x = x.to(device=device)
         
