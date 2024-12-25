@@ -531,7 +531,7 @@ class StatefulCausalAttentionHead(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is False
             and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
         """
-        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
@@ -724,7 +724,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
             and (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is True.
         """
-        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
         
         # Split q and k into q1, q2, k1, k2
         q1, q2 = split_last_dim(q)
@@ -931,7 +931,7 @@ class StatefulCausalHopfieldAttentionHead(nn.Module):
             and (batch_size, seq_len + state_len, dim_value) if skip_update_state is true.
                 
         """
-        use_xformers_attn = check_if_linux() and "cuda" in self.device
+        use_xformers_attn = check_if_linux() and "cuda" in str(x.device) and x.size(-2) % 8 == 0
         
         if skip_update_state:
             x_state_start = x[:, :self.state_len, :]
