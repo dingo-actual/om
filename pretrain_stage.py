@@ -202,7 +202,7 @@ def main(config_dir: str):
     tokens_processed = 0
     
     model = model.train()
-    optimizer.train()
+    # optimizer.train()
     
     # Main training loop
     for batch_ix, batch in enumerate(dataloader_train):
@@ -242,7 +242,7 @@ def main(config_dir: str):
             time_str = time_crnt.strftime("%Y-%m-%d %H:%M:%S")
             accelerator.wait_for_everyone()
             model = model.eval()
-            optimizer.eval()
+            # optimizer.eval()
             
             # Save checkpoint
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
@@ -253,7 +253,7 @@ def main(config_dir: str):
             
             # Reset model and optimizer to training mode
             model = model.train()
-            optimizer.train()
+            # optimizer.train()
             
             # Update timestamp
             time_last = time_crnt
@@ -274,7 +274,7 @@ def main(config_dir: str):
         if (batch_ix + 1) % eval_every == 0:
             eval_net(
                 model=model,
-                optimizer=optimizer,
+                # optimizer=optimizer,
                 loss_fn=loss_fn,
                 perpelxity=perplexity,
                 dataloader_eval=dataloader_val,
@@ -294,7 +294,7 @@ def main(config_dir: str):
     
     eval_net(
         model=model,
-        optimizer=optimizer,
+        # optimizer=optimizer,
         loss_fn=loss_fn,
         perpelxity=perplexity,
         dataloader_eval=dataloader_val,
