@@ -485,7 +485,6 @@ class StatefulCausalAttention(nn.Module):
             attn_bias += bias.to(dtype=q.dtype)
         
         if use_xformers_attn:
-            attn_bias = attn_bias.transpose(1, 2)
             att = memory_efficient_attention(
                 q.transpose(1, 2), 
                 k.transpose(1, 2), 
@@ -697,8 +696,6 @@ class StatefulCausalDiffAttention(nn.Module):
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
         if use_xformers_attn:
-            attn_bias_1 = attn_bias_1.transpose(1, 2)
-            attn_bias_2 = attn_bias_2.transpose(1, 2)
             att1 = memory_efficient_attention(
                 q1.transpose(1, 2), 
                 k1.transpose(1, 2), 
@@ -976,7 +973,6 @@ class StatefulCausalHopfieldAttention(nn.Module):
                 attn_bias += bias.to(dtype=q.dtype)
             
             if use_xformers_attn:
-                attn_bias = attn_bias.transpose(1, 2)
                 mem = memory_efficient_attention(
                     q.transpose(1, 2), 
                     k.transpose(1, 2), 
