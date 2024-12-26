@@ -98,11 +98,11 @@ def main(config_dir: str):
     _ = model_config.pop("position_embedders")
     
     model = OmLLM(position_embedders=position_embedders, **model_config)
-    model = set_om_dtypes(model)
+    model = set_om_dtypes(model, torch.bfloat16)
     
     # Determine training stage
     for stage_ix in range(1, num_stages+1):
-        final_checkpoint_dir = f"{paths_config["checkpoints"]}/stage{stage_ix}/checkpoint_FINAL"
+        final_checkpoint_dir = f"{paths_config['checkpoints']}/stage{stage_ix}/checkpoint_FINAL"
         if not exists(final_checkpoint_dir):
             break
         
@@ -185,7 +185,8 @@ def main(config_dir: str):
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
+    # optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
+    optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
     
     # Initialize metrics and loss function
     perplexity = Perplexity()

@@ -1,3 +1,2 @@
-mkdir -p /home/ubuntu/om-llm/om/runs
-tensorboard --logdir /home/ubuntu/om-llm/om/runs &
-accelerate launch --config-path=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om-llm/om/config
+tensorboard --logdir /home/ubuntu/om-llm/runs --host 0.0.0.0 &
+accelerate launch --config_file=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om-llm/om/config
