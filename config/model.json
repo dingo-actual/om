@@ -43,5 +43,5 @@
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
     "mlp_1221": true,
-    "stacked_attn": true
+    "stacked_attn": false
 }
