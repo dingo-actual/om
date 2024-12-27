@@ -2,6 +2,7 @@
     {
         "stage_num": 1,
         "gradient_accumulation_steps": 1,
+        "gradient_clip": 1.0,
         "dataloader_train_kwargs": {
             "batch_size": 8,
             "num_workers": 8,
@@ -28,6 +29,7 @@
     },
     {
         "stage_num": 2,
+        "gradient_clip": 1.0,
         "gradient_accumulation_steps": 2,
         "dataloader_train_kwargs": {
             "batch_size": 4,
@@ -56,6 +58,7 @@
     {
         "stage_num": 3,
         "gradient_accumulation_steps": 4,
+        "gradient_clip": 1.0,
         "dataloader_train_kwargs": {
             "batch_size": 2,
             "num_workers": 8,
