@@ -196,7 +196,7 @@ def main(config_dir: str):
     accelerator.register_for_checkpointing(model, optimizer, perplexity, loss_fn)
     
     # Prepare objects for training with Accelerate
-    model, optimizer, perplexity, loss_fn, dataloader_train, dataloader_val = accelerator.prepare(model, optimizer, perplexity, loss_fn, dataloader_train, dataloader_val)
+    model, optimizer, loss_fn, dataloader_train, dataloader_val = accelerator.prepare(model, optimizer, loss_fn, dataloader_train, dataloader_val)
     
     # Initialize training loop
     tokens_processed = 0
@@ -260,9 +260,10 @@ def main(config_dir: str):
         
         # Log metrics
         if (batch_ix + 1) % log_every == 0:
+            accelerator.gather_for_metrics(
+                (logits, targets, loss, tokens_processed, param_norm, grad_norm),
+            )
             pplx = perplexity(logits, targets)
-            
-            accelerator.wait_for_everyone()
             
             writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
             writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
