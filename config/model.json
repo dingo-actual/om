@@ -8,9 +8,9 @@
     "num_iters": [1, 1, 1],
     "num_heads": 8,
     "activation": "gelu",
-    "segment_len": 1024,
-    "state_len": 128,
-    "cope": true,
+    "segment_len": 512,
+    "state_len": 64,
+    "cope": false,
     "position_embedders": [
         {
             "dim": 256,
@@ -43,5 +43,5 @@
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
     "mlp_1221": true,
-    "stacked_attn": false
+    "stacked_attn": true
 }
