@@ -5,11 +5,11 @@ from os import makedirs
 from os.path import join, exists
 
 from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
+from accelerate.utils import LoggerType
 import safetensors
 from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
 
 from src import *
@@ -137,9 +137,6 @@ def main(config_dir: str):
     if not exists(checkpoint_dir_name):
         makedirs(checkpoint_dir_name)
     
-    # Initialize logging
-    writer = SummaryWriter(checkpoint_dir_name)
-    
     # Create dataloaders
     dataloader_train_kwargs = training_config_stage.pop("dataloader_train_kwargs")
     dataloader_val_kwargs = training_config_stage.pop("dataloader_val_kwargs")
@@ -154,7 +151,8 @@ def main(config_dir: str):
         project_dir=checkpoint_dir_stage, 
         mixed_precision="bf16", 
         gradient_accumulation_steps=gradient_accumulation_steps,
-        kwargs_handlers=[ddp_kwargs]
+        kwargs_handlers=[ddp_kwargs],
+        log_with=LoggerType.TENSORBOARD,
     )
     accelerator.save_state(output_dir=f"{checkpoint_dir_stage}/state_init")
     
@@ -163,6 +161,7 @@ def main(config_dir: str):
     log_every = training_config_stage.pop("log_every")
     eval_every = training_config_stage.pop("eval_every")
     eval_num_steps = training_config_stage.pop("eval_num_steps")
+    grad_clip = training_config_stage.pop("gradient_clip")
     
     # Set up optimizer
     opt_kwargs["betas"] = tuple(opt_kwargs["betas"])
@@ -246,12 +245,15 @@ def main(config_dir: str):
             # Compute loss
             with accelerator.autocast():
                 loss = loss_fn(logits.transpose(-1, -2), targets)
+                
+            if accelerator.sync_gradients:
+                accelerator.clip_grad_norm_(model.parameters(), grad_clip)
             
             # Backward pass
             accelerator.backward(loss)
             
             # Log metrics
-            if (batch_ix + 1) % log_every == 0:
+            if (batch_ix + 1) % log_every == 0 and accelerator.sync_gradients:
                 param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
                 grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
             
@@ -290,11 +292,16 @@ def main(config_dir: str):
             )
             pplx = perplexity(logits, targets)
             
-            writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
-            writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
-            writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
-            writer.add_scalar("Parameter Norm/Train", param_norm.cpu().detach().item(), batch_ix)
-            writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
+            accelerator.log(
+                {
+                    "Tokens Processed": tokens_processed,
+                    "Loss/Train": loss.cpu().detach().item(),
+                    "Perplexity/Train": pplx.cpu().detach().item(),
+                    "Parameter Norm/Train": param_norm.cpu().detach().item(),
+                    "Grad Norm/Train": grad_norm.cpu().detach().item()
+                }, 
+                step=batch_ix
+            )
         
         # Evaluate model on validation set
         if (batch_ix + 1) % eval_every == 0:
@@ -307,7 +314,6 @@ def main(config_dir: str):
                 dataloader_eval=dataloader_val,
                 num_steps=eval_num_steps,
                 accelerator=accelerator,
-                writer=writer,
                 batch_ix=batch_ix
             )
 
@@ -320,11 +326,16 @@ def main(config_dir: str):
     param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
     grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
     
-    writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
-    writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
-    writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
-    writer.add_scalar("Parameter Norm/Train", param_norm.cpu().detach().item(), batch_ix)
-    writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
+    accelerator.log(
+        {
+            "Tokens Processed": tokens_processed,
+            "Loss/Train": loss.cpu().detach().item(),
+            "Perplexity/Train": pplx.cpu().detach().item(),
+            "Parameter Norm/Train": param_norm.cpu().detach().item(),
+            "Grad Norm/Train": grad_norm.cpu().detach().item()
+        }, 
+        step=batch_ix
+    )
     
     accelerator.wait_for_everyone()
     eval_net(
@@ -335,11 +346,8 @@ def main(config_dir: str):
         dataloader_eval=dataloader_val,
         num_steps=eval_num_steps,
         accelerator=accelerator,
-        writer=writer,
         batch_ix=batch_ix
     )
-    writer.flush()
-    writer.close()
     
     # Save final checkpoint
     checkpoint_dir_final = f"{checkpoint_dir_stage}/checkpoint_FINAL"

@@ -2,7 +2,6 @@ from accelerate import Accelerator
 import torch
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
 
 from ..om_llm import OmLLM
@@ -16,7 +15,6 @@ def eval_net(
     dataloader_eval: DataLoader, 
     num_steps: int, 
     accelerator: Accelerator,
-    writer: SummaryWriter,
     batch_ix: int
 ) -> None:
     model = model.eval()
@@ -53,8 +51,13 @@ def eval_net(
         eval_loss = loss_total / n_tokens
         eval_pplx = pplx_total / n_tokens
         
-        writer.add_scalar("Loss/Validation", eval_loss, batch_ix)
-        writer.add_scalar("Perplexity/Validation", eval_pplx, batch_ix)
+        accelerator.log(
+            {
+                "Loss/Validation": eval_loss,
+                "Perplexity/Validation": eval_pplx
+            }, 
+            step=batch_ix
+        )
             
     model = model.train()
     # optimizer.train()
