@@ -200,6 +200,8 @@ def main(config_dir: str):
     perplexity = Perplexity()
     loss_fn = torch.nn.CrossEntropyLoss()
     
+    if accelerator.is_main_process:
+        print(f"Registering model objects for checkpointing with Accelerate...")
     # Register objects for checkpointing
     accelerator.register_for_checkpointing(
         model, 
@@ -209,6 +211,8 @@ def main(config_dir: str):
         loss_fn
     )
     
+    if accelerator.is_main_process:
+        print(f"Preparing model objects for training with Accelerate...")
     # Prepare objects for training with Accelerate
     model, optimizer, lr_scheduler, loss_fn, dataloader_train, dataloader_val = (
         accelerator.prepare(
@@ -221,6 +225,8 @@ def main(config_dir: str):
         )
     )
     
+    if accelerator.is_main_process:
+        print(f"Starting training...")
     # Initialize training loop
     tokens_processed = 0
     
