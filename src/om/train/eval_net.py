@@ -37,9 +37,13 @@ def eval_net(
             logits = model(inputs)
             
             loss = loss_fn(logits.transpose(-1, -2), targets)
+            
+            accelerator.gather_for_metrics(
+                (logits, targets, loss),
+            )
             pplx = perpelxity(logits, targets)
                 
-            batch_tokens = batch.size(0) * batch.size(1)
+            batch_tokens = logits.size(0) * logits.size(1)
             loss_total += loss.cpu().detach().item() * batch_tokens
             pplx_total += pplx.cpu().detach().item() * batch_tokens
             n_tokens += batch_tokens

@@ -273,6 +273,7 @@ def main(config_dir: str):
         
         # Evaluate model on validation set
         if (batch_ix + 1) % eval_every == 0:
+            accelerator.wait_for_everyone()
             eval_net(
                 model=model,
                 # optimizer=optimizer,
@@ -286,13 +287,21 @@ def main(config_dir: str):
             )
 
     # Final evaluation and metrics at end of training
-    accelerator.wait_for_everyone()
+    accelerator.gather_for_metrics(
+        (logits, targets, loss, tokens_processed, param_norm, grad_norm),
+    )
+    pplx = perplexity(logits, targets)
+    
+    param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
+    grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
     
     writer.add_scalar("Tokens Processed", tokens_processed, batch_ix)
     writer.add_scalar("Loss/Train", loss.cpu().detach().item(), batch_ix)
     writer.add_scalar("Perplexity/Train", pplx.cpu().detach().item(), batch_ix)
+    writer.add_scalar("Parameter Norm/Train", param_norm.cpu().detach().item(), batch_ix)
     writer.add_scalar("Grad Norm/Train", grad_norm.cpu().detach().item(), batch_ix)
     
+    accelerator.wait_for_everyone()
     eval_net(
         model=model,
         # optimizer=optimizer,
@@ -314,6 +323,8 @@ def main(config_dir: str):
         
     accelerator.save_state(f"{checkpoint_dir_stage}/checkpoint_FINAL")
     accelerator.save_model(model, checkpoint_dir_stage)
+    
+    accelerator.end_training()
 
 
 # Define command line parser
