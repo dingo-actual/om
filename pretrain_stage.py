@@ -13,7 +13,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torchmetrics.text import Perplexity
 
 from src import *
-from src.om.utils import set_om_dtypes
+from src.om.utils import set_om_dtypes, cosine_with_warmup_mult
 
 
 def main(config_dir: str):
@@ -171,9 +171,10 @@ def main(config_dir: str):
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
     opt_kwargs["lr"] = adj_lr
     
-    warmup_steps = opt_kwargs["warmup_steps"]
+    warmup_steps = opt_kwargs.pop("warmup_steps")
     adj_warmup_steps = warmup_steps * accelerator.gradient_accumulation_steps
-    opt_kwargs["warmup_steps"] = adj_warmup_steps
+    total_steps = opt_kwargs.pop("total_steps")
+    min_lr_mult = opt_kwargs.pop("min_lr_mult")
     
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
@@ -187,16 +188,39 @@ def main(config_dir: str):
     
     # optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
     optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
+    lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
+        optimizer=optimizer,
+        lr_lambda=cosine_with_warmup_mult(
+            warmup_steps=adj_warmup_steps,
+            total_steps=total_steps,
+            min_lr_mult=min_lr_mult
+        )
+    )
     
     # Initialize metrics and loss function
     perplexity = Perplexity()
     loss_fn = torch.nn.CrossEntropyLoss()
     
     # Register objects for checkpointing
-    accelerator.register_for_checkpointing(model, optimizer, perplexity, loss_fn)
+    accelerator.register_for_checkpointing(
+        model, 
+        optimizer, 
+        lr_scheduler, 
+        perplexity, 
+        loss_fn
+    )
     
     # Prepare objects for training with Accelerate
-    model, optimizer, loss_fn, dataloader_train, dataloader_val = accelerator.prepare(model, optimizer, loss_fn, dataloader_train, dataloader_val)
+    model, optimizer, lr_scheduler, loss_fn, dataloader_train, dataloader_val = (
+        accelerator.prepare(
+            model, 
+            optimizer, 
+            lr_scheduler, 
+            loss_fn, 
+            dataloader_train, 
+            dataloader_val
+        )
+    )
     
     # Initialize training loop
     tokens_processed = 0
@@ -231,8 +255,9 @@ def main(config_dir: str):
                 param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
                 grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
             
-            # Update parameters
+            # Update parameters and perform lr step
             optimizer.step()
+            lr_scheduler.step()
         
         # Update timestamp
         time_crnt = datetime.datetime.now()
