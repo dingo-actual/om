@@ -2,7 +2,7 @@
     {
         "data_dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\train",
         "out_dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb_preprocessed\\train",
-        "cutoffs": [2049, 4097, 8193],
+        "cutoffs": [1025, 2049],
         "chunk_size": 1000,
         "prepend_str": "<|im_start|>",
         "append_str": "<|im_end|>",
@@ -11,7 +11,7 @@
     {
         "data_dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb\\validation",
         "out_dir": "C:\\Users\\photo\\projects\\bak\\data\\fineweb_preprocessed\\validation",
-        "cutoffs": [2049, 4097, 8193],
+        "cutoffs": [1025, 2049],
         "chunk_size": 1000,
         "prepend_str": "<|im_start|>",
         "append_str": "<|im_end|>",
@@ -20,7 +20,7 @@
     {
         "data_dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\train",
         "out_dir": "C:\\Users\\photo\\projects\\bak\\data\\python_preprocessed\\train",
-        "cutoffs": [2049, 4097, 8193],
+        "cutoffs": [1025, 2049],
         "chunk_size": 1000,
         "prepend_str": "<|im_start|>",
         "append_str": "<|im_end|>",
@@ -29,7 +29,7 @@
     {
         "data_dir": "C:\\Users\\photo\\projects\\bak\\data\\python\\validation",
         "out_dir": "C:\\Users\\photo\\projects\\bak\\data\\python_preprocessed\\validation",
-        "cutoffs": [2049, 4097, 8193],
+        "cutoffs": [1025, 2049],
         "chunk_size": 1000,
         "prepend_str": "<|im_start|>",
         "append_str": "<|im_end|>",

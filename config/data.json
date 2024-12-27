@@ -4,14 +4,14 @@
             "name": "FineWeb",
             "dir": "/home/ubuntu/om-llm/data/fineweb_preprocessed/train",
             "matches": [
-                "0-2049/*.json",
-                "2049-4097/*.json",
-                "4097+/*.json"
+                "0-1025/*.json",
+                "1025-2049/*.json",
+                "2049+/*.json"
             ],
             "files_per_stage": [
-                1519,
-                102,
-                52
+                1216,
+                304,
+                153
             ],
             "batch_size_per_stage": [
                 15,
@@ -19,23 +19,23 @@
                 3
             ],
             "segment_lens": [
+                1025,
                 2049,
-                4097,
-                8193
+                4097
             ]
         },
         {
             "name": "Python",
             "dir": "/home/ubuntu/om-llm/data/python_preprocessed/train",
             "matches": [
-                "0-2049/*.json",
-                "2049-4097/*.json",
-                "4097+/*.json"
+                "0-1025/*.json",
+                "1025-2049/*.json",
+                "2049+/*.json"
             ],
             "files_per_stage": [
-                87,
-                5,
-                3
+                78,
+                10,
+                7
             ],
             "batch_size_per_stage": [
                 1,
@@ -43,9 +43,9 @@
                 1
             ],
             "segment_lens": [
+                1025,
                 2049,
-                4097,
-                8193
+                4097
             ]
         }
     ],
@@ -54,14 +54,14 @@
             "name": "FineWeb",
             "dir": "/home/ubuntu/om-llm/data/fineweb_preprocessed/validation",
             "matches": [
-                "0-2049/*.json",
-                "2049-4097/*.json",
-                "4097+/*.json"
+                "0-1025/*.json",
+                "1025-2049/*.json",
+                "2049+/*.json"
             ],
             "files_per_stage": [
-                162,
-                12,
-                8
+                132,
+                31,
+                18
             ],
             "batch_size_per_stage": [
                 15,
@@ -69,23 +69,23 @@
                 3
             ],
             "segment_lens": [
+                1025,
                 2049,
-                4097,
-                8193
+                4097
             ]
         },
         {
             "name": "Python",
             "dir": "/home/ubuntu/om-llm/data/python_preprocessed/validation",
             "matches": [
-                "0-2049/*.json",
-                "2049-4097/*.json",
-                "4097+/*.json"
+                "0-1025/*.json",
+                "1025-2049/*.json",
+                "2049+/*.json"
             ],
             "files_per_stage": [
-                10,
-                1,
-                2
+                9,
+                2,
+                1
             ],
             "batch_size_per_stage": [
                 1,
@@ -93,9 +93,9 @@
                 1
             ],
             "segment_lens": [
+                1025,
                 2049,
-                4097,
-                8193
+                4097
             ]
         }
     ],
