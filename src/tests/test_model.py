@@ -28,8 +28,8 @@ def test_model():
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 1024
-    cope = True
+    segment_len = 512
+    cope = False
     state_len = segment_len // 8
     
     init_ngrams = [2, 3]

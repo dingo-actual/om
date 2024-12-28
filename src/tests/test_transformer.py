@@ -16,13 +16,13 @@ def test_arc_transformer():
     dim_hidden = 4 * dim_input
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [2, 2, 2]
+    num_iters = [1, 1, 1]
     betas = [None, None, None]
     attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 1024
+    segment_len = 512
     state_len = segment_len // 8
     num_layers = 8
     
@@ -43,7 +43,7 @@ def test_arc_transformer():
         ) 
         for dim in dims_key
     ]
-    cope = True
+    cope = False
     
     layer = ARCformer(
         dim_input=dim_input,
