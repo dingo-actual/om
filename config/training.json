@@ -19,8 +19,8 @@
             "lr": 0.0025,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 6000,
-            "total_steps": 54000,
+            "warmup_steps": 7620,
+            "total_steps": 76200,
             "min_lr_mult": 0.01
         },
         "log_every": 50,
@@ -47,8 +47,8 @@
             "lr": 0.0025,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 1500,
-            "total_steps": 27000,
+            "warmup_steps": 5320,
+            "total_steps": 53200,
             "min_lr_mult": 0.01
         },
         "log_every": 50,
@@ -75,8 +75,8 @@
             "lr": 0.0025,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 200,
-            "total_steps": 7200,
+            "warmup_steps": 8930,
+            "total_steps": 89300,
             "min_lr_mult": 0.01
         },
         "log_every": 50,
