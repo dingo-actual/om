@@ -15,7 +15,7 @@ def set_om_dtypes(model: torch.nn.Module, dtype: torch.dtype) -> torch.nn.Module
     """
     model = model.to(dtype=dtype)
     for name, param in model.named_parameters():
-        if "norm" in name:
+        if "norm" in name or "thetas" in name:
             param.data = param.data.to(dtype=torch.float32)
             
     return model
