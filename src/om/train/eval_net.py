@@ -45,8 +45,6 @@ def eval_net(
             loss_total += loss.cpu().detach().item() * batch_tokens
             pplx_total += pplx.cpu().detach().item() * batch_tokens
             n_tokens += batch_tokens
-            
-        accelerator.wait_for_everyone()
         
         eval_loss = loss_total / n_tokens
         eval_pplx = pplx_total / n_tokens
