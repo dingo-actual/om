@@ -4,7 +4,7 @@ import json
 from os import makedirs
 from os.path import join, exists
 
-from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
+from accelerate import Accelerator
 from accelerate.utils import LoggerType
 import safetensors
 from schedulefree import AdamWScheduleFree
@@ -127,16 +127,6 @@ def main(config_dir: str):
         if exists(checkpoint_dir_prev_stage):
             model.load_state_dict(safetensors.torch.load_file(checkpoint_dir_prev_stage))
     
-    # Initialize timestamps
-    time_crnt = datetime.datetime.now()
-    time_last = time_crnt
-    
-    # Create current checkpoint directory
-    checkpoint_dir_name = f"{checkpoint_dir_stage}/stage{stage_ix}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}"
-    
-    if not exists(checkpoint_dir_name):
-        makedirs(checkpoint_dir_name)
-    
     # Create dataloaders
     dataloader_train_kwargs = training_config_stage.pop("dataloader_train_kwargs")
     dataloader_val_kwargs = training_config_stage.pop("dataloader_val_kwargs")
@@ -145,15 +135,24 @@ def main(config_dir: str):
     dataloader_val = DataLoader(val_datasets[stage_ix-1], **dataloader_val_kwargs)
     
     # Initialize accelerator
-    ddp_kwargs = DistributedDataParallelKwargs(comm_hook=DDPCommunicationHookType.BF16)
     gradient_accumulation_steps = training_config_stage.pop("gradient_accumulation_steps")
     accelerator = Accelerator(
         project_dir=checkpoint_dir_stage, 
-        mixed_precision="bf16", 
         gradient_accumulation_steps=gradient_accumulation_steps,
-        kwargs_handlers=[ddp_kwargs],
         log_with=LoggerType.TENSORBOARD,
     )
+    
+    # Initialize timestamps
+    time_crnt = datetime.datetime.now()
+    time_last = time_crnt
+    
+    # Create current checkpoint directory
+    checkpoint_dir_name = f"{checkpoint_dir_stage}/stage{stage_ix}-{time_crnt.strftime('%Y-%m-%d_%H-%M-%S')}"
+    
+    if not exists(checkpoint_dir_name) and accelerator.is_main_process:
+        makedirs(checkpoint_dir_name)
+    
+    # Save init state
     accelerator.save_state(output_dir=f"{checkpoint_dir_stage}/state_init")
     
     # Extract miscellaneous training parameters
@@ -201,18 +200,17 @@ def main(config_dir: str):
     loss_fn = torch.nn.CrossEntropyLoss()
     
     if accelerator.is_main_process:
-        print(f"Registering model objects for checkpointing with Accelerate...")
+        print(f"Registering objects for checkpointing with Accelerate...")
     # Register objects for checkpointing
     accelerator.register_for_checkpointing(
         model, 
         optimizer, 
         lr_scheduler, 
-        perplexity, 
         loss_fn
     )
     
     if accelerator.is_main_process:
-        print(f"Preparing model objects for training with Accelerate...")
+        print(f"Preparing objects for training with Accelerate...")
     # Prepare objects for training with Accelerate
     model, optimizer, lr_scheduler, loss_fn, dataloader_train, dataloader_val = (
         accelerator.prepare(
@@ -249,8 +247,7 @@ def main(config_dir: str):
             logits, _, _ = model(inputs)
             
             # Compute loss
-            with accelerator.autocast():
-                loss = loss_fn(logits.transpose(-1, -2), targets)
+            loss = loss_fn(logits.transpose(-1, -2), targets)
                 
             if accelerator.sync_gradients:
                 accelerator.clip_grad_norm_(model.parameters(), grad_clip)
@@ -279,7 +276,7 @@ def main(config_dir: str):
             
             # Save checkpoint
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
-            if not exists(checkpoint_dir_crnt):
+            if not exists(checkpoint_dir_crnt) and accelerator.is_main_process:
                 makedirs(checkpoint_dir_crnt)
             
             accelerator.save_state(checkpoint_dir_crnt)
@@ -357,7 +354,7 @@ def main(config_dir: str):
     
     # Save final checkpoint
     checkpoint_dir_final = f"{checkpoint_dir_stage}/checkpoint_FINAL"
-    if not exists(checkpoint_dir_final):
+    if not exists(checkpoint_dir_final) and accelerator.is_main_process:
         makedirs(checkpoint_dir_final)
         
     accelerator.save_state(f"{checkpoint_dir_stage}/checkpoint_FINAL")
