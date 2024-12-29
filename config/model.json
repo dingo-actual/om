@@ -14,21 +14,18 @@
     "position_embedders": [
         {
             "dim": 256,
-            "seq_len": 1280,
-            "num_dims": 4,
-            "device": "cuda"
+            "seq_len": 640,
+            "num_dims": 4
         },
         {
             "dim": 128,
-            "seq_len": 1280,
-            "num_dims": 4,
-            "device": "cuda"
+            "seq_len": 640,
+            "num_dims": 4
         },
         {
             "dim": 64,
-            "seq_len": 1280,
-            "num_dims": 4,
-            "device": "cuda"
+            "seq_len": 640,
+            "num_dims": 4
         }
     ],
     "betas": [
