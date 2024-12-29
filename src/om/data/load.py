@@ -1,8 +1,6 @@
 import glob
 from typing import List
 
-import numpy as np
-from numpy.random import MT19937, RandomState, SeedSequence
 from tiktoken import Encoding
 
 from .datasets import ProportionalDataset, FilesDataset
@@ -19,9 +17,8 @@ def get_dataset_fpaths(dir: str, match: str) -> List[str]:
         List[str]: File paths.
     """
     out = glob.glob(f"{dir}/**/*{match}", recursive=True)
-    rs = RandomState(MT19937(SeedSequence(3487)))
-    np.random.set_state(rs.get_state())
-    np.random.shuffle(out)
+    out = sorted(out)
+
     return out
 
 def partition_fpaths(fpaths: List[str], num_files: List[int]) -> List[List[str]]:
