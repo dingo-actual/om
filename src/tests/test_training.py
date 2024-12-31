@@ -51,8 +51,7 @@ def test_model_training():
         RoPEEmbeddings(
             dim, 
             seq_len=segment_len + 2 * state_len, 
-            num_dims=4 if stacked_attn else 3,
-            device=device
+            num_dims=4 if stacked_attn else 3
         ) 
         for dim in dims_key
     ]

@@ -89,7 +89,7 @@ class OmLLM(torch.nn.Module):
             self.max_ngram = 1
         
         layers = []
-        for ix in range(num_layers - 1):
+        for ix in range(num_layers):
             layers.append(
                 ARCformer(
                     dim_input=dim_input,
@@ -115,31 +115,6 @@ class OmLLM(torch.nn.Module):
                     stacked_attn=stacked_attn,
                 )
             )
-        layers.append(
-            ARCformer(
-                dim_input=dim_input,
-                dim_hidden=dim_hidden,
-                dims_key=dims_key,
-                dims_value=dims_value,
-                num_iters=num_iters,
-                num_heads=num_heads,
-                activation=activation,
-                segment_len=segment_len,
-                state_len=state_len,
-                num_layers=num_layers,
-                layer_num=num_layers - 1,
-                cope=cope,
-                position_embedders=position_embedders,
-                betas=betas,
-                dropout=dropout,
-                diff_attn=diff_attn,
-                attn_dropout=attn_dropout,
-                attn_logit_dropout=attn_logit_dropout,
-                attn_proj_rank=attn_proj_rank,
-                mlp_1221=mlp_1221,
-                stacked_attn=stacked_attn,
-            )
-        )
         self.layers = torch.nn.ModuleList(layers)
         
         self.proj_out = torch.nn.Linear(dim_input, vocab_size)

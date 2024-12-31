@@ -244,7 +244,7 @@ def main(config_dir: str):
             tokens_processed += batch.size(0) * (batch.size(1) - num_pad)
             
             # Forward pass
-            logits, _, _ = model(inputs)
+            logits, _ = model(inputs)
             
             # Compute loss
             loss = loss_fn(logits.transpose(-1, -2), targets)
