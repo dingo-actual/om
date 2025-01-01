@@ -6,11 +6,11 @@ from os.path import join, exists
 
 from accelerate import Accelerator, infer_auto_device_map
 from accelerate.utils import LoggerType
+from evaluate import load as load_metric
 import safetensors
 from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
-from torchmetrics.text import Perplexity
 
 from src import *
 from src.om.utils import set_om_dtypes, cosine_with_warmup_mult
@@ -196,7 +196,7 @@ def main(config_dir: str):
     )
     
     # Initialize metrics and loss function
-    perplexity = Perplexity()
+    perplexity = load_metric("perplexity")
     loss_fn = torch.nn.CrossEntropyLoss()
     
     if accelerator.is_main_process:
@@ -219,10 +219,7 @@ def main(config_dir: str):
     optimizer = accelerator.prepare_optimizer(optimizer)
     lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
     loss_fn = accelerator.prepare(loss_fn)
-    model = accelerator.prepare_model(
-        model,
-        # device_map=device_map,
-    )
+    model = accelerator.prepare_model(model)
     
     if accelerator.is_main_process:
         print(f"Starting training...")
@@ -258,8 +255,16 @@ def main(config_dir: str):
             
             # Log metrics
             if (batch_ix + 1) % log_every == 0 and accelerator.sync_gradients:
-                param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
-                grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
+                param_norm = torch.sqrt(
+                    torch.sum(
+                        torch.tensor([torch.sum(torch.norm(p)**2) for p in model.parameters() if p.requires_grad])
+                    )
+                )
+                grad_norm = torch.sqrt(
+                    torch.sum(
+                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for p in model.parameters() if p.requires_grad and p.grad is not None])
+                    )
+                )
             
             # Update parameters and perform lr step
             optimizer.step()
@@ -294,13 +299,12 @@ def main(config_dir: str):
             accelerator.gather_for_metrics(
                 (logits, targets, loss, tokens_processed, param_norm, grad_norm),
             )
-            pplx = perplexity(logits, targets)
-            
+            perplexity.add_batch(logits, targets)
             accelerator.log(
                 {
                     "Tokens Processed": tokens_processed,
                     "Loss/Train": loss.cpu().detach().item(),
-                    "Perplexity/Train": pplx.cpu().detach().item(),
+                    "Perplexity/Train": perplexity.compute(),
                     "Parameter Norm/Train": param_norm.cpu().detach().item(),
                     "Grad Norm/Train": grad_norm.cpu().detach().item()
                 }, 
@@ -322,19 +326,26 @@ def main(config_dir: str):
             )
 
     # Final evaluation and metrics at end of training
+    param_norm = torch.sqrt(
+        torch.sum(
+            torch.tensor([torch.sum(torch.norm(p)**2) for p in model.parameters() if p.requires_grad])
+        )
+    )
+    grad_norm = torch.sqrt(
+        torch.sum(
+            torch.tensor([torch.sum(torch.norm(p.grad)**2) for p in model.parameters() if p.requires_grad and p.grad is not None])
+        )
+    )
     accelerator.gather_for_metrics(
         (logits, targets, loss, tokens_processed, param_norm, grad_norm),
     )
-    pplx = perplexity(logits, targets)
-    
-    param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
-    grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
+    perplexity.add_batch(logits, targets)
     
     accelerator.log(
         {
             "Tokens Processed": tokens_processed,
             "Loss/Train": loss.cpu().detach().item(),
-            "Perplexity/Train": pplx.cpu().detach().item(),
+            "Perplexity/Train": perplexity.compute(),
             "Parameter Norm/Train": param_norm.cpu().detach().item(),
             "Grad Norm/Train": grad_norm.cpu().detach().item()
         }, 
