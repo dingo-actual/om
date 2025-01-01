@@ -32,7 +32,7 @@ def eval_net(
             inputs = batch[:, :-1]
             targets = batch[:, 1:]
             
-            logits = model(inputs)
+            logits, _ = model(inputs)
             
             loss = loss_fn(logits.transpose(-1, -2), targets)
             
