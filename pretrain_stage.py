@@ -322,6 +322,7 @@ def main(config_dir: str):
                 loss_fn=loss_fn,
                 perpelxity=perplexity,
                 dataloader_eval=dataloader_val,
+                num_pad=num_pad,
                 num_steps=eval_num_steps,
                 accelerator=accelerator,
                 batch_ix=batch_ix
@@ -354,6 +355,7 @@ def main(config_dir: str):
         loss_fn=loss_fn,
         perpelxity=perplexity,
         dataloader_eval=dataloader_val,
+        num_pad=num_pad,
         num_steps=eval_num_steps,
         accelerator=accelerator,
         batch_ix=batch_ix
