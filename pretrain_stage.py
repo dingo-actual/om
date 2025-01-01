@@ -6,11 +6,11 @@ from os.path import join, exists
 
 from accelerate import Accelerator, infer_auto_device_map
 from accelerate.utils import LoggerType
-from evaluate import load as load_metric
 import safetensors
 from schedulefree import AdamWScheduleFree
 import torch
 from torch.utils.data import DataLoader
+from torchmetrics.text import Perplexity
 
 from src import *
 from src.om.utils import set_om_dtypes, cosine_with_warmup_mult
@@ -196,7 +196,7 @@ def main(config_dir: str):
     )
     
     # Initialize metrics and loss function
-    perplexity = load_metric("perplexity")
+    perplexity = Perplexity()
     loss_fn = torch.nn.CrossEntropyLoss()
     
     if accelerator.is_main_process:
@@ -214,11 +214,13 @@ def main(config_dir: str):
     # Prepare objects for training with Accelerate
     # device_map = infer_auto_device_map(model)
     
+    perplexity.eval()
+    
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
     optimizer = accelerator.prepare_optimizer(optimizer)
     lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
-    loss_fn = accelerator.prepare(loss_fn)
+    loss_fn, perplexity = accelerator.prepare(loss_fn, perplexity)
     model = accelerator.prepare_model(model)
     
     if accelerator.is_main_process:
@@ -296,15 +298,15 @@ def main(config_dir: str):
         
         # Log metrics
         if (batch_ix + 1) % log_every == 0:
+            pplx = perplexity(logits, targets)
             accelerator.gather_for_metrics(
-                (logits, targets, loss, tokens_processed, param_norm, grad_norm),
+                (loss, tokens_processed, param_norm, grad_norm, pplx),
             )
-            perplexity.add_batch(logits, targets)
             accelerator.log(
                 {
                     "Tokens Processed": tokens_processed,
                     "Loss/Train": loss.cpu().detach().item(),
-                    "Perplexity/Train": perplexity.compute(),
+                    "Perplexity/Train": pplx.cpu().detach().item(),
                     "Parameter Norm/Train": param_norm.cpu().detach().item(),
                     "Grad Norm/Train": grad_norm.cpu().detach().item()
                 }, 
@@ -318,6 +320,7 @@ def main(config_dir: str):
                 model=model,
                 # optimizer=optimizer,
                 loss_fn=loss_fn,
+                perpelxity=perplexity,
                 dataloader_eval=dataloader_val,
                 num_steps=eval_num_steps,
                 accelerator=accelerator,
@@ -325,26 +328,19 @@ def main(config_dir: str):
             )
 
     # Final evaluation and metrics at end of training
-    param_norm = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p)**2) for p in model.parameters() if p.requires_grad])
-        )
-    )
-    grad_norm = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for p in model.parameters() if p.requires_grad and p.grad is not None])
-        )
-    )
+    pplx = perplexity(logits, targets)
     accelerator.gather_for_metrics(
-        (logits, targets, loss, tokens_processed, param_norm, grad_norm),
+        (loss, tokens_processed, param_norm, grad_norm, pplx),
     )
-    perplexity.add_batch(logits, targets)
+    
+    param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
+    grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
     
     accelerator.log(
         {
             "Tokens Processed": tokens_processed,
             "Loss/Train": loss.cpu().detach().item(),
-            "Perplexity/Train": perplexity.compute(),
+            "Perplexity/Train": pplx.cpu().detach().item(),
             "Parameter Norm/Train": param_norm.cpu().detach().item(),
             "Grad Norm/Train": grad_norm.cpu().detach().item()
         }, 
@@ -356,6 +352,7 @@ def main(config_dir: str):
         model=model,
         # optimizer=optimizer,
         loss_fn=loss_fn,
+        perpelxity=perplexity,
         dataloader_eval=dataloader_val,
         num_steps=eval_num_steps,
         accelerator=accelerator,

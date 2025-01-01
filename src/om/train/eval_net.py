@@ -1,8 +1,8 @@
 from accelerate import Accelerator
-from evaluate import load as load_metric
 import torch
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torchmetrics.text import Perplexity
 
 from ..om_llm import OmLLM
 
@@ -11,6 +11,7 @@ def eval_net(
     model: OmLLM, 
     # optimizer: Optimizer, 
     loss_fn: torch.nn.Module,
+    perpelxity: Perplexity,
     dataloader_eval: DataLoader, 
     num_steps: int, 
     accelerator: Accelerator,
@@ -18,9 +19,9 @@ def eval_net(
 ) -> None:
     model = model.eval()
     # optimizer.eval()
-    perpelxity = load_metric("perplexity")
     
     loss_total = 0.0
+    pplx_total = 0.0
     n_tokens = 0
     
     with torch.no_grad():
@@ -35,21 +36,23 @@ def eval_net(
             
             loss = loss_fn(logits.transpose(-1, -2), targets)
             
+            pplx = perpelxity(logits, targets)
             accelerator.gather_for_metrics(
-                (logits, targets, loss),
+                (loss, pplx),
             )
-            perpelxity.add_batch(logits, targets)
                 
             batch_tokens = logits.size(0) * logits.size(1)
             loss_total += loss.cpu().detach().item() * batch_tokens
+            pplx_total += pplx.cpu().detach().item() * batch_tokens
             n_tokens += batch_tokens
         
         eval_loss = loss_total / n_tokens
+        eval_pplx = pplx_total / n_tokens
         
         accelerator.log(
             {
                 "Loss/Validation": eval_loss,
-                "Perplexity/Validation": perpelxity.compute()
+                "Perplexity/Validation": eval_pplx
             }, 
             step=batch_ix
         )
