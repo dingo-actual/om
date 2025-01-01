@@ -140,6 +140,7 @@ def main(config_dir: str):
         project_dir=checkpoint_dir_stage, 
         gradient_accumulation_steps=gradient_accumulation_steps,
         log_with=LoggerType.TENSORBOARD,
+        
     )
     
     # Initialize timestamps
@@ -212,9 +213,6 @@ def main(config_dir: str):
     if accelerator.is_main_process:
         print(f"Preparing objects for training with Accelerate...")
     # Prepare objects for training with Accelerate
-    # device_map = infer_auto_device_map(model)
-    
-    perplexity.eval()
     
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
@@ -222,6 +220,11 @@ def main(config_dir: str):
     lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
     loss_fn, perplexity = accelerator.prepare(loss_fn, perplexity)
     model = accelerator.prepare_model(model)
+    
+    if accelerator.is_main_process:
+        print(f"Initializing loggers...")
+        
+    accelerator.init_trackers(project_name=f"pretrain-stage-{stage_ix}")
     
     if accelerator.is_main_process:
         print(f"Starting training...")
