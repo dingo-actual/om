@@ -13,6 +13,7 @@ def eval_net(
     loss_fn: torch.nn.Module,
     perpelxity: Perplexity,
     dataloader_eval: DataLoader, 
+    num_pad: int,
     num_steps: int, 
     accelerator: Accelerator,
     batch_ix: int
@@ -30,7 +31,7 @@ def eval_net(
                 break
             
             inputs = batch[:, :-1]
-            targets = batch[:, 1:]
+            targets = batch[:, num_pad + 1:]
             
             logits, _ = model(inputs)
             
