@@ -4,7 +4,7 @@ import json
 from os import makedirs
 from os.path import join, exists
 
-from accelerate import Accelerator
+from accelerate import Accelerator, infer_auto_device_map
 from accelerate.utils import LoggerType
 import safetensors
 from schedulefree import AdamWScheduleFree
@@ -212,12 +212,17 @@ def main(config_dir: str):
     if accelerator.is_main_process:
         print(f"Preparing objects for training with Accelerate...")
     # Prepare objects for training with Accelerate
+    # device_map = infer_auto_device_map(model)
+    
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
     optimizer = accelerator.prepare_optimizer(optimizer)
     lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
     loss_fn = accelerator.prepare(loss_fn)
-    model = accelerator.prepare_model(model)
+    model = accelerator.prepare_model(
+        model,
+        # device_map=device_map,
+    )
     
     if accelerator.is_main_process:
         print(f"Starting training...")
