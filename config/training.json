@@ -7,12 +7,14 @@
             "batch_size": 8,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
             "batch_size": 8,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
@@ -35,12 +37,14 @@
             "batch_size": 4,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
             "batch_size": 4,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
@@ -63,12 +67,14 @@
             "batch_size": 2,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
             "batch_size": 2,
             "num_workers": 8,
             "prefetch_factor": 2,
+            "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
