@@ -212,16 +212,12 @@ def main(config_dir: str):
     if accelerator.is_main_process:
         print(f"Preparing objects for training with Accelerate...")
     # Prepare objects for training with Accelerate
-    model, optimizer, lr_scheduler, loss_fn, dataloader_train, dataloader_val = (
-        accelerator.prepare(
-            model, 
-            optimizer, 
-            lr_scheduler, 
-            loss_fn, 
-            dataloader_train, 
-            dataloader_val
-        )
-    )
+    dataloader_train = accelerator.prepare_data_loader(dataloader_train)
+    dataloader_val = accelerator.prepare_data_loader(dataloader_val)
+    optimizer = accelerator.prepare_optimizer(optimizer)
+    lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
+    loss_fn = accelerator.prepare(loss_fn)
+    model = accelerator.prepare_model(model)
     
     if accelerator.is_main_process:
         print(f"Starting training...")
