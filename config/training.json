@@ -4,89 +4,89 @@
         "gradient_accumulation_steps": 1,
         "gradient_clip": 1.0,
         "dataloader_train_kwargs": {
-            "batch_size": 8,
+            "batch_size": 16,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
-            "batch_size": 8,
+            "batch_size": 16,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.0025,
+            "lr": 0.005,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 7620,
-            "total_steps": 76200,
+            "warmup_steps": 3235,
+            "total_steps": 32350,
             "min_lr_mult": 0.01
         },
         "log_every": 50,
         "eval_every": 100,
-        "eval_num_steps": 25
+        "eval_num_steps": 5
     },
     {
         "stage_num": 2,
         "gradient_clip": 1.0,
         "gradient_accumulation_steps": 2,
         "dataloader_train_kwargs": {
-            "batch_size": 4,
+            "batch_size": 8,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
-            "batch_size": 4,
+            "batch_size": 8,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.0025,
+            "lr": 0.005,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 5320,
-            "total_steps": 53200,
+            "warmup_steps": 900,
+            "total_steps": 9000,
             "min_lr_mult": 0.01
         },
         "log_every": 50,
         "eval_every": 100,
-        "eval_num_steps": 25
+        "eval_num_steps": 1
     },
     {
         "stage_num": 3,
         "gradient_accumulation_steps": 4,
         "gradient_clip": 1.0,
         "dataloader_train_kwargs": {
-            "batch_size": 2,
+            "batch_size": 4,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "dataloader_val_kwargs": {
-            "batch_size": 2,
+            "batch_size": 4,
             "num_workers": 8,
             "prefetch_factor": 2,
             "drop_last": true,
             "pin_memory": true
         },
         "opt_kwargs": {
-            "lr": 0.0025,
+            "lr": 0.005,
             "betas": [0.9, 0.95],
             "weight_decay": 0.1,
-            "warmup_steps": 8930,
-            "total_steps": 89300,
+            "warmup_steps": 1334,
+            "total_steps": 13340,
             "min_lr_mult": 0.01
         },
-        "log_every": 50,
-        "eval_every": 100,
-        "eval_num_steps": 25
+        "log_every": 100,
+        "eval_every": 250,
+        "eval_num_steps": 2
     }
 ]
