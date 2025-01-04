@@ -109,17 +109,18 @@ def main(config_dir: str):
     training_config_stage = training_config[stage_ix-1]
     
     # Get directories
-    home_dir = paths_config["home"]
     checkpoint_dir = paths_config["checkpoints"]
+    home_dir = paths_config["home"]
     
     checkpoint_dir_stage = f"{checkpoint_dir}/stage{stage_ix}"
-    writer_dir = f"{home_dir}/runs/stage{stage_ix}"
+    log_dir = f"{home_dir}/runs/stage{stage_ix}"
     
     # Create directories if they don't exist
     if not exists(checkpoint_dir_stage):
         makedirs(checkpoint_dir_stage)
-    if not exists(writer_dir):
-        makedirs(writer_dir)
+        
+    if not exists(log_dir):
+        makedirs(log_dir)
     
     # If we're resuming from a previous stage, load the model
     if stage_ix > 1:
@@ -140,7 +141,6 @@ def main(config_dir: str):
         project_dir=checkpoint_dir_stage, 
         gradient_accumulation_steps=gradient_accumulation_steps,
         log_with=LoggerType.TENSORBOARD,
-        
     )
     
     # Initialize timestamps
@@ -221,10 +221,25 @@ def main(config_dir: str):
     loss_fn, perplexity = accelerator.prepare(loss_fn, perplexity)
     model = accelerator.prepare_model(model)
     
+    # Initialize loggers
     if accelerator.is_main_process:
         print(f"Initializing loggers...")
         
-    accelerator.init_trackers(project_name=f"pretrain-stage-{stage_ix}")
+    accelerator.init_trackers(
+        project_name=f"pretrain-stage-{stage_ix}",
+        config={
+            "base_lr": lr,
+            "warmup_steps": warmup_steps,
+            "batch_size": batch_size,
+            "gradient_accumulation_steps": gradient_accumulation_steps,
+            "seq_len": train_datasets[stage_ix-1].datasets[0].segment_len,
+        },
+        init_kwargs={
+            "tensorboard": {
+                "log_dir": log_dir,
+            }
+        }
+    )
     
     if accelerator.is_main_process:
         print(f"Starting training...")
