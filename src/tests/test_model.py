@@ -23,7 +23,7 @@ def test_model():
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [1, 1, 1]
-    betas = [1.0 / ((2 * dims_value[0]) ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.0 / ((dims_value[2] / 2) ** 0.5)]
+    scaling_factors = [1.0 / ((2 * dims_value[0]) ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.0 / ((dims_value[2] / 2) ** 0.5)]
     attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
@@ -68,7 +68,7 @@ def test_model():
         state_len=state_len,
         cope=cope,
         position_embedders=position_embedders,
-        betas=betas,
+        scaling_factors=scaling_factors,
         dropout=dropout,
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,

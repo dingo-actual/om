@@ -27,7 +27,7 @@ class ARCformer(nn.Module):
         layer_num: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
-        betas: List[Optional[float]],
+        scaling_factors: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
@@ -52,7 +52,7 @@ class ARCformer(nn.Module):
             layer_num (int): The position of the layer.
             cope (bool): Whether to use CoPE for the memory modules.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules for the memory modules.
-            betas (List[Optional[float]]): Betas for Hopfield memory / scaling factors for SDP attention.
+            scaling_factors (List[Optional[float]]): Betas for Hopfield memory / scaling factors for SDP attention.
             dropout (float, optional): Dropout rate for the MLP. Defaults to 0.0.
             diff_attn (bool, optional): Whether to use diff attention. Defaults to False.
             attn_dropout (float, optional): Dropout rate for attention outputs. Defaults to 0.0.
@@ -74,7 +74,7 @@ class ARCformer(nn.Module):
                 segment_len=segment_len, 
                 state_len=state_len, 
                 dropout=attn_logit_dropout,
-                betas=betas,
+                scaling_factors=scaling_factors,
                 attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
                 num_layers=num_layers,
                 layer_num=layer_num,
@@ -92,7 +92,7 @@ class ARCformer(nn.Module):
                 segment_len=segment_len, 
                 state_len=state_len, 
                 dropout=attn_logit_dropout,
-                betas=betas,
+                scaling_factors=scaling_factors,
                 attn_proj_rank=attn_proj_rank if attn_proj_rank > 0 else dim_input // num_heads,
                 num_layers=num_layers,
                 layer_num=layer_num,

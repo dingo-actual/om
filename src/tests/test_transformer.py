@@ -17,7 +17,7 @@ def test_arc_transformer():
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     num_iters = [1, 1, 1]
-    betas = [None, None, None]
+    scaling_factors = [None, None, None]
     attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
@@ -58,7 +58,7 @@ def test_arc_transformer():
         layer_num=layer_num,
         cope=cope,
         position_embedders=position_embedders,
-        betas=betas,
+        scaling_factors=scaling_factors,
         dropout=dropout,
         diff_attn=diff_attn,
         attn_dropout=attn_dropout,

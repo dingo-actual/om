@@ -22,7 +22,7 @@ class ARCUnstacked(nn.Module):
         segment_len: int, 
         state_len: int,
         dropout: float,
-        betas: List[Optional[float]],
+        scaling_factors: List[Optional[float]],
         attn_proj_rank: int,
         num_layers: int,
         layer_num: int,
@@ -41,7 +41,7 @@ class ARCUnstacked(nn.Module):
             segment_len (int): Segment length (must be a factor of the input sequence length).
             state_len (int): Length of the state (i.e., number of tokens).
             dropout (float): The dropout rate.
-            betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
+            scaling_factors (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             num_layers (int): Number of ARC transformer layers in the parent model.
             layer_num (int): The position of the layer.
@@ -65,7 +65,7 @@ class ARCUnstacked(nn.Module):
         self.dims_key = dims_key
         self.dims_value = dims_value
         self.num_iters = num_iters
-        self.betas = betas
+        self.scaling_factors = scaling_factors
         
         first_layer = layer_num == 0
         
@@ -79,7 +79,7 @@ class ARCUnstacked(nn.Module):
             seq_len=segment_len,
             state_len=state_len,
             dropout=dropout,
-            betas=betas,
+            scaling_factors=scaling_factors,
             attn_proj_rank=attn_proj_rank,
             cope=cope,
             diff_attn=diff_attn,
@@ -157,7 +157,7 @@ class StatefulCausalMHMA(nn.Module):
         seq_len: int,
         state_len: int,
         dropout: float,
-        betas: List[Optional[float]],
+        scaling_factors: List[Optional[float]],
         attn_proj_rank: int,
         cope: bool,
         diff_attn: bool,
@@ -175,7 +175,7 @@ class StatefulCausalMHMA(nn.Module):
             seq_len (int): The maximum length of the input sequence.
             state_len (int): The length of the state tensor.
             dropout (float): The dropout rate.
-            betas (List[Optional[float]]): The betas for Hopfield attention / scaling factors for SDP attention.
+            scaling_factors (List[Optional[float]]): The betas for Hopfield attention / scaling factors for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -194,7 +194,7 @@ class StatefulCausalMHMA(nn.Module):
         self.state_len = state_len
         self.diff_attn = diff_attn
         self.dropout = dropout
-        self.betas = betas
+        self.scaling_factors = scaling_factors
         self.attn_proj_rank = attn_proj_rank
         self.position_embedders = position_embedders
         
@@ -208,7 +208,7 @@ class StatefulCausalMHMA(nn.Module):
                     seq_len=seq_len,
                     state_len=state_len,
                     dropout=dropout,
-                    betas=betas,
+                    scaling_factors=scaling_factors,
                     attn_proj_rank=attn_proj_rank,
                     cope=cope,
                     diff_attn=diff_attn,
@@ -248,7 +248,7 @@ class StatefulCausalMultiAttention(nn.Module):
         seq_len: int,
         state_len: int,
         dropout: float,
-        betas: List[Optional[float]],
+        scaling_factors: List[Optional[float]],
         attn_proj_rank: int,
         cope: bool,
         diff_attn: bool,
@@ -265,7 +265,7 @@ class StatefulCausalMultiAttention(nn.Module):
             seq_len (int): The maximum length of the sequence.
             state_len (int): The length of the state tensor.
             dropout (float): Dropout rate.
-            betas (List[Optional[float]]): The betas for the Hopfield attention / scaling factor for SDP attention.
+            scaling_factors (List[Optional[float]]): The betas for the Hopfield attention / scaling factor for SDP attention.
             attn_proj_rank (int): The rank of the attention projection.
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
@@ -281,7 +281,7 @@ class StatefulCausalMultiAttention(nn.Module):
         self.seq_len = seq_len
         self.state_len = state_len
         self.dropout = dropout
-        self.betas = betas
+        self.scaling_factors = scaling_factors
         self.attn_proj_rank = attn_proj_rank
         self.diff_attn = diff_attn
         self.layer_num = layer_num
@@ -309,7 +309,7 @@ class StatefulCausalMultiAttention(nn.Module):
                     state_len=state_len,
                     layer_num=layer_num,
                     dropout=dropout,
-                    scaling_factor=betas[0],
+                    scaling_factor=scaling_factors[0],
                     cope=cope,
                     position_embedder=position_embedders[0],
                 )
@@ -324,7 +324,7 @@ class StatefulCausalMultiAttention(nn.Module):
                         seq_len=seq_len,
                         state_len=state_len,
                         dropout=dropout,
-                        scaling_factor=betas[0],
+                        scaling_factor=scaling_factors[0],
                         cope=cope,
                         position_embedder=position_embedders[0]
                     )
@@ -338,7 +338,7 @@ class StatefulCausalMultiAttention(nn.Module):
                         seq_len=seq_len,
                         state_len=state_len,
                         dropout=dropout,
-                        beta=betas[0],
+                        beta=scaling_factors[0],
                         cope=cope,
                         position_embedder=position_embedders[0]
                     )
@@ -355,7 +355,7 @@ class StatefulCausalMultiAttention(nn.Module):
                         state_len=state_len,
                         layer_num=layer_num,
                         dropout=dropout,
-                        scaling_factor=betas[ix],
+                        scaling_factor=scaling_factors[ix],
                         cope=cope,
                         position_embedder=position_embedders[ix],
                     )
@@ -376,7 +376,7 @@ class StatefulCausalMultiAttention(nn.Module):
                             seq_len=seq_len,
                             state_len=state_len,
                             dropout=dropout,
-                            scaling_factor=betas[ix],
+                            scaling_factor=scaling_factors[ix],
                             cope=cope,
                             position_embedder=position_embedders[ix]
                         )
@@ -390,7 +390,7 @@ class StatefulCausalMultiAttention(nn.Module):
                             seq_len=seq_len,
                             state_len=state_len,
                             dropout=dropout,
-                            beta=betas[ix],
+                            beta=scaling_factors[ix],
                             cope=cope,
                             position_embedder=position_embedders[ix]
                         )

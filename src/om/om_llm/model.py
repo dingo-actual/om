@@ -21,7 +21,7 @@ class OmLLM(torch.nn.Module):
         state_len: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
-        betas: List[Optional[float]],
+        scaling_factors: List[Optional[float]],
         dropout: float = 0.0,
         diff_attn: bool = False,
         attn_dropout: float = 0.0,
@@ -47,7 +47,7 @@ class OmLLM(torch.nn.Module):
             state_len (int): State length (in tokens).
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
-            betas (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
+            scaling_factors (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
             dropout (float, optional): Pre/post MLP dropout. Defaults to 0.0.
             attn_dropout (float, optional): Dropout rate for attention outputs. Defaults to 0.0.
             attn_logit_dropout (float, optional): Dropout rate for attention logits. Defaults to 0.0.
@@ -105,7 +105,7 @@ class OmLLM(torch.nn.Module):
                     layer_num=ix,
                     cope=cope,
                     position_embedders=position_embedders,
-                    betas=betas,
+                    scaling_factors=scaling_factors,
                     dropout=dropout,
                     diff_attn=diff_attn,
                     attn_dropout=attn_dropout,
