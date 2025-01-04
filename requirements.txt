@@ -1,7 +1,7 @@
-torch>=2.4
+-r requirements_pytorch.txt
 datasets >= 2.19.1
 tiktoken >= 0.7.0
-xformers >= 0.0.26
+xformers == 0.0.28
 orjson >=3.10.3
 numpy >= 1.25.2
 accelerate >= 0.30.1
