@@ -79,7 +79,7 @@ def test_model():
         stacked_attn=stacked_attn,
     )
     
-    seq_len = segment_len * num_segments
+    seq_len = segment_len * num_segments - 5
     x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
     x = x.to(torch.long)
 

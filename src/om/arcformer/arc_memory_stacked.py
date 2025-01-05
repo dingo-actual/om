@@ -458,6 +458,14 @@ class StatefulCausalAttention(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, num_heads, seq_len + 2 * state_len, dim_value) if skip_update_state is False
             and (batch_size, num_heads, seq_len + state_len, dim_value) if skip_update_state is True.
         """
+        if q.size(-2) % 8 > 0:
+            pad_tokens = 8 - (q.size(-2) % 8)
+            q = torch.concat([q, torch.full((q.size(0), q.size(1), pad_tokens, q.size(3)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
+            k = torch.concat([k, torch.full((k.size(0), k.size(1), pad_tokens, k.size(3)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
+            v = torch.concat([v, torch.full((v.size(0), v.size(1), pad_tokens, v.size(3)), float("-inf"), dtype=v.dtype, device=v.device)], dim=-2)
+        else:
+            pad_tokens = 0
+        
         use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
         
         # If position embedder is specified, add positional embeddings to q and k
@@ -477,6 +485,10 @@ class StatefulCausalAttention(nn.Module):
                 )
                 attn_bias = attn_bias.log()
         else:
+            if pad_tokens > 0:
+                bias = torch.concat([bias, torch.full((bias.size(0), bias.size(1), pad_tokens, bias.size(3)), float("-inf"), dtype=bias.dtype, device=bias.device)], dim=-2)
+                bias = torch.concat([bias, torch.full((bias.size(0), bias.size(1), bias.size(2), pad_tokens), float("-inf"), dtype=bias.dtype, device=bias.device)], dim=-1)
+            
             attn_bias = torch.tril(
                 torch.ones((q.size(0), q.size(1), q.size(2), q.size(2)), device=device, dtype=q.dtype), 
                 diagonal=0,
@@ -496,6 +508,9 @@ class StatefulCausalAttention(nn.Module):
             att = att.transpose(1, 2)
         else:
             att = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor)
+
+        if pad_tokens > 0:
+            att = att[:, :, :-pad_tokens, :]
 
         return att
 
@@ -659,6 +674,14 @@ class StatefulCausalDiffAttention(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, num_heads, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
             and (batch_size, num_heads, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is True.
         """
+        if q.size(-2) % 8 > 0:
+            pad_tokens = 8 - (q.size(-2) % 8)
+            q = torch.concat([q, torch.full((q.size(0), q.size(1), pad_tokens, q.size(3)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
+            k = torch.concat([k, torch.full((k.size(0), k.size(1), pad_tokens, k.size(3)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
+            v = torch.concat([v, torch.full((v.size(0), v.size(1), pad_tokens, v.size(3)), float("-inf"), dtype=v.dtype, device=v.device)], dim=-2)
+        else:
+            pad_tokens = 0
+        
         use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
         
         # Split q and k into q1, q2, k1, k2
@@ -678,6 +701,12 @@ class StatefulCausalDiffAttention(nn.Module):
             attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(2), q.size(2)), fill_value=float("-inf")), diagonal=1)
             attn_bias_2 = torch.triu(torch.full((q.size(1), q.size(2), q.size(2)), fill_value=float("-inf")), diagonal=1)
         else:
+            if pad_tokens > 0:
+                bias1 = torch.concat([bias1, torch.full((bias1.size(0), bias1.size(1), pad_tokens, bias1.size(3)), float("-inf"), dtype=bias1.dtype, device=bias1.device)], dim=-2)
+                bias1 = torch.concat([bias1, torch.full((bias1.size(0), bias1.size(1), bias1.size(2), pad_tokens), float("-inf"), dtype=bias1.dtype, device=bias1.device)], dim=-1)
+                bias2 = torch.concat([bias2, torch.full((bias2.size(0), bias2.size(1), pad_tokens, bias2.size(3)), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-2)
+                bias2 = torch.concat([bias2, torch.full((bias2.size(0), bias2.size(1), bias2.size(2), pad_tokens), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-1)
+            
             device = q.device
             attn_bias_1 = torch.tril(
                 torch.ones((q.size(0), q.size(1), q.size(2), q.size(2)), device=device, dtype=q.dtype), 
@@ -723,6 +752,9 @@ class StatefulCausalDiffAttention(nn.Module):
             )
         
         att = att1 - lambda_ * att2
+        
+        if pad_tokens > 0:
+            att = att[:, :, :-pad_tokens, :]
 
         return att
 

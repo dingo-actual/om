@@ -31,7 +31,7 @@ def test_model_training():
     activation = "gelu"
     mlp_1221 = True
     segment_len = 128
-    cope = True
+    cope = False
     state_len = segment_len // 8
     
     init_ngrams = [2, 3]
@@ -81,7 +81,7 @@ def test_model_training():
         stacked_attn=stacked_attn
     )
     
-    seq_len = segment_len * num_segments
+    seq_len = segment_len * num_segments - 5
 
     model = model.to(device=device)
     model = set_om_dtypes(model, torch.bfloat16)

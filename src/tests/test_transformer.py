@@ -69,7 +69,7 @@ def test_arc_transformer():
     )
 
     batch_size = 2
-    seq_len = segment_len
+    seq_len = segment_len - 5
     x = torch.randn(batch_size, seq_len, dim_input).to(torch.bfloat16)
     state = torch.randn(batch_size, state_len, dim_input).to(torch.bfloat16)
     
