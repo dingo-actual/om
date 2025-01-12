@@ -3,8 +3,9 @@ import datetime
 import json
 from os import makedirs
 from os.path import join, exists
+from time import time
 
-from accelerate import Accelerator, infer_auto_device_map
+from accelerate import Accelerator
 from accelerate.utils import LoggerType
 import safetensors
 from schedulefree import AdamWScheduleFree
@@ -17,6 +18,9 @@ from src.om.utils import set_om_dtypes, cosine_with_warmup_mult
 
 
 def main(config_dir: str):
+    # Mark start time
+    start_time = time()
+    
     # Get config filepaths
     data_config_fpath = join(config_dir, "data.json")
     model_config_fpath = join(config_dir, "model.json")
@@ -105,6 +109,9 @@ def main(config_dir: str):
         final_checkpoint_dir = f"{paths_config['checkpoints']}/stage{stage_ix}/checkpoint_FINAL"
         if not exists(final_checkpoint_dir):
             break
+    if stage_ix == num_stages:
+        print("No more stages to train.")
+        return
         
     training_config_stage = training_config[stage_ix-1]
     
@@ -387,6 +394,13 @@ def main(config_dir: str):
     accelerator.save_state(f"{checkpoint_dir_stage}/checkpoint_FINAL")
     accelerator.save_model(model, checkpoint_dir_stage)
     
+    # Record total training time
+    if accelerator.is_main_process:
+        total_time = time.time() - start_time
+        with open(f"{home_dir}/time_seconds.txt", "a") as f:
+            f.write(f"{total_time}\n")
+    
+    # Close accelerator
     accelerator.end_training()
 
 
