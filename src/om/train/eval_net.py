@@ -9,7 +9,7 @@ from ..om_llm import OmLLM
 
 def eval_net(
     model: OmLLM, 
-    # optimizer: Optimizer, 
+    optimizer: Optimizer, 
     loss_fn: torch.nn.Module,
     perpelxity: Perplexity,
     dataloader_eval: DataLoader, 
@@ -19,7 +19,7 @@ def eval_net(
     batch_ix: int
 ) -> None:
     model = model.eval()
-    # optimizer.eval()
+    optimizer.eval()
     
     loss_total = 0.0
     pplx_total = 0.0
@@ -59,4 +59,4 @@ def eval_net(
         )
             
     model = model.train()
-    # optimizer.train()
+    optimizer.train()

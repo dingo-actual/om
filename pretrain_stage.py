@@ -192,16 +192,16 @@ def main(config_dir: str):
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    # optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
-    optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
-    lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
-        optimizer=optimizer,
-        lr_lambda=cosine_with_warmup_mult(
-            warmup_steps=adj_warmup_steps,
-            total_steps=total_steps,
-            min_lr_mult=min_lr_mult
-        )
-    )
+    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
+    # optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
+    # lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
+    #     optimizer=optimizer,
+    #     lr_lambda=cosine_with_warmup_mult(
+    #         warmup_steps=adj_warmup_steps,
+    #         total_steps=total_steps,
+    #         min_lr_mult=min_lr_mult
+    #     )
+    # )
     
     # Initialize metrics and loss function
     perplexity = Perplexity()
@@ -213,7 +213,7 @@ def main(config_dir: str):
     accelerator.register_for_checkpointing(
         model, 
         optimizer, 
-        lr_scheduler, 
+        # lr_scheduler, 
         loss_fn
     )
     
@@ -224,7 +224,7 @@ def main(config_dir: str):
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
     optimizer = accelerator.prepare_optimizer(optimizer)
-    lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
+    # lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
     loss_fn, perplexity = accelerator.prepare(loss_fn, perplexity)
     model = accelerator.prepare_model(model)
     
@@ -241,11 +241,7 @@ def main(config_dir: str):
             "gradient_accumulation_steps": gradient_accumulation_steps,
             "seq_len": train_datasets[stage_ix-1].datasets[0].segment_len,
         },
-        init_kwargs={
-            "tensorboard": {
-                "log_dir": log_dir,
-            }
-        }
+        init_kwargs={"tensorboard": {}}
     )
     
     if accelerator.is_main_process:
@@ -254,7 +250,7 @@ def main(config_dir: str):
     tokens_processed = 0
     
     model = model.train()
-    # optimizer.train()
+    optimizer.train()
     
     # Main training loop
     for batch_ix, batch in enumerate(dataloader_train):
@@ -295,7 +291,7 @@ def main(config_dir: str):
             
             # Update parameters and perform lr step
             optimizer.step()
-            lr_scheduler.step()
+            # lr_scheduler.step()
         
         # Update timestamp
         time_crnt = datetime.datetime.now()
@@ -305,7 +301,7 @@ def main(config_dir: str):
             time_str = time_crnt.strftime("%Y-%m-%d %H:%M:%S")
             accelerator.wait_for_everyone()
             model = model.eval()
-            # optimizer.eval()
+            optimizer.eval()
             
             # Save checkpoint
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
@@ -316,7 +312,7 @@ def main(config_dir: str):
             
             # Reset model and optimizer to training mode
             model = model.train()
-            # optimizer.train()
+            optimizer.train()
             
             # Update timestamp
             time_last = time_crnt
@@ -343,7 +339,7 @@ def main(config_dir: str):
             accelerator.wait_for_everyone()
             eval_net(
                 model=model,
-                # optimizer=optimizer,
+                optimizer=optimizer,
                 loss_fn=loss_fn,
                 perpelxity=perplexity,
                 dataloader_eval=dataloader_val,
@@ -376,7 +372,7 @@ def main(config_dir: str):
     accelerator.wait_for_everyone()
     eval_net(
         model=model,
-        # optimizer=optimizer,
+        optimizer=optimizer,
         loss_fn=loss_fn,
         perpelxity=perplexity,
         dataloader_eval=dataloader_val,
