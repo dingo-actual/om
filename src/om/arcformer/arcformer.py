@@ -158,7 +158,7 @@ class ARCformer(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
              - Output tensor of shape (batch_size, segment_len, dim_input).
-             - State tensor of shape (batch_size, state_len, dim_input * mlp_multiplier).
+             - State tensor of shape (batch_size, state_len, dim_input).
         """
         dtype = x.dtype
         # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
