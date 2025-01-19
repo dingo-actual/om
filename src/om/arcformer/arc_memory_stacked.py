@@ -458,7 +458,7 @@ class StatefulCausalAttention(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, num_heads, seq_len + 2 * state_len, dim_value) if skip_update_state is False
             and (batch_size, num_heads, seq_len + state_len, dim_value) if skip_update_state is True.
         """
-        if q.size(-2) % 8 > 0:
+        if q.size(-2) % 8 > 0 and not self.training:
             pad_tokens = 8 - (q.size(-2) % 8)
             q = torch.concat([q, torch.full((q.size(0), q.size(1), pad_tokens, q.size(3)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
             k = torch.concat([k, torch.full((k.size(0), k.size(1), pad_tokens, k.size(3)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
@@ -674,7 +674,7 @@ class StatefulCausalDiffAttention(nn.Module):
             torch.Tensor: Output tensor. Shape is (batch_size, num_heads, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
             and (batch_size, num_heads, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is True.
         """
-        if q.size(-2) % 8 > 0:
+        if q.size(-2) % 8 > 0 and not self.training:
             pad_tokens = 8 - (q.size(-2) % 8)
             q = torch.concat([q, torch.full((q.size(0), q.size(1), pad_tokens, q.size(3)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
             k = torch.concat([k, torch.full((k.size(0), k.size(1), pad_tokens, k.size(3)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
