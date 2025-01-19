@@ -117,7 +117,7 @@ class OmLLM(torch.nn.Module):
             )
         self.layers = torch.nn.ModuleList(layers)
         
-        self.proj_out = torch.nn.Linear(dim_input, vocab_size)
+        self.proj_out = torch.nn.Linear(dim_input, vocab_size, bias=False)
         
     def forward(self, 
                 x: torch.Tensor, 
