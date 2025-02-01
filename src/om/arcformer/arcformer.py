@@ -106,6 +106,7 @@ class ARCformer(nn.Module):
         self.diff_attn = diff_attn
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
         self.dropout1 = nn.Dropout(attn_dropout)
+        self.state_norm = nn.LayerNorm(dim_input, eps=1e-5)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -169,5 +170,9 @@ class ARCformer(nn.Module):
             x = self.attn_norm((self.dropout1(attn) + x).to(torch.float32)).to(dtype)
         mlp_out = self.dropout2(self.mlp(x))
         x = self.mlp_norm((mlp_out + x).to(torch.float32)).to(dtype)
+        
+        # Apply layer normalization to output state
+        if not skip_update_state:
+            state = self.state_norm(state.to(torch.float32)).to(dtype)
         
         return x, state
