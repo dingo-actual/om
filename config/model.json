@@ -1,6 +1,6 @@
 {
     "num_layers": 8,
-    "vocab_size": 50284,
+    "vocab_size": 50259,
     "dim_input": 1024,
     "dim_hidden": 4096,
     "dims_key": [256, 128, 64],
@@ -29,9 +29,9 @@
         }
     ],
     "scaling_factors": [
-        0.044194173824159216, 
-        0.08838834764831843, 
-        0.17677669529663687
+        0.04419417382415922, 
+        0.08838834764831845, 
+        0.1767766952966369
     ],
     "dropout": 0.1,
     "diff_attn": false,
@@ -39,6 +39,6 @@
     "attn_logit_dropout": 0.0,
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
-    "mlp_1221": true,
+    "mlp_1221": false,
     "stacked_attn": true
 }
