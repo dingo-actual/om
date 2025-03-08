@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import json
+import math
 from os import makedirs
 from os.path import join, exists
 from time import time
@@ -8,7 +9,7 @@ from time import time
 from accelerate import Accelerator
 from accelerate.utils import LoggerType
 import safetensors
-from schedulefree import AdamWScheduleFree
+from schedulefree import RAdamScheduleFree
 import torch
 from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
@@ -170,6 +171,9 @@ def main(config_dir: str):
     eval_num_steps = training_config_stage.pop("eval_num_steps")
     grad_clip = training_config_stage.pop("gradient_clip")
     
+    log_every = math.ceil(log_every / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
+    eval_every = math.ceil(eval_every / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
+    
     # Set up optimizer
     opt_kwargs["betas"] = tuple(opt_kwargs["betas"])
     
@@ -178,9 +182,10 @@ def main(config_dir: str):
     opt_kwargs["lr"] = adj_lr
     
     warmup_steps = opt_kwargs.pop("warmup_steps")
-    adj_warmup_steps = warmup_steps * accelerator.gradient_accumulation_steps
-    total_steps = opt_kwargs.pop("total_steps")
-    min_lr_mult = opt_kwargs.pop("min_lr_mult")
+    # adj_warmup_steps = math.ceil(warmup_steps / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
+    # opt_kwargs["warmup_steps"] = adj_warmup_steps
+    # total_steps = opt_kwargs.pop("total_steps")
+    # min_lr_mult = opt_kwargs.pop("min_lr_mult")
     
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
@@ -192,7 +197,7 @@ def main(config_dir: str):
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = AdamWScheduleFree(param_groups, **opt_kwargs)
+    optimizer = RAdamScheduleFree(param_groups, foreach=False, **opt_kwargs)
     # optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
     # lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
     #     optimizer=optimizer,
