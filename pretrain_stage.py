@@ -8,14 +8,14 @@ from time import time
 
 from accelerate import Accelerator
 from accelerate.utils import LoggerType
+from heavyball import PrecondSchedulePaLMForeachSOAP, utils
 import safetensors
-from schedulefree import RAdamScheduleFree
 import torch
 from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
 
 from src import *
-from src.om.utils import set_om_dtypes, cosine_with_warmup_mult
+from src.om.utils import set_om_dtypes
 
 
 def main(config_dir: str):
@@ -40,6 +40,9 @@ def main(config_dir: str):
     
     num_stages = len(training_config)
     data_config_shared = data_config["shared"]
+    
+    utils.compile_mode = None
+    utils.set_torch()
     
     # Load datasets
     train_num_files = [[] for _ in range(num_stages)]
@@ -182,10 +185,10 @@ def main(config_dir: str):
     opt_kwargs["lr"] = adj_lr
     
     warmup_steps = opt_kwargs.pop("warmup_steps")
-    # adj_warmup_steps = math.ceil(warmup_steps / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
-    # opt_kwargs["warmup_steps"] = adj_warmup_steps
-    # total_steps = opt_kwargs.pop("total_steps")
-    # min_lr_mult = opt_kwargs.pop("min_lr_mult")
+    adj_warmup_steps = math.ceil(warmup_steps / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
+    opt_kwargs["warmup_steps"] = adj_warmup_steps
+    total_steps = opt_kwargs.pop("total_steps")
+    min_lr_mult = opt_kwargs.pop("min_lr_mult")
     
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
@@ -197,7 +200,7 @@ def main(config_dir: str):
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = RAdamScheduleFree(param_groups, foreach=False, **opt_kwargs)
+    optimizer = PrecondSchedulePaLMForeachSOAP(param_groups, foreach=False, storage_dtype='bfloat16', **opt_kwargs)
     # optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
     # lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
     #     optimizer=optimizer,
@@ -255,7 +258,7 @@ def main(config_dir: str):
     tokens_processed = 0
     
     model = model.train()
-    optimizer.train()
+    # optimizer.train()
     
     # Main training loop
     for batch_ix, batch in enumerate(dataloader_train):
@@ -306,7 +309,7 @@ def main(config_dir: str):
             time_str = time_crnt.strftime("%Y-%m-%d %H:%M:%S")
             accelerator.wait_for_everyone()
             model = model.eval()
-            optimizer.eval()
+            # optimizer.eval()
             
             # Save checkpoint
             checkpoint_dir_crnt = f"{checkpoint_dir_stage}/checkpoint_{time_str}"
@@ -317,7 +320,7 @@ def main(config_dir: str):
             
             # Reset model and optimizer to training mode
             model = model.train()
-            optimizer.train()
+            # optimizer.train()
             
             # Update timestamp
             time_last = time_crnt

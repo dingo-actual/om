@@ -1,4 +1,4 @@
-from schedulefree import AdamWScheduleFree
+from heavyball import PrecondSchedulePaLMForeachSOAP, utils
 import torch
 
 from ..om.om_llm import OmLLM
@@ -9,10 +9,14 @@ from ..om.arcformer.util import check_if_linux
 
 def test_model_training():
     linux = check_if_linux()
+    linux = True
     if torch.cuda.is_available():
         device = "cuda:0"
     else:
         device = "cpu"
+        
+    utils.compile_mode = None
+    utils.set_torch()
     
     num_layers = 4
     vocab_size = 512
@@ -29,7 +33,7 @@ def test_model_training():
     attn_proj_rank = dim_input // (2 * num_heads)
     
     activation = "gelu"
-    mlp_1221 = True
+    mlp_1221 = False
     segment_len = 128
     cope = False
     state_len = segment_len // 8
@@ -96,7 +100,7 @@ def test_model_training():
     ]
     
     if linux:
-        optimizer = AdamWScheduleFree(param_groups, lr=1e-3, warmup_steps=10, foreach=False)
+        optimizer = PrecondSchedulePaLMForeachSOAP(param_groups, lr=1e-3, warmup_steps=10, foreach=False)
     else:
         optimizer = torch.optim.AdamW(param_groups, lr=1e-3, betas=(0.9, 0.95))
         
@@ -104,8 +108,8 @@ def test_model_training():
     
     model = model.train()
     
-    if linux:
-        optimizer.train()
+    # if linux:
+    #     optimizer.train()
     
     for ix in range(20):
         optimizer.zero_grad()

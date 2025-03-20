@@ -19,7 +19,7 @@ def eval_net(
     batch_ix: int
 ) -> None:
     model = model.eval()
-    optimizer.eval()
+    # optimizer.eval()
     
     loss_total = 0.0
     pplx_total = 0.0
@@ -59,4 +59,4 @@ def eval_net(
         )
             
     model = model.train()
-    optimizer.train()
+    # optimizer.train()
