@@ -19,7 +19,6 @@
         },
         "opt_kwargs": {
             "lr": 0.001,
-            "betas": [0.9, 0.95],
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "total_steps": 67408,
@@ -49,7 +48,6 @@
         },
         "opt_kwargs": {
             "lr": 0.001,
-            "betas": [0.9, 0.95],
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "total_steps": 18001,
@@ -79,7 +77,6 @@
         },
         "opt_kwargs": {
             "lr": 0.001,
-            "betas": [0.9, 0.95],
             "weight_decay": 0.1,
             "warmup_steps": 100,
             "total_steps": 26680,
