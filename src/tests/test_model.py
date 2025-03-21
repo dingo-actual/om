@@ -28,12 +28,13 @@ def test_model():
     
     activation = "gelu"
     mlp_1221 = True
-    segment_len = 512
     cope = False
-    state_len = segment_len // 8
     
     init_ngrams = [2, 3]
     max_init_ngrams = 1 if len(init_ngrams) == 0 else max(init_ngrams)
+    
+    base_segment_len = 512
+    state_len = base_segment_len // 8
     
     dropout = 0.1
     attn_dropout = 0.1
@@ -48,7 +49,7 @@ def test_model():
     position_embedders = [
         RoPEEmbeddings(
             dim, 
-            seq_len=segment_len + 2 * state_len, 
+            seq_len=base_segment_len + 2 * state_len, 
             num_dims=4 if stacked_attn else 3
         )
         for dim in dims_key
@@ -64,7 +65,7 @@ def test_model():
         num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
-        segment_len=segment_len,
+        segment_len=base_segment_len,
         state_len=state_len,
         cope=cope,
         position_embedders=position_embedders,
@@ -79,7 +80,7 @@ def test_model():
         stacked_attn=stacked_attn,
     )
     
-    seq_len = segment_len * num_segments - 5
+    seq_len = base_segment_len * num_segments
     x = vocab_size * torch.rand(batch_size, seq_len + max_init_ngrams - 1)
     x = x.to(torch.long)
 

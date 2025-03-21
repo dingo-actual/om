@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
 
 from src import *
+from src.om.utils import set_om_dtypes
 
 
 def main(config_dir: str):
@@ -105,6 +106,7 @@ def main(config_dir: str):
     _ = model_config.pop("position_embedders")
     
     model = OmLLM(position_embedders=position_embedders, **model_config)
+    model = set_om_dtypes(model, torch.bfloat16)
     
     # Determine training stage
     for stage_ix in range(1, num_stages+1):

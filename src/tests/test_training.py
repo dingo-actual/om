@@ -9,7 +9,6 @@ from ..om.arcformer.util import check_if_linux
 
 def test_model_training():
     linux = check_if_linux()
-    linux = True
     if torch.cuda.is_available():
         device = "cuda:0"
     else:
@@ -34,9 +33,10 @@ def test_model_training():
     
     activation = "gelu"
     mlp_1221 = False
-    segment_len = 128
     cope = False
-    state_len = segment_len // 8
+    
+    base_segment_len = 128
+    state_len = base_segment_len // 8
     
     init_ngrams = [2, 3]
     max_init_ngrams = 1 if len(init_ngrams) == 0 else max(init_ngrams)
@@ -54,7 +54,7 @@ def test_model_training():
     position_embedders = [
         RoPEEmbeddings(
             dim, 
-            seq_len=segment_len + 2 * state_len, 
+            seq_len=base_segment_len + 2 * state_len, 
             num_dims=4 if stacked_attn else 3
         ) 
         for dim in dims_key
@@ -70,7 +70,7 @@ def test_model_training():
         num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
-        segment_len=segment_len,
+        segment_len=base_segment_len,
         state_len=state_len,
         cope=cope,
         position_embedders=position_embedders,
@@ -85,7 +85,7 @@ def test_model_training():
         stacked_attn=stacked_attn
     )
     
-    seq_len = segment_len * num_segments - 5
+    seq_len = base_segment_len * num_segments
 
     model = model.to(device=device)
     model = set_om_dtypes(model, torch.bfloat16)

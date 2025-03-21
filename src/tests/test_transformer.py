@@ -34,6 +34,8 @@ def test_arc_transformer():
     
     stacked_attn = True
     
+    max_init_ngrams = 3
+    
     position_embedders = [
         RoPEEmbeddings(
             dim, 
@@ -69,7 +71,7 @@ def test_arc_transformer():
     )
 
     batch_size = 2
-    seq_len = segment_len - 5
+    seq_len = segment_len - max_init_ngrams - 1
     x = torch.randn(batch_size, seq_len, dim_input).to(torch.bfloat16)
     state = torch.randn(batch_size, state_len, dim_input).to(torch.bfloat16)
     
