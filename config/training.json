@@ -20,9 +20,7 @@
         "opt_kwargs": {
             "lr": 0.001,
             "weight_decay": 0.1,
-            "warmup_steps": 100,
-            "total_steps": 67408,
-            "min_lr_mult": 0.01
+            "warmup_steps": 100
         },
         "log_every": 50,
         "eval_every": 100,
@@ -49,9 +47,7 @@
         "opt_kwargs": {
             "lr": 0.001,
             "weight_decay": 0.1,
-            "warmup_steps": 100,
-            "total_steps": 18001,
-            "min_lr_mult": 0.01
+            "warmup_steps": 100
         },
         "log_every": 50,
         "eval_every": 100,
@@ -78,9 +74,7 @@
         "opt_kwargs": {
             "lr": 0.001,
             "weight_decay": 0.1,
-            "warmup_steps": 100,
-            "total_steps": 26680,
-            "min_lr_mult": 0.01
+            "warmup_steps": 100
         },
         "log_every": 100,
         "eval_every": 250,
