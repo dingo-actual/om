@@ -15,7 +15,6 @@ from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
 
 from src import *
-from src.om.utils import set_om_dtypes
 
 
 def main(config_dir: str):
@@ -106,7 +105,6 @@ def main(config_dir: str):
     _ = model_config.pop("position_embedders")
     
     model = OmLLM(position_embedders=position_embedders, **model_config)
-    model = set_om_dtypes(model, torch.bfloat16)
     
     # Determine training stage
     for stage_ix in range(1, num_stages+1):
@@ -124,14 +122,10 @@ def main(config_dir: str):
     home_dir = paths_config["home"]
     
     checkpoint_dir_stage = f"{checkpoint_dir}/stage{stage_ix}"
-    log_dir = f"{home_dir}/runs/stage{stage_ix}"
     
-    # Create directories if they don't exist
+    # Create checkpoint directory if it doesn't exist
     if not exists(checkpoint_dir_stage):
         makedirs(checkpoint_dir_stage)
-        
-    if not exists(log_dir):
-        makedirs(log_dir)
     
     # If we're resuming from a previous stage, load the model
     if stage_ix > 1:
@@ -178,8 +172,6 @@ def main(config_dir: str):
     eval_every = math.ceil(eval_every / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
     
     # Set up optimizer
-    opt_kwargs["betas"] = tuple(opt_kwargs["betas"])
-    
     lr = opt_kwargs["lr"]
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
     opt_kwargs["lr"] = adj_lr
@@ -187,8 +179,6 @@ def main(config_dir: str):
     warmup_steps = opt_kwargs.pop("warmup_steps")
     adj_warmup_steps = math.ceil(warmup_steps / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
     opt_kwargs["warmup_steps"] = adj_warmup_steps
-    total_steps = opt_kwargs.pop("total_steps")
-    min_lr_mult = opt_kwargs.pop("min_lr_mult")
     
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
@@ -201,15 +191,6 @@ def main(config_dir: str):
     _ = opt_kwargs.pop("weight_decay")
     
     optimizer = PrecondSchedulePaLMForeachSOAP(param_groups, foreach=False, **opt_kwargs)
-    # optimizer = torch.optim.AdamW(param_groups, **opt_kwargs)
-    # lr_scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
-    #     optimizer=optimizer,
-    #     lr_lambda=cosine_with_warmup_mult(
-    #         warmup_steps=adj_warmup_steps,
-    #         total_steps=total_steps,
-    #         min_lr_mult=min_lr_mult
-    #     )
-    # )
     
     # Initialize metrics and loss function
     perplexity = Perplexity()
@@ -221,7 +202,6 @@ def main(config_dir: str):
     accelerator.register_for_checkpointing(
         model, 
         optimizer, 
-        # lr_scheduler, 
         loss_fn
     )
     
@@ -232,7 +212,6 @@ def main(config_dir: str):
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
     optimizer = accelerator.prepare_optimizer(optimizer)
-    # lr_scheduler = accelerator.prepare_scheduler(lr_scheduler)
     loss_fn, perplexity = accelerator.prepare(loss_fn, perplexity)
     model = accelerator.prepare_model(model)
     
@@ -333,7 +312,6 @@ def main(config_dir: str):
             
             # Update parameters and perform lr step
             optimizer.step()
-            # lr_scheduler.step()
         
         # Update timestamp
         time_crnt = datetime.datetime.now()
@@ -387,7 +365,6 @@ def main(config_dir: str):
             accelerator.wait_for_everyone()
             eval_net(
                 model=model,
-                optimizer=optimizer,
                 loss_fn=loss_fn,
                 perpelxity=perplexity,
                 dataloader_eval=dataloader_val,
@@ -456,7 +433,6 @@ def main(config_dir: str):
     accelerator.wait_for_everyone()
     eval_net(
         model=model,
-        optimizer=optimizer,
         loss_fn=loss_fn,
         perpelxity=perplexity,
         dataloader_eval=dataloader_val,
