@@ -1,6 +1,5 @@
 from accelerate import Accelerator
 import torch
-from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
 
@@ -9,7 +8,6 @@ from ..om_llm import OmLLM
 
 def eval_net(
     model: OmLLM, 
-    optimizer: Optimizer, 
     loss_fn: torch.nn.Module,
     perpelxity: Perplexity,
     dataloader_eval: DataLoader, 
