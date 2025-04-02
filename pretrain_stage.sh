@@ -1,2 +1,2 @@
-tensorboard --logdir /home/ubuntu/om-llm/checkpoints --host 0.0.0.0 &
-accelerate launch --config_file=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om-llm/om/config &
+systemd-run --scope --user tmux new -s tensorboard --logdir /home/ubuntu/om-llm/checkpoints --host 0.0.0.0 &
+systemd-run --scope --user tmux new -s accelerate launch --config_file=accelerate_config.yml pretrain_stage.py --config_dir=/home/ubuntu/om-llm/om/config &
