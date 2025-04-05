@@ -23,28 +23,36 @@ def test_run_dataloaders(config_path: str, dataloader_kwargs: Dict[str, Any]) ->
     dataloaders_train, dataloaders_val = get_dataloaders(config_path, dataloader_kwargs)
     
     for ix, dataloader_train in enumerate(dataloaders_train):
-        result["train"].append(count_tokens_dataloader(dataloader_train))
-        print(f"Train DataLoader {ix + 1}: {result['train'][-1]} tokens")
+        tokens, avg_breaks = count_tokens_dataloader(dataloader_train)
+        result["train"].append({"tokens": tokens, "avg_breaks": avg_breaks})
+        print(f"Train DataLoader {ix + 1}: {result['train'][-1]['tokens']} tokens, {result['train'][-1]['avg_breaks']} avg breaks")
         
     for ix, dataloader_val in enumerate(dataloaders_val):
-        result["validation"].append(count_tokens_dataloader(dataloader_val))
-        print(f"Validation DataLoader {ix + 1}: {result['validation'][-1]} tokens")
+        tokens, avg_breaks = count_tokens_dataloader(dataloader_val)
+        result["validation"].append({"tokens": tokens, "avg_breaks": avg_breaks})
+        print(f"Validation DataLoader {ix + 1}: {result['validation'][-1]['tokens']} tokens, {result['validation'][-1]['avg_breaks']} avg breaks")
         
     return result
 
-def count_tokens_dataloader(dataloader: DataLoader) -> int:
+def count_tokens_dataloader(dataloader: DataLoader) -> Tuple[int, int]:
     """Count tokens in dataloader.
 
     Args:
         dataloader (DataLoader): dataloader to count tokens in
 
     Returns:
-        int: number of tokens in dataloader
+        Tuple[int, int]: 
+        - number of tokens in dataloader
+        - average number of breaks in dataloader
     """
     num_tokens = 0
-    for batch in dataloader:
-        num_tokens += batch.size(0) * (batch.size(1) - 4)
-    return num_tokens
+    num_breaks = 0
+    num_obs = 0
+    for batch, batch_break_ixs in dataloader:
+        num_tokens += batch.size(0) * (batch.size(1) - 2)
+        num_obs += batch.size(0)
+        num_breaks += sum(list(map(len, batch_break_ixs)))
+    return num_tokens, num_breaks / num_obs
 
 def get_dataloaders(config_path: str, dataloader_kwargs: Dict[str, Any]) -> Tuple[List[DataLoader], List[DataLoader]]:
     """Build dataloaders.
@@ -102,6 +110,7 @@ def get_datasets_split(split_config: Dict[str, Any], shared_config: Dict[str, An
     prefix_str = shared_config.get("prefix_str", "")
     suffix_str = shared_config.get("suffix_str", "")
     pad_str = shared_config.get("pad_str", "")
+    sep_str = shared_config.get("sep_str", "")
     num_pad = shared_config.get("num_pad", 0)
     
     dirs = [conf["dir"] for conf in split_config]
@@ -131,6 +140,7 @@ def get_datasets_split(split_config: Dict[str, Any], shared_config: Dict[str, An
         prefix_str=prefix_str,
         suffix_str=suffix_str,
         pad_str=pad_str,
+        sep_str=sep_str,
         num_pad=num_pad
     )
     

@@ -242,7 +242,7 @@ def main(config_dir: str):
     # optimizer.train()
     
     # Main training loop
-    for batch_ix, batch in enumerate(dataloader_train):
+    for batch_ix, (batch, _) in enumerate(dataloader_train):
         with accelerator.accumulate(model):
             optimizer.zero_grad()
             

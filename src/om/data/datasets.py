@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 import orjson
 from tiktoken import Encoding
@@ -15,6 +15,7 @@ class FilesDataset(IterableDataset):
         prefix_str: str = "",
         suffix_str: str = "",
         pad_str: str = "",
+        sep_str: str = "",
         num_pad: int = 0
     ):
         """Initialize dataset.
@@ -26,6 +27,7 @@ class FilesDataset(IterableDataset):
             prefix_str (str, optional): Prefix to add to each sample. Defaults to "".
             suffix_str (str, optional): Suffix to add to each sample. Defaults to "".
             pad_str (str, optional): String to use for pre-padding samples. Defaults to "".
+            sep_str (str, optional): String to use for separating samples. Defaults to "".
             num_pad (int, optional): Number of pre-padding tokens. Defaults to 0.
         """
         super(FilesDataset, self).__init__()
@@ -39,13 +41,28 @@ class FilesDataset(IterableDataset):
         
         if prefix_str != "":
             self.prefix_seq = self.enc.encode(prefix_str)
+        else:
+            self.prefix_seq = []
         if suffix_str != "":
             self.suffix_seq = self.enc.encode(suffix_str)
+        else:
+            self.suffix_seq = []
+        if sep_str != "":
+            if prefix_str == "" and suffix_str == "":
+                self.sep_seq = []
+            elif prefix_str != "" and suffix_str == "":
+                self.sep_seq = self.enc.encode(prefix_str)
+            elif prefix_str == "" and suffix_str != "":
+                self.sep_seq = self.enc.encode(suffix_str)
+            else:
+                self.sep_seq = self.enc.encode(suffix_str + prefix_str)
+        else:
+            self.sep_seq = self.enc.encode(sep_str)
         
         if num_pad <= 0 or pad_str == "":
             self.num_pad = 0
             self.pad_token = -1
-            self.padding = None
+            self.padding = []
         else:
             self.num_pad = num_pad
             self.pad_token = self.enc.encode_single_token(pad_str)
@@ -85,7 +102,7 @@ class FilesDataset(IterableDataset):
         """Iterate over the dataset."""
         return self
     
-    def __next__(self) -> torch.Tensor:
+    def __next__(self) -> Tuple[torch.Tensor, List[int]]:
         """Return the next sample in the dataset.
         
         Returns:
@@ -115,8 +132,10 @@ class FilesDataset(IterableDataset):
         
         out = self.padding + self.buffer[:self.segment_len - self.num_pad]
         self.buffer = self.buffer[self.segment_len - self.num_pad:]
+        
+        break_ixs = [ix for ix in range(len(out) - len(self.sep_seq) + 1) if out[ix:ix+len(self.sep_seq)] == self.sep_seq]
                 
-        return torch.tensor(out)
+        return torch.tensor(out), break_ixs
 
 class ProportionalDataset(IterableDataset):
     def __init__(
@@ -143,7 +162,7 @@ class ProportionalDataset(IterableDataset):
         """Iterate over the dataset."""
         return self
     
-    def __next__(self) -> torch.Tensor:
+    def __next__(self) -> Tuple[torch.Tensor, List[int]]:
         """Return the next sample in the dataset.
 
         Returns:
@@ -157,7 +176,7 @@ class ProportionalDataset(IterableDataset):
 
         # Try to sample from the current dataset
         try:
-            sample = next(self.datasets[self.current_dataset_ix])
+            sample, break_ixs = next(self.datasets[self.current_dataset_ix])
         # If the dataset is empty, set its proportion to 0 (so it'll get skipped)
         # If all datasets are empty, raise StopIteration
         except StopIteration:
@@ -171,7 +190,7 @@ class ProportionalDataset(IterableDataset):
             # If sampling from the current dataset was successful, increment the current sample index
             self.current_sample_ix += 1
 
-        return sample
+        return sample, break_ixs
     
     def reset(self):
         """Resets the dataset to its initial state"""
