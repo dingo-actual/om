@@ -102,7 +102,6 @@
     "shared": {
         "prefix_str": "",
         "suffix_str": "",
-        "pad_str": "<|pad|>",
-        "sep_str": "<|im_end|><|im_start|>"
+        "pad_str": "<|pad|>"
     }
 }
