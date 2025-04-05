@@ -103,7 +103,6 @@
         "prefix_str": "",
         "suffix_str": "",
         "pad_str": "<|pad|>",
-        "sep_str": "<|im_end|><|im_start|>",
-        "num_pad": 2
+        "sep_str": "<|im_end|><|im_start|>"
     }
 }

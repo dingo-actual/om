@@ -57,7 +57,6 @@ def get_dataset_stage(
         prefix_str (str, optional): Prefix string. Defaults to "".
         suffix_str (str, optional): Suffix string. Defaults to "".
         pad_str (str, optional): Padding string. Defaults to "".
-        sep_str (str, optional): Separator string. Defaults to "".
         num_pad (int, optional): Number of padding tokens. Defaults to 0.
 
     Returns:
@@ -79,7 +78,6 @@ def get_dataset_stage(
             prefix_str=prefix_str,
             suffix_str=suffix_str,
             pad_str=pad_str,
-            sep_str=sep_str,
             num_pad=num_pad
         )
         datasets.append(ds)
@@ -97,7 +95,6 @@ def get_datasets_stages(
     prefix_str: str = "",
     suffix_str: str = "",
     pad_str: str = "",
-    sep_str: str = "",
     num_pad: int = 0
 ) -> List[ProportionalDataset]:
     """Create datasets for each stage of optimization.
@@ -113,7 +110,6 @@ def get_datasets_stages(
         prefix_str (str, optional): Prefix string. Defaults to "".
         suffix_str (str, optional): Suffix string. Defaults to "".
         pad_str (str, optional): Padding string. Defaults to "".
-        sep_str (str, optional): Separator string. Defaults to "".
         num_pad (int, optional): Number of padding tokens. Defaults to 0.
 
     Returns:
@@ -164,7 +160,6 @@ def get_datasets_stages(
             prefix_str=prefix_str,
             suffix_str=suffix_str,
             pad_str=pad_str,
-            sep_str=sep_str,
             num_pad=num_pad
         )
         out.append(dataset)

@@ -46,13 +46,10 @@ def count_tokens_dataloader(dataloader: DataLoader) -> Tuple[int, int]:
         - average number of breaks in dataloader
     """
     num_tokens = 0
-    num_breaks = 0
-    num_obs = 0
-    for batch, batch_break_ixs in dataloader:
+    for batch in dataloader:
         num_tokens += batch.size(0) * (batch.size(1) - 2)
-        num_obs += batch.size(0)
-        num_breaks += sum(list(map(len, batch_break_ixs)))
-    return num_tokens, num_breaks / num_obs
+
+    return num_tokens
 
 def get_dataloaders(config_path: str, dataloader_kwargs: Dict[str, Any]) -> Tuple[List[DataLoader], List[DataLoader]]:
     """Build dataloaders.
@@ -110,7 +107,6 @@ def get_datasets_split(split_config: Dict[str, Any], shared_config: Dict[str, An
     prefix_str = shared_config.get("prefix_str", "")
     suffix_str = shared_config.get("suffix_str", "")
     pad_str = shared_config.get("pad_str", "")
-    sep_str = shared_config.get("sep_str", "")
     num_pad = shared_config.get("num_pad", 0)
     
     dirs = [conf["dir"] for conf in split_config]
@@ -140,7 +136,6 @@ def get_datasets_split(split_config: Dict[str, Any], shared_config: Dict[str, An
         prefix_str=prefix_str,
         suffix_str=suffix_str,
         pad_str=pad_str,
-        sep_str=sep_str,
         num_pad=num_pad
     )
     
