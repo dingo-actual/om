@@ -24,7 +24,7 @@ def eval_net(
     n_tokens = 0
     
     with torch.no_grad():
-        for step, (batch, _) in enumerate(dataloader_eval):
+        for step, batch in enumerate(dataloader_eval):
             if step == num_steps:
                 break
             
