@@ -1,11 +1,11 @@
 datasets >= 2.19.1
 tiktoken >= 0.7.0
-xformers == 0.0.28
+xformers
 orjson >=3.10.3
 numpy >= 1.25.2
-accelerate == 1.5.2
+accelerate
 torchmetrics >= 1.4.0
 tensorboard >= 2.17.0
 einops >= 0.8.0
 safetensors >= 0.4.5
-heavyball == 1.6.3
+heavyball
