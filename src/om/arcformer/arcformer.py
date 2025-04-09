@@ -7,6 +7,7 @@ from .activations import ACTIVATIONS
 from .arc_memory_unstacked import ARCUnstacked
 from .arc_memory_stacked import ARCStacked
 from .positional_embeddings import RoPEEmbeddings
+from .util import extract_state
 
 
 class ARCformer(nn.Module):
@@ -105,8 +106,11 @@ class ARCformer(nn.Module):
         self.layer_num = layer_num
         self.diff_attn = diff_attn
         self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
+        self.attn_norm_state = nn.LayerNorm(dim_input, eps=1e-5)
         self.dropout1 = nn.Dropout(attn_dropout)
-        self.state_norm = nn.LayerNorm(dim_input, eps=1e-5)
+        self.mlp_norm = nn.LayerNorm(dim_input, eps=1e-5)
+        self.mlp_norm_state = nn.LayerNorm(dim_input, eps=1e-5)
+        self.dropout2 = nn.Dropout(dropout)
         
         # MLP
         if activation not in ACTIVATIONS:
@@ -145,8 +149,7 @@ class ARCformer(nn.Module):
                     nn.Linear(dim_hidden, dim_input),
                 )
                 torch.nn.init.normal_(self.mlp[2].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
-        self.mlp_norm = nn.LayerNorm(dim_input, eps=1e-5)
-        self.dropout2 = nn.Dropout(dropout)
+        
 
     def forward(self, x: torch.Tensor, state: torch.Tensor, skip_update_state: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
@@ -162,17 +165,22 @@ class ARCformer(nn.Module):
              - State tensor of shape (batch_size, state_len, dim_input).
         """
         dtype = x.dtype
-        # Apply multi-head attention, followed by layer normalization with residual connection then MLP.
-        attn, state = self.attn(x, state, skip_update_state=skip_update_state)
-        if self.diff_attn:
-            x = self.dropout1(attn) + x
-        else:
-            x = self.attn_norm((self.dropout1(attn) + x).to(torch.float32)).to(dtype)
-        mlp_out = self.dropout2(self.mlp(x))
-        x = self.mlp_norm((mlp_out + x).to(torch.float32)).to(dtype)
         
-        # Apply layer normalization to output state
-        if not skip_update_state:
-            state = self.state_norm(state.to(torch.float32)).to(dtype)
+        # Apply layer normalization, followed by multi-head attention with residual connection
+        if self.diff_attn:
+            attn, state = self.attn(x, state, skip_update_state=skip_update_state)
+        else:
+            x_norm_attn = self.attn_norm(x.to(torch.float32)).to(dtype)
+            state_norm_attn = self.attn_norm_state(state.to(torch.float32)).to(dtype)
+            
+            attn, state = self.attn(x_norm_attn, state_norm_attn, skip_update_state=skip_update_state)
+        
+        x = self.dropout1(attn) + x
+        
+        # Apply layer normalization, followed by MLP with residual connection
+        x_norm_mlp = self.mlp_norm(x.to(torch.float32)).to(dtype)
+        mlp_out = self.mlp(x_norm_mlp)
+        
+        x = self.dropout2(mlp_out) + x
         
         return x, state
