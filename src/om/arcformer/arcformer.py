@@ -7,7 +7,6 @@ from .activations import ACTIVATIONS
 from .arc_memory_unstacked import ARCUnstacked
 from .arc_memory_stacked import ARCStacked
 from .positional_embeddings import RoPEEmbeddings
-from .util import extract_state
 
 
 class ARCformer(nn.Module):
