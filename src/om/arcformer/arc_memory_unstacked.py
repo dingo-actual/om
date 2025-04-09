@@ -517,6 +517,7 @@ class StatefulCausalAttentionHead(nn.Module):
         k: torch.Tensor, 
         v: torch.Tensor, 
         bias: Optional[torch.Tensor] = None,
+        skip_update_state: bool = False,
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -526,57 +527,64 @@ class StatefulCausalAttentionHead(nn.Module):
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_key).
             bias (Optional[torch.Tensor]): Attention bias vector of shape (batch_size, seq_len, seq_len).
+            skip_update_state (bool): Whether to skip the state update step.
             
         Returns:
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, dim_value) if skip_update_state is False
             and (batch_size, seq_len + state_len, dim_value) if skip_update_state is True.
         """
+        device = q.device
+        
+        # Pad the input tensors to have sequence length divisible by 8
         if q.size(-2) % 8 > 0 and not self.training:
             pad_tokens = 8 - (q.size(-2) % 8)
-            q = torch.concat([q, torch.full((q.size(0), pad_tokens, q.size(2)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
-            k = torch.concat([k, torch.full((k.size(0), pad_tokens, k.size(2)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
-            v = torch.concat([v, torch.full((v.size(0), pad_tokens, v.size(2)), float("-inf"), dtype=v.dtype, device=v.device)], dim=-2)
+            q = torch.concat([q, torch.full((q.size(0), pad_tokens, q.size(2)), float("-inf"), dtype=q.dtype, device=device)], dim=-2)
+            k = torch.concat([k, torch.full((k.size(0), pad_tokens, k.size(2)), float("-inf"), dtype=k.dtype, device=device)], dim=-2)
+            v = torch.concat([v, torch.full((v.size(0), pad_tokens, v.size(2)), float("-inf"), dtype=v.dtype, device=device)], dim=-2)
         else:
             pad_tokens = 0
         
-        use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
+        # Get the state length multiplier
+        state_len_mult = 2 if skip_update_state else 1
+        
+        # Get the sequence length
+        seq_len = q.size(-2) - pad_tokens - state_len_mult * self.state_len
+        
+        # Check if xformers attention is available
+        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
             q, k = self.position_embedder(q), self.position_embedder(k)
         
-        device = q.device
+        # Get the attention bias
+        attn_bias = torch.tril(
+            torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
+            diagonal=0,
+        )
+        if not skip_update_state:
+            attn_bias[..., seq_len + self.state_len:seq_len + 2 * self.state_len, :self.state_len] = 0.0
+        attn_bias = attn_bias.log()
         
         # If bias is specified, apply it to the attention for non-state tokens
-        if bias is None:
-            if use_xformers_attn:
-                attn_bias = LowerTriangularMask()
-            else:
-                attn_bias = torch.tril(
-                    torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                    diagonal=0,
-                )
-                attn_bias = attn_bias.log()
-        else:
+        if bias is not None:
             if pad_tokens > 0:
                 bias = torch.concat([bias, torch.full((bias.size(0), pad_tokens, bias.size(2)), float("-inf"), dtype=bias.dtype, device=bias.device)], dim=-2)
                 bias = torch.concat([bias, torch.full((bias.size(0), bias.size(1), pad_tokens), float("-inf"), dtype=bias.dtype, device=bias.device)], dim=-1)
             
-            attn_bias = torch.tril(
-                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                diagonal=0,
-            )
-            attn_bias = attn_bias.log()
             attn_bias += bias.to(dtype=q.dtype)
         
+        # If xformers attention is available, use it
         if use_xformers_attn:
             att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor)
+        # Otherwise, use the standard attention
         else:
             att = torch.softmax((q @ k.transpose(-2, -1)) * self.scaling_factor + attn_bias, dim=-1)
             if self.training and self.dropout > 0:
                 att = torch.dropout(att, p=self.dropout, train=True)
             att = att @ v
 
+        # If padding tokens are present, remove them from the output
         if pad_tokens > 0:
             att = att[:, :-pad_tokens, :]
 
@@ -645,7 +653,7 @@ class StatefulCausalAttentionHead(nn.Module):
         else:
             bias = None
         
-        att = self.apply_attention(q, k, v, bias=bias).to(dtype)
+        att = self.apply_attention(q, k, v, bias=bias, skip_update_state=skip_update_state).to(dtype)
         
         return att
     
@@ -725,6 +733,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         k: torch.Tensor, 
         v: torch.Tensor, 
         bias: Tuple[Optional[torch.Tensor], Optional[torch.Tensor]] = (None, None),
+        skip_update_state: bool = False,
     ) -> torch.Tensor:
         """
         Applies attention to the input tensors.
@@ -734,24 +743,35 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_key).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, 2 * dim_value).
             bias (Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]): Attention bias tensors of shape (batch_size, seq_len, seq_len).
+            skip_update_state (bool): Whether to skip the state update step.
             
         Returns:
             torch.Tensor: Output tensor. Shape is (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is False
             and (batch_size, seq_len + 2 * state_len, 2 * dim_value) if skip_update_state is True.
         """
+        device = q.device
+        
+        # Pad the input tensors to have sequence length divisible by 8
         if q.size(-2) % 8 > 0 and not self.training:
             pad_tokens = 8 - (q.size(-2) % 8)
-            q = torch.concat([q, torch.full((q.size(0), pad_tokens, q.size(2)), float("-inf"), dtype=q.dtype, device=q.device)], dim=-2)
-            k = torch.concat([k, torch.full((k.size(0), pad_tokens, k.size(2)), float("-inf"), dtype=k.dtype, device=k.device)], dim=-2)
-            v = torch.concat([v, torch.full((v.size(0), pad_tokens, v.size(2)), float("-inf"), dtype=v.dtype, device=v.device)], dim=-2)
+            q = torch.concat([q, torch.full((q.size(0), pad_tokens, q.size(2)), float("-inf"), dtype=q.dtype, device=device)], dim=-2)
+            k = torch.concat([k, torch.full((k.size(0), pad_tokens, k.size(2)), float("-inf"), dtype=k.dtype, device=device)], dim=-2)
+            v = torch.concat([v, torch.full((v.size(0), pad_tokens, v.size(2)), float("-inf"), dtype=v.dtype, device=device)], dim=-2)
         else:
             pad_tokens = 0
         
-        use_xformers_attn = check_if_linux() and "cuda" in str(q.device) and q.size(-2) % 8 == 0
+        # Check if xformers attention is available
+        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0
         
         # Split q and k into q1, q2, k1, k2
         q1, q2 = split_last_dim(q)
         k1, k2 = split_last_dim(k)
+        
+        # Get the state length multiplier
+        state_len_mult = 2 if not skip_update_state else 1
+        
+        # Get the sequence length
+        seq_len = q.size(-2) - pad_tokens - state_len_mult * self.state_len
         
         # Split biases
         bias1, bias2 = bias
@@ -761,37 +781,44 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             q1, k1 = self.position_embedder(q1), self.position_embedder(k1)
             q2, k2 = self.position_embedder(q2), self.position_embedder(k2)
         
-        # If bias is specified, apply it to the attention for non-state tokens
-        if bias1 is None:
-            attn_bias_1 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
-            attn_bias_2 = torch.triu(torch.full((q.size(1), q.size(1)), fill_value=float("-inf")), diagonal=1)
-        else:
+        # Create attention bias tensors
+        attn_bias_1 = torch.tril(
+            torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
+            diagonal=0,
+        )
+        if not skip_update_state:
+            attn_bias_1[..., seq_len + self.state_len:seq_len + 2 * self.state_len, :self.state_len] = 0.0
+        attn_bias_1 = attn_bias_1.log()
+        
+        attn_bias_2 = torch.tril(
+            torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
+            diagonal=0,
+        )
+        if not skip_update_state:
+            attn_bias_2[..., seq_len + self.state_len:seq_len + 2 * self.state_len, :self.state_len] = 0.0
+        attn_bias_2 = attn_bias_2.log()
+        
+        # If bias is specified, apply it to the attention
+        if bias1 is not None:
             if pad_tokens > 0:
                 bias1 = torch.concat([bias1, torch.full((bias1.size(0), pad_tokens, bias1.size(2)), float("-inf"), dtype=bias1.dtype, device=bias1.device)], dim=-2)
                 bias1 = torch.concat([bias1, torch.full((bias1.size(0), bias1.size(1), pad_tokens), float("-inf"), dtype=bias1.dtype, device=bias1.device)], dim=-1)
-                bias2 = torch.concat([bias2, torch.full((bias2.size(0), pad_tokens, bias2.size(2)), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-2)
-                bias2 = torch.concat([bias2, torch.full((bias2.size(0), bias2.size(1), pad_tokens), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-1)
-            
-            device = q.device
-            attn_bias_1 = torch.tril(
-                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                diagonal=0,
-            )
-            attn_bias_1 = attn_bias_1.log()
             attn_bias_1 += bias1.to(dtype=q.dtype)
             
-            attn_bias_2 = torch.tril(
-                torch.ones((q.size(0), q.size(1), q.size(1)), device=device, dtype=q.dtype), 
-                diagonal=0,
-            )
-            attn_bias_2 = attn_bias_2.log()
+        if bias2 is not None:
+            if pad_tokens > 0:
+                bias2 = torch.concat([bias2, torch.full((bias2.size(0), pad_tokens, bias2.size(2)), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-2)
+                bias2 = torch.concat([bias2, torch.full((bias2.size(0), bias2.size(1), pad_tokens), float("-inf"), dtype=bias2.dtype, device=bias2.device)], dim=-1)
             attn_bias_2 += bias2.to(dtype=q.dtype)
         
+        # Compute lambda
         lambda_ = (torch.exp(self.lambda_q1 @ self.lambda_k1) - torch.exp(self.lambda_q2 @ self.lambda_k2)).squeeze(0) + self.lambda_init
         
+        # If xformers is available, use it for attention computation
         if use_xformers_attn:
             att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.scaling_factor)
             att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.scaling_factor)
+        # Otherwise, use PyTorch's attention implementation
         else:
             att1 = torch.nn.functional.scaled_dot_product_attention(
                 q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.scaling_factor
@@ -800,8 +827,10 @@ class StatefulCausalDiffAttentionHead(nn.Module):
                 q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.scaling_factor
             )
         
+        # Combine the attended values
         att = att1 - lambda_ * att2
         
+        # If padding tokens are present, remove them from the output
         if pad_tokens > 0:
             att = att[:, :-pad_tokens, :]
 
@@ -888,12 +917,15 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             bias1 = None
             bias2 = None
         
-        att = self.apply_attention(q, k, v, bias=(bias1, bias2))
+        att = self.apply_attention(q, k, v, bias=(bias1, bias2), skip_update_state=skip_update_state)
         
         return self.out_norm(att).to(dtype)
     
+# ! DEPRECATED
 class StatefulCausalHopfieldAttentionHead(nn.Module):
-    """Implements a Stateful Causal Hopfield Attention Head module."""
+    """Implements a Stateful Causal Hopfield Attention Head module.
+    DEPRECATED: Use StatefulCausalAttentionHead instead.
+    """
     def __init__(
         self,  
         dim_input: int, 
