@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.text import Perplexity
 
 from src import *
-from src.om.utils import set_om_dtypes
+from src.om.utils import set_om_dtypes, grad_norm
 
 
 def main(config_dir: str):
@@ -261,40 +261,25 @@ def main(config_dir: str):
             
             # Log grad norms (pre-clip)
             if (batch_ix + 1) % log_every == 0 and accelerator.sync_gradients:
-                grad_norm = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for p in model.parameters() if p.requires_grad and p.grad is not None])
-                    )
-                )
-                grad_norm_proj_q = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_q" in name and "state" not in name])
-                    )
-                )
-                grad_norm_proj_k = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_k" in name and "state" not in name])
-                    )
-                )
-                grad_norm_proj_v = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_v" in name and "state" not in name])
-                    )
-                )
-                grad_norm_proj_q_state = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_q_state" in name])
-                    )
-                )
-                grad_norm_proj_k_state = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_k_state" in name])
-                    )
-                )
-                grad_norm_proj_v_state = torch.sqrt(
-                    torch.sum(
-                        torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_v_state" in name])
-                    )
+                grad_norm_all = grad_norm(model, lambda name, p: True)
+                grad_norm_proj_q = grad_norm(model, lambda name, p: "proj_q" in name and "state" not in name)
+                grad_norm_proj_k = grad_norm(model, lambda name, p: "proj_k" in name and "state" not in name)
+                grad_norm_proj_v = grad_norm(model, lambda name, p: "proj_v" in name and "state" not in name)
+                grad_norm_proj_q_state = grad_norm(model, lambda name, p: "proj_q_state" in name)
+                grad_norm_proj_k_state = grad_norm(model, lambda name, p: "proj_k_state" in name)
+                grad_norm_proj_v_state = grad_norm(model, lambda name, p: "proj_v_state" in name)
+                
+                accelerator.log(
+                    {
+                        "Grad Norm/Train": grad_norm_all.cpu().detach().item(),
+                        "Grad Norm/Proj Q": grad_norm_proj_q.cpu().detach().item(),
+                        "Grad Norm/Proj K": grad_norm_proj_k.cpu().detach().item(),
+                        "Grad Norm/Proj V": grad_norm_proj_v.cpu().detach().item(),
+                        "Grad Norm/Proj Q State": grad_norm_proj_q_state.cpu().detach().item(),
+                        "Grad Norm/Proj K State": grad_norm_proj_k_state.cpu().detach().item(),
+                        "Grad Norm/Proj V State": grad_norm_proj_v_state.cpu().detach().item(),
+                    },
+                    step=tokens_processed
                 )
             
             if accelerator.sync_gradients:
@@ -343,7 +328,7 @@ def main(config_dir: str):
         if (batch_ix + 1) % log_every == 0:
             pplx = perplexity(logits, targets)
             accelerator.gather_for_metrics(
-                (loss, tokens_processed, param_norm, grad_norm, grad_norm_proj_q, grad_norm_proj_k, grad_norm_proj_v, grad_norm_proj_q_state, grad_norm_proj_k_state, grad_norm_proj_v_state, pplx),
+                (loss, tokens_processed, param_norm, grad_norm_all, grad_norm_proj_q, grad_norm_proj_k, grad_norm_proj_v, grad_norm_proj_q_state, grad_norm_proj_k_state, grad_norm_proj_v_state, pplx),
             )
             accelerator.log(
                 {
@@ -351,7 +336,7 @@ def main(config_dir: str):
                     "Loss/Train": loss.cpu().detach().item(),
                     "Perplexity/Train": pplx.cpu().detach().item(),
                     "Parameter Norm/Train": param_norm.cpu().detach().item(),
-                    "Grad Norm/Train": grad_norm.cpu().detach().item(),
+                    "Grad Norm/Train": grad_norm_all.cpu().detach().item(),
                     "Grad Norm (Q proj)/Train": grad_norm_proj_q.cpu().detach().item(),
                     "Grad Norm (K proj)/Train": grad_norm_proj_k.cpu().detach().item(),
                     "Grad Norm (V proj)/Train": grad_norm_proj_v.cpu().detach().item(),
@@ -379,41 +364,17 @@ def main(config_dir: str):
     # Final evaluation and metrics at end of training
     pplx = perplexity(logits, targets)
     accelerator.gather_for_metrics(
-        (loss, tokens_processed, param_norm, grad_norm, grad_norm_proj_q, grad_norm_proj_k, grad_norm_proj_v, grad_norm_proj_q_state, grad_norm_proj_k_state, grad_norm_proj_v_state, pplx),
+        (loss, tokens_processed, param_norm, grad_norm_all, grad_norm_proj_q, grad_norm_proj_k, grad_norm_proj_v, grad_norm_proj_q_state, grad_norm_proj_k_state, grad_norm_proj_v_state, pplx),
     )
     
     param_norm = torch.sqrt(torch.sum([torch.norm(p)**2 for p in model.parameters() if p.requires_grad])) 
-    grad_norm = torch.sqrt(torch.sum([torch.norm(p.grad)**2 for p in model.parameters() if p.requires_grad and p.grad is not None]))
-    grad_norm_proj_q = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_q" in name and "state" not in name])
-        )
-    )
-    grad_norm_proj_k = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_k" in name and "state" not in name])
-        )
-    )
-    grad_norm_proj_v = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_v" in name and "state" not in name])
-        )
-    )
-    grad_norm_proj_q_state = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_q_state" in name])
-        )
-    )
-    grad_norm_proj_k_state = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_k_state" in name])
-        )
-    )
-    grad_norm_proj_v_state = torch.sqrt(
-        torch.sum(
-            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and "proj_v_state" in name])
-        )
-    )
+    grad_norm_all = grad_norm(model, lambda name, p: True)
+    grad_norm_proj_q = grad_norm(model, lambda name, p: "proj_q" in name and "state" not in name)
+    grad_norm_proj_k = grad_norm(model, lambda name, p: "proj_k" in name and "state" not in name)
+    grad_norm_proj_v = grad_norm(model, lambda name, p: "proj_v" in name and "state" not in name)
+    grad_norm_proj_q_state = grad_norm(model, lambda name, p: "proj_q_state" in name)
+    grad_norm_proj_k_state = grad_norm(model, lambda name, p: "proj_k_state" in name)
+    grad_norm_proj_v_state = grad_norm(model, lambda name, p: "proj_v_state" in name)
     
     accelerator.log(
         {
@@ -421,7 +382,7 @@ def main(config_dir: str):
             "Loss/Train": loss.cpu().detach().item(),
             "Perplexity/Train": pplx.cpu().detach().item(),
             "Parameter Norm/Train": param_norm.cpu().detach().item(),
-            "Grad Norm/Train": grad_norm.cpu().detach().item(),
+            "Grad Norm/Train": grad_norm_all.cpu().detach().item(),
             "Grad Norm (Q proj)/Train": grad_norm_proj_q.cpu().detach().item(),
             "Grad Norm (K proj)/Train": grad_norm_proj_k.cpu().detach().item(),
             "Grad Norm (V proj)/Train": grad_norm_proj_v.cpu().detach().item(),

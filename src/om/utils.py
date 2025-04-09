@@ -42,3 +42,19 @@ def cosine_with_warmup_mult(warmup_steps: int, total_steps: int, min_lr_mult: fl
             return min_lr_mult + (1 - min_lr_mult) * (1 + np.cos((step - warmup_steps) / (total_steps - warmup_steps) * np.pi)) / 2.0
         
     return lr_mult
+
+def grad_norm(model: torch.nn.Module, predicate: Callable[[str, torch.nn.Parameter], bool]) -> torch.Tensor:
+    """Get the gradient norm of the model.
+
+    Args:
+        model (torch.nn.Module): model to get gradient norm of
+        predicate (Callable[[str, torch.nn.Parameter], bool]): predicate to filter parameters
+    
+    Returns:
+        torch.Tensor: gradient norm
+    """
+    return torch.sqrt(
+        torch.sum(
+            torch.tensor([torch.sum(torch.norm(p.grad)**2) for name, p in model.named_parameters() if p.requires_grad and p.grad is not None and predicate(name, p)])
+        )
+    )
