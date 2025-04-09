@@ -177,10 +177,9 @@ class ARCformer(nn.Module):
         
         x = self.dropout1(attn) + x
         
-        # Apply layer normalization, followed by MLP with residual connection
-        x_norm_mlp = self.mlp_norm(x.to(torch.float32)).to(dtype)
-        mlp_out = self.mlp(x_norm_mlp)
+        # Apply MLP, followed by layer normalization with residual connection
+        mlp_out = self.mlp(x)
         
-        x = self.dropout2(mlp_out) + x
+        x = self.mlp_norm((self.dropout2(mlp_out) + x).to(torch.float32)).to(dtype)
         
         return x, state
