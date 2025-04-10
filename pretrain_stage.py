@@ -170,29 +170,32 @@ def main(config_dir: str):
     eval_num_steps = training_config_stage.pop("eval_num_steps")
     grad_clip = training_config_stage.pop("gradient_clip")
     
+    # Adjust logging and evaluation frequency based on gradient accumulation and number of GPUs
     log_every = math.ceil(log_every / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
     eval_every = math.ceil(eval_every / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
     
-    # Set up optimizer
+    # Adjust learning rate based on gradient accumulation and number of GPUs
     lr = opt_kwargs["lr"]
     adj_lr = lr * accelerator.gradient_accumulation_steps * accelerator.num_processes
     opt_kwargs["lr"] = adj_lr
     
+    # Adjust warmup steps based on gradient accumulation and number of GPUs
     warmup_steps = opt_kwargs.pop("warmup_steps")
     adj_warmup_steps = math.ceil(warmup_steps / (accelerator.gradient_accumulation_steps * accelerator.num_processes))
     opt_kwargs["warmup_steps"] = adj_warmup_steps
     
+    # Specify weight decay groups
     wd_ignore_groups = ["bias", "LayerNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
     no_wd_params = [p for n, p in model.named_parameters() if any(nd in n for nd in wd_ignore_groups)]
-    
     param_groups = [
         {"params": wd_params, "weight_decay": opt_kwargs["weight_decay"]},
         {"params": no_wd_params, "weight_decay": 0.0}
     ]
     _ = opt_kwargs.pop("weight_decay")
     
-    optimizer = PrecondSchedulePaLMForeachSOAP(param_groups, foreach=False, **opt_kwargs)
+    # Initialize optimizer
+    optimizer = PrecondSchedulePaLMForeachSOAP(param_groups, foreach=False, gradient_clipping=None, **opt_kwargs)
     
     # Initialize metrics and loss function
     perplexity = Perplexity()
@@ -200,6 +203,7 @@ def main(config_dir: str):
     
     if accelerator.is_main_process:
         print(f"Registering objects for checkpointing with Accelerate...")
+    
     # Register objects for checkpointing
     accelerator.register_for_checkpointing(
         model, 
@@ -209,8 +213,8 @@ def main(config_dir: str):
     
     if accelerator.is_main_process:
         print(f"Preparing objects for training with Accelerate...")
-    # Prepare objects for training with Accelerate
     
+    # Prepare objects for training with Accelerate
     dataloader_train = accelerator.prepare_data_loader(dataloader_train)
     dataloader_val = accelerator.prepare_data_loader(dataloader_val)
     optimizer = accelerator.prepare_optimizer(optimizer)
@@ -235,6 +239,7 @@ def main(config_dir: str):
     
     if accelerator.is_main_process:
         print(f"Starting training...")
+    
     # Initialize training loop
     tokens_processed = 0
     
