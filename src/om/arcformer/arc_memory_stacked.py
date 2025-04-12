@@ -663,7 +663,7 @@ class StatefulCausalDiffAttention(nn.Module):
             )
         
         # Initialize output normalization layers
-        self.out_norms = nn.ModuleList([nn.LayerNorm(2 * dim_value, eps=1e-5) for _ in range(num_heads)])
+        self.out_norms = nn.ModuleList([nn.RMSNorm(2 * dim_value, eps=1e-5) for _ in range(num_heads)])
     
     def apply_attention(
         self, 

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 def set_om_dtypes(model: torch.nn.Module, dtype: torch.dtype) -> torch.nn.Module:
-    """Convert the model to the specified dtype, while keeping LayerNorm layers in fp32.
+    """Convert the model to the specified dtype, while keeping normalization layers in fp32.
 
     Args:
         model (torch.nn.Module): model to convert

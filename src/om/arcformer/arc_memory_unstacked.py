@@ -725,7 +725,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
                 torch.randn(1, self.dim_key, self.seq_len + 2 * self.state_len)
             )
             
-        self.out_norm = nn.LayerNorm(2 * dim_value, eps=1e-5)
+        self.out_norm = nn.RMSNorm(2 * dim_value, eps=1e-5)
     
     def apply_attention(
         self, 
