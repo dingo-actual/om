@@ -30,21 +30,24 @@ class RoPEEmbeddings(torch.nn.Module):
         self.base = base
         
         if num_dims == 3:
-            self.thetas = torch.nn.Parameter(torch.empty((1, seq_len, self.effective_dim), dtype=torch.float32), requires_grad=False)
+            self.thetas = torch.empty((1, seq_len, self.effective_dim), dtype=torch.float32)
         elif num_dims == 4:
-            self.thetas = torch.nn.Parameter(torch.empty((1, 1, seq_len, self.effective_dim), dtype=torch.float32), requires_grad=False)
+            self.thetas = torch.empty((1, 1, seq_len, self.effective_dim), dtype=torch.float32)
         else:
             raise ValueError("num_dims must be 3 or 4")
         
+        self.register_buffer("thetas", self.thetas)
         self._calculate_thetas()
         
         # Initialize sin component indices for input tensor
         # Indices for rearranging the input follow the pattern [1, 0, 3, 2, 5, 4, ...]
         # Indices that need to be negated in calculating the positional embeddings are [0, 2, 4, ...]
-        self.ixs_sin = torch.nn.Parameter(torch.empty(self.effective_dim, dtype=torch.long), requires_grad=False)
-        self.ixs_sin_neg = torch.nn.Parameter(2 * torch.arange(self.effective_dim // 2), requires_grad=False)
+        self.ixs_sin = torch.arange(self.effective_dim, dtype=torch.long)
+        self.ixs_sin_neg = 2 * torch.arange(self.effective_dim // 2, dtype=torch.long)
         self.ixs_sin[self.ixs_sin_neg] = self.ixs_sin_neg + 1
         self.ixs_sin[self.ixs_sin_neg + 1] = self.ixs_sin_neg
+        self.register_buffer("ixs_sin", self.ixs_sin)
+        self.register_buffer("ixs_sin_neg", self.ixs_sin_neg)
         
     def _calculate_thetas(self) -> None:
         """Calculate the cosine and sine component matrices for the rotary positional embeddings.
