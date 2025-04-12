@@ -100,7 +100,7 @@ def main(config_dir: str):
     
     # Create model
     position_embedders = [
-        RoPEEmbeddings(**position_emb_config)
+        None if position_emb_config is None else RoPEEmbeddings(**position_emb_config)
         for position_emb_config in model_config["position_embedders"]
     ]
     _ = model_config.pop("position_embedders")
@@ -185,7 +185,7 @@ def main(config_dir: str):
     opt_kwargs["warmup_steps"] = adj_warmup_steps
     
     # Specify weight decay groups
-    wd_ignore_groups = ["bias", "LayerNorm"]
+    wd_ignore_groups = ["bias", "RMSNorm"]
     wd_params = [p for n, p in model.named_parameters() if not any(nd in n for nd in wd_ignore_groups)]
     no_wd_params = [p for n, p in model.named_parameters() if any(nd in n for nd in wd_ignore_groups)]
     param_groups = [

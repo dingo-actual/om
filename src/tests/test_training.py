@@ -51,14 +51,7 @@ def test_model_training():
     
     stacked_attn = linux
     
-    position_embedders = [
-        RoPEEmbeddings(
-            dim, 
-            seq_len=base_segment_len + 2 * state_len, 
-            num_dims=4 if stacked_attn else 3
-        ) 
-        for dim in dims_key
-    ]
+    position_embedders = [None for _ in dims_key]
     
     model = OmLLM(
         num_layers=num_layers,

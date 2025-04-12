@@ -11,23 +11,7 @@
     "segment_len": 512,
     "state_len": 64,
     "cope": false,
-    "position_embedders": [
-        {
-            "dim": 256,
-            "seq_len": 640,
-            "num_dims": 4
-        },
-        {
-            "dim": 128,
-            "seq_len": 640,
-            "num_dims": 4
-        },
-        {
-            "dim": 64,
-            "seq_len": 640,
-            "num_dims": 4
-        }
-    ],
+    "position_embedders": [null, null, null],
     "scaling_factors": [
         0.04419417382415922, 
         0.08838834764831845, 

@@ -104,11 +104,11 @@ class ARCformer(nn.Module):
         self.num_layers = num_layers
         self.layer_num = layer_num
         self.diff_attn = diff_attn
-        self.attn_norm = nn.LayerNorm(dim_input, eps=1e-5)
-        self.attn_norm_state = nn.LayerNorm(dim_input, eps=1e-5)
+        self.attn_norm = nn.RMSNorm(dim_input, eps=1e-5)
+        self.attn_norm = nn.RMSNorm(dim_input, eps=1e-5)
+        self.attn_norm_state = nn.RMSNorm(dim_input, eps=1e-5)
         self.dropout1 = nn.Dropout(attn_dropout)
-        self.mlp_norm = nn.LayerNorm(dim_input, eps=1e-5)
-        self.mlp_norm_state = nn.LayerNorm(dim_input, eps=1e-5)
+        self.mlp_norm = nn.RMSNorm(dim_input, eps=1e-5)
         self.dropout2 = nn.Dropout(dropout)
         
         # MLP
@@ -134,18 +134,18 @@ class ARCformer(nn.Module):
             act = ACTIVATIONS[activation]()
             if self.mlp_1221:
                 self.mlp = nn.Sequential(
-                    nn.Linear(dim_input, dim_hidden // 2),
+                    nn.Linear(dim_input, dim_hidden // 2, bias=False),
                     act,
-                    nn.Linear(dim_hidden // 2, dim_hidden // 2),
+                    nn.Linear(dim_hidden // 2, dim_hidden // 2, bias=False),
                     act,
-                    nn.Linear(dim_hidden // 2, dim_input),
+                    nn.Linear(dim_hidden // 2, dim_input, bias=False),
                 )
                 torch.nn.init.normal_(self.mlp[4].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
             else:
                 self.mlp = nn.Sequential(
-                    nn.Linear(dim_input, dim_hidden),
+                    nn.Linear(dim_input, dim_hidden, bias=False),
                     act,
-                    nn.Linear(dim_hidden, dim_input),
+                    nn.Linear(dim_hidden, dim_input, bias=False),
                 )
                 torch.nn.init.normal_(self.mlp[2].weight, mean=0.0, std=(1. / (2 * self.num_layers)) ** 0.5)
         
