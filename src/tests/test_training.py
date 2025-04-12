@@ -65,6 +65,7 @@ def test_model_training():
         activation=activation,
         segment_len=base_segment_len,
         state_len=state_len,
+        pad_id=50258,
         cope=cope,
         position_embedders=position_embedders,
         scaling_factors=scaling_factors,

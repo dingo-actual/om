@@ -19,6 +19,7 @@ class OmLLM(torch.nn.Module):
         activation: str,
         segment_len: int,
         state_len: int,
+        pad_id: int,
         cope: bool,
         position_embedders: List[Optional[RoPEEmbeddings]],
         scaling_factors: List[Optional[float]],
@@ -45,6 +46,7 @@ class OmLLM(torch.nn.Module):
             activation (str): Activation function for MLP.
             segment_len (int): Segment length.
             state_len (int): State length (in tokens).
+            pad_id (int): Padding token id.
             cope (bool): Use CoPE for ARCformer memory.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedders for each memory layer in ARCformer.
             scaling_factors (List[Optional[float]]): Betas for Hopfield memory / scaling factor for SDP attention.
@@ -67,6 +69,7 @@ class OmLLM(torch.nn.Module):
         self.vocab_size = vocab_size
         
         self.segment_len = segment_len
+        self.pad_id = pad_id
         
         self.embedder = torch.nn.Embedding(vocab_size, dim_input)
         for p in self.embedder.parameters():
@@ -170,7 +173,10 @@ class OmLLM(torch.nn.Module):
             ix_hi = ix_hi + ngram_offset_hi
 
             x_seg = x[:, ix_lo:ix_hi]
+            
             x_seg_emb = self.embedder(x_seg)
+            x_seg_mask = (x_seg != self.pad_id).unsqueeze(-1).to(x_seg.device).to(torch.long).to(x_seg_emb.dtype)
+            x_seg_emb = x_seg_emb * x_seg_mask
             
             x_seg_emb_ = x_seg_emb.clone()
             
