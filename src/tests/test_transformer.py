@@ -16,7 +16,6 @@ def test_arc_transformer():
     dim_hidden = 4 * dim_input
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [1, 1, 1]
     scaling_factors = [None, None, None]
     attn_proj_rank = dim_input // (2 * num_heads)
     
@@ -32,7 +31,7 @@ def test_arc_transformer():
     diff_attn = False
     layer_num = 0
     
-    stacked_attn = True
+    stacked_attn = False
     
     max_init_ngrams = 3
     
@@ -51,7 +50,6 @@ def test_arc_transformer():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
-        num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=segment_len,

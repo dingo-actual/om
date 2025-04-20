@@ -22,7 +22,6 @@ def test_model():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [1, 1, 1]
     scaling_factors = [1.0 / ((2 * dims_value[0]) ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.0 / ((dims_value[2] / 2) ** 0.5)]
     attn_proj_rank = dim_input // (2 * num_heads)
     
@@ -44,7 +43,7 @@ def test_model():
     batch_size = 2
     num_segments = 4
     
-    stacked_attn = True
+    stacked_attn = False
     
     position_embedders = [
         RoPEEmbeddings(
@@ -62,7 +61,6 @@ def test_model():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
-        num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=base_segment_len,

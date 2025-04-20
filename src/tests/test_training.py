@@ -27,7 +27,6 @@ def test_model_training():
         dim_hidden += 32 - dim_hidden % 32
     dims_key = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
     dims_value = [2 * dim_input // num_heads, dim_input // num_heads, dim_input // (2 * num_heads)]
-    num_iters = [1, 1, 1]
     scaling_factors = [0.5 / (dims_value[0] ** 0.5), 1.0 / (dims_value[1] ** 0.5), 1.5 / (dims_value[0] ** 0.5)]
     attn_proj_rank = dim_input // (2 * num_heads)
     
@@ -49,9 +48,16 @@ def test_model_training():
     batch_size = 4
     num_segments = 4
     
-    stacked_attn = linux
+    stacked_attn = False
     
-    position_embedders = [None for _ in dims_key]
+    position_embedders = [
+        RoPEEmbeddings(
+            dim, 
+            seq_len=base_segment_len + 2 * state_len, 
+            num_dims=4 if stacked_attn else 3
+        )
+        for dim in dims_key
+    ]
     
     model = OmLLM(
         num_layers=num_layers,
@@ -60,7 +66,6 @@ def test_model_training():
         dim_hidden=dim_hidden,
         dims_key=dims_key,
         dims_value=dims_value,
-        num_iters=num_iters,
         num_heads=num_heads,
         activation=activation,
         segment_len=base_segment_len,

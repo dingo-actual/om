@@ -5,13 +5,28 @@
     "dim_hidden": 4096,
     "dims_key": [256, 128, 64],
     "dims_value": [256, 128, 64],
-    "num_iters": [1, 1, 1],
     "num_heads": 8,
     "activation": "gelu",
     "segment_len": 512,
     "state_len": 64,
     "cope": false,
-    "position_embedders": [null, null, null],
+    "position_embedders": [
+        {
+            "dim": 256,
+            "seq_len": 512,
+            "num_dims": 3
+        },
+        {
+            "dim": 128,
+            "seq_len": 512,
+            "num_dims": 3
+        },
+        {
+            "dim": 64,
+            "seq_len": 512,
+            "num_dims": 3
+        }
+    ],
     "scaling_factors": [
         0.04419417382415922, 
         0.08838834764831845, 
@@ -24,5 +39,5 @@
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
     "mlp_1221": false,
-    "stacked_attn": true
+    "stacked_attn": false
 }

@@ -18,7 +18,6 @@ class ARCformer(nn.Module):
         dim_hidden: int,
         dims_key: List[int],
         dims_value: List[int],
-        num_iters: List[int],
         num_heads: int,
         activation: str,
         segment_len: int,
@@ -43,7 +42,6 @@ class ARCformer(nn.Module):
             dim_hidden (int): Hidden dimension for the MLP.
             dims_key (List[int]): Key dimensions for the memory modules.
             dims_value (List[int]): Value dimensions for the memory modules.
-            num_iters (List[int]): Number of iterations for the memory modules.
             num_heads (int): Number of attention heads for the memory modules.
             activation (str): Activation function to use for the MLP. Must be a key in the ACTIVATIONS dictionary.
             segment_len (int): Segment length for the memory modules.
@@ -69,7 +67,6 @@ class ARCformer(nn.Module):
                 dim_input=dim_input, 
                 dims_key=dims_key, 
                 dims_value=dims_value, 
-                num_iters=num_iters,
                 num_heads=num_heads, 
                 segment_len=segment_len, 
                 state_len=state_len, 
@@ -87,7 +84,6 @@ class ARCformer(nn.Module):
                 dim_input=dim_input, 
                 dims_key=dims_key, 
                 dims_value=dims_value, 
-                num_iters=num_iters,
                 num_heads=num_heads, 
                 segment_len=segment_len, 
                 state_len=state_len, 
@@ -104,9 +100,6 @@ class ARCformer(nn.Module):
         self.num_layers = num_layers
         self.layer_num = layer_num
         self.diff_attn = diff_attn
-        self.attn_norm = nn.RMSNorm(dim_input, eps=1e-5)
-        self.attn_norm = nn.RMSNorm(dim_input, eps=1e-5)
-        self.attn_norm_state = nn.RMSNorm(dim_input, eps=1e-5)
         self.dropout1 = nn.Dropout(attn_dropout)
         self.mlp_norm = nn.RMSNorm(dim_input, eps=1e-5)
         self.dropout2 = nn.Dropout(dropout)
@@ -165,20 +158,12 @@ class ARCformer(nn.Module):
         """
         dtype = x.dtype
         
-        # Apply layer normalization, followed by multi-head attention with residual connection
-        if self.diff_attn:
-            attn, state = self.attn(x, state, skip_update_state=skip_update_state)
-        else:
-            x_norm_attn = self.attn_norm(x.to(torch.float32)).to(dtype)
-            state_norm_attn = self.attn_norm_state(state.to(torch.float32)).to(dtype)
-            
-            attn, state = self.attn(x_norm_attn, state_norm_attn, skip_update_state=skip_update_state)
-        
+        # Apply multi-head attention with residual connection
+        attn, state = self.attn(x, state, skip_update_state=skip_update_state)
         x = self.dropout1(attn) + x
         
         # Apply MLP, followed by layer normalization with residual connection
         mlp_out = self.mlp(x)
-        
         x = self.mlp_norm((self.dropout2(mlp_out) + x).to(torch.float32)).to(dtype)
         
         return x, state
