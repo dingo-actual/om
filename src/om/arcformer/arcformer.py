@@ -33,7 +33,7 @@ class ARCformer(nn.Module):
         attn_logit_dropout: float = 0.0,
         attn_proj_rank: int = -1,
         mlp_1221: bool = False,
-        stacked_attn: bool = True,
+        stacked: bool = True,
     ):
         """Initializes the module.
 
@@ -57,12 +57,12 @@ class ARCformer(nn.Module):
             attn_logit_dropout (float, optional): Dropout rate for attention logits. Defaults to 0.0.
             attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use dim_input // num_heads. Defaults to -1.
             mlp_1221 (bool, optional): Whether to use the 1-2-2-1 MLP architecture. Defaults to False.
-            stacked_attn (bool, optional): Whether to use stacked attention. Defaults to True.
+            stacked (bool, optional): Whether to use stacked tensors across attention heads. Defaults to True.
         """
         super(ARCformer, self).__init__()
 
         # Multi-head attention
-        if stacked_attn:
+        if stacked:
             self.attn = ARCStacked(
                 dim_input=dim_input, 
                 dims_key=dims_key, 

@@ -43,13 +43,13 @@ def test_model():
     batch_size = 2
     num_segments = 4
     
-    stacked_attn = False
+    stacked = True
     
     position_embedders = [
         RoPEEmbeddings(
             dim, 
             seq_len=base_segment_len + 2 * state_len, 
-            num_dims=4 if stacked_attn else 3
+            num_dims=4 if stacked else 3
         )
         for dim in dims_key
     ]
@@ -76,7 +76,7 @@ def test_model():
         attn_proj_rank=attn_proj_rank,
         init_ngrams=init_ngrams,
         mlp_1221=mlp_1221,
-        stacked_attn=stacked_attn,
+        stacked=stacked,
     )
     
     seq_len = base_segment_len * num_segments

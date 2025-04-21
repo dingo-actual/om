@@ -31,7 +31,7 @@ def test_arc_transformer():
     diff_attn = False
     layer_num = 0
     
-    stacked_attn = False
+    stacked = True
     
     max_init_ngrams = 3
     
@@ -39,7 +39,7 @@ def test_arc_transformer():
         RoPEEmbeddings(
             dim, 
             seq_len=segment_len + 2 * state_len, 
-            num_dims=4 if stacked_attn else 3
+            num_dims=4 if stacked else 3
         ) 
         for dim in dims_key
     ]
@@ -65,7 +65,7 @@ def test_arc_transformer():
         attn_logit_dropout=attn_logit_dropout,
         attn_proj_rank=attn_proj_rank,
         mlp_1221=mlp_1221,
-        stacked_attn=stacked_attn,
+        stacked=stacked,
     )
 
     batch_size = 2

@@ -29,7 +29,7 @@ class OmLLM(torch.nn.Module):
         attn_proj_rank: int = -1,
         init_ngrams: List[int] = [],
         mlp_1221: bool = False,
-        stacked_attn: bool = True,
+        stacked: bool = True,
     ):
         """Initialize the model.
 
@@ -55,7 +55,7 @@ class OmLLM(torch.nn.Module):
             init_ngrams (List[int], optional): Initial n-gram projection layer hidden sizes. Defaults to [] (unigrams).
             init_ngrams_ranks (List[int], optional): Initial n-gram projection layer ranks. Defaults to [] (unigrams).
             mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
-            stacked_attn (bool, optional): Use stacked attention. Defaults to True.
+            stacked (bool, optional): Use stacked tensors across attention heads. Defaults to True.
         """
         super(OmLLM, self).__init__()
         
@@ -112,7 +112,7 @@ class OmLLM(torch.nn.Module):
                     attn_logit_dropout=attn_logit_dropout,
                     attn_proj_rank=attn_proj_rank,
                     mlp_1221=mlp_1221,
-                    stacked_attn=stacked_attn,
+                    stacked=stacked,
                 )
             )
         self.layers = torch.nn.ModuleList(layers)

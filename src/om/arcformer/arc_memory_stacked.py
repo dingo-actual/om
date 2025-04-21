@@ -383,7 +383,7 @@ class StatefulCausalAttention(nn.Module):
         
         self.init_scaling_factor = 1.0 / np.sqrt(dim_key) if scaling_factor is None else scaling_factor
         self.scaling_factor = nn.Parameter(
-            torch.Tensor([self.init_scaling_factor])
+            torch.Tensor([self.init_scaling_factor]).repeat(num_heads)
         )
         
         # Projections from the attention layer to the next attention layer
@@ -467,18 +467,35 @@ class StatefulCausalAttention(nn.Module):
         
         # If xformers attention is available, use it
         if use_xformers_attn:
-            att = memory_efficient_attention(
-                q.transpose(1, 2), 
-                k.transpose(1, 2), 
-                v.transpose(1, 2), 
-                attn_bias=attn_bias, 
-                p=self.dropout, 
-                scale=self.scaling_factor[0]
+            att = torch.concat(
+                [
+                    memory_efficient_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_bias=attn_bias[:, ix, :, :], 
+                        p=self.dropout, 
+                        scale=self.scaling_factor[ix]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
             )
-            att = att.transpose(1, 2)
         # Otherwise, use PyTorch's scaled dot product attention
         else:
-            att = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor[0])
+            att = torch.concat(
+                [torch.nn.functional.scaled_dot_product_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_mask=attn_bias[:, ix, :, :], 
+                        dropout_p=self.dropout, 
+                        scale=self.scaling_factor[ix]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
+            )
 
         # If padding tokens are present, remove them from the output
         if pad_tokens > 0:
@@ -612,7 +629,7 @@ class StatefulCausalDiffAttention(nn.Module):
         
         self.scaling_factor_init = 1.0 / np.sqrt(dim_key) if scaling_factor is None else scaling_factor
         self.scaling_factor = nn.Parameter(
-            torch.Tensor([self.scaling_factor_init, self.scaling_factor_init])
+            torch.Tensor([[self.scaling_factor_init, self.scaling_factor_init]]).repeat(num_heads, 1)
         )
         
         # Calculate initial lambda
@@ -739,31 +756,63 @@ class StatefulCausalDiffAttention(nn.Module):
         
         # If xformers attention is available, use it
         if use_xformers_attn:
-            att1 = memory_efficient_attention(
-                q1.transpose(1, 2), 
-                k1.transpose(1, 2), 
-                v.transpose(1, 2), 
-                attn_bias=attn_bias_1, 
-                p=self.dropout, 
-                scale=self.scaling_factor
+            att1 = torch.concat(
+                [
+                    memory_efficient_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_bias=attn_bias_1[:, ix, :, :], 
+                        p=self.dropout, 
+                        scale=self.scaling_factor[ix, 0]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
             )
-            att2 = memory_efficient_attention(
-                q2.transpose(1, 2), 
-                k2.transpose(1, 2), 
-                v.transpose(1, 2), 
-                attn_bias=attn_bias_2, 
-                p=self.dropout, 
-                scale=self.scaling_factor
+            att2 = torch.concat(
+                [
+                    memory_efficient_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_bias=attn_bias_2[:, ix, :, :], 
+                        p=self.dropout, 
+                        scale=self.scaling_factor[ix, 1]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
             )
-            att1 = att1.transpose(1, 2)
-            att2 = att2.transpose(1, 2)
         # Otherwise, use PyTorch's scaled dot product attention
         else:
-            att1 = torch.nn.functional.scaled_dot_product_attention(
-                q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.scaling_factor[0]
+            att1 = torch.concat(
+                [
+                    torch.nn.functional.scaled_dot_product_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_mask=attn_bias_1[:, ix, :, :], 
+                        dropout_p=self.dropout, 
+                        scale=self.scaling_factor[ix, 0]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
             )
-            att2 = torch.nn.functional.scaled_dot_product_attention(
-                q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.scaling_factor[1]
+            att2 = torch.concat(
+                [
+                    torch.nn.functional.scaled_dot_product_attention(
+                        q[:, ix, :, :],
+                        k[:, ix, :, :],
+                        v[:, ix, :, :],
+                        attn_mask=attn_bias_2[:, ix, :, :], 
+                        dropout_p=self.dropout, 
+                        scale=self.scaling_factor[ix, 1]
+                    ).unsqueeze(1)
+                    for ix in range(q.size(1))
+                ],
+                dim=1
             )
         
         # Compute output attention
