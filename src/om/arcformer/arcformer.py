@@ -34,6 +34,7 @@ class ARCformer(nn.Module):
         attn_proj_rank: int = -1,
         mlp_1221: bool = False,
         stacked: bool = True,
+        xformers_override: bool = False,
     ):
         """Initializes the module.
 
@@ -58,6 +59,7 @@ class ARCformer(nn.Module):
             attn_proj_rank (int, optional): Rank of the attention projection back to the input dimension. If -1 will use dim_input // num_heads. Defaults to -1.
             mlp_1221 (bool, optional): Whether to use the 1-2-2-1 MLP architecture. Defaults to False.
             stacked (bool, optional): Whether to use stacked tensors across attention heads. Defaults to True.
+            xformers_override (bool, optional): Whether to override the use of XFormers for attention. Defaults to False.
         """
         super(ARCformer, self).__init__()
 
@@ -77,7 +79,8 @@ class ARCformer(nn.Module):
                 layer_num=layer_num,
                 cope=cope,
                 diff_attn=diff_attn,
-                position_embedders=position_embedders
+                position_embedders=position_embedders,
+                xformers_override=xformers_override,
             )
         else:
             self.attn = ARCUnstacked(
@@ -94,7 +97,8 @@ class ARCformer(nn.Module):
                 layer_num=layer_num,
                 cope=cope,
                 diff_attn=diff_attn,
-                position_embedders=position_embedders
+                position_embedders=position_embedders,
+                xformers_override=xformers_override,
             )
         self.mlp_1221 = mlp_1221
         self.num_layers = num_layers

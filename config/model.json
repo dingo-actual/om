@@ -39,5 +39,6 @@
     "attn_proj_rank": 64,
     "init_ngrams": [2, 3],
     "mlp_1221": false,
-    "stacked": true
+    "stacked": true,
+    "xformers_override": false
 }

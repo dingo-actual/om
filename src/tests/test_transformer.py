@@ -32,6 +32,7 @@ def test_arc_transformer():
     layer_num = 0
     
     stacked = True
+    xformers_override = False
     
     max_init_ngrams = 3
     
@@ -66,6 +67,7 @@ def test_arc_transformer():
         attn_proj_rank=attn_proj_rank,
         mlp_1221=mlp_1221,
         stacked=stacked,
+        xformers_override=xformers_override
     )
 
     batch_size = 2

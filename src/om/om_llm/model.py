@@ -30,6 +30,7 @@ class OmLLM(torch.nn.Module):
         init_ngrams: List[int] = [],
         mlp_1221: bool = False,
         stacked: bool = True,
+        xformers_override: bool = False,
     ):
         """Initialize the model.
 
@@ -56,6 +57,7 @@ class OmLLM(torch.nn.Module):
             init_ngrams_ranks (List[int], optional): Initial n-gram projection layer ranks. Defaults to [] (unigrams).
             mlp_1221 (bool, optional): Use 1-2-2-1 MLP architecture. Defaults to False.
             stacked (bool, optional): Use stacked tensors across attention heads. Defaults to True.
+            xformers_override (bool, optional): Whether to override the use of XFormers for attention. Defaults to False.
         """
         super(OmLLM, self).__init__()
         
@@ -113,6 +115,7 @@ class OmLLM(torch.nn.Module):
                     attn_proj_rank=attn_proj_rank,
                     mlp_1221=mlp_1221,
                     stacked=stacked,
+                    xformers_override=xformers_override,
                 )
             )
         self.layers = torch.nn.ModuleList(layers)

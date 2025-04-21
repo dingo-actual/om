@@ -49,6 +49,7 @@ def test_model_training():
     num_segments = 4
     
     stacked = True
+    xformers_override = False
     
     position_embedders = [
         RoPEEmbeddings(
@@ -81,7 +82,8 @@ def test_model_training():
         attn_proj_rank=attn_proj_rank,
         init_ngrams=init_ngrams,
         mlp_1221=mlp_1221,
-        stacked=stacked
+        stacked=stacked,
+        xformers_override=xformers_override
     )
     
     seq_len = base_segment_len * num_segments

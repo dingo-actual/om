@@ -27,7 +27,8 @@ class ARCUnstacked(nn.Module):
         layer_num: int,
         cope: bool,
         diff_attn: bool,
-        position_embedders: List[Optional[RoPEEmbeddings]]
+        position_embedders: List[Optional[RoPEEmbeddings]],
+        xformers_override: bool = False
     ):
         """Initialize module.
 
@@ -46,6 +47,7 @@ class ARCUnstacked(nn.Module):
             cope (bool): Whether to use CoPE.
             diff_attn (bool): Whether to use diff attention.
             position_embedders (List[Optional[RoPEEmbeddings]]): Position embedding modules.
+            xformers_override (bool, optional): Whether to override the use of XFormers attention. Defaults to False.
         """
         super(ARCUnstacked, self).__init__()
 
@@ -58,6 +60,7 @@ class ARCUnstacked(nn.Module):
         self.diff_attn = diff_attn
         self.num_layers = num_layers
         self.layer_num = layer_num
+        self.xformers_override = xformers_override
 
         self.dim_input = dim_input
         self.dims_key = dims_key
@@ -81,6 +84,7 @@ class ARCUnstacked(nn.Module):
             diff_attn=diff_attn,
             layer_num=layer_num,
             position_embedders=position_embedders,
+            xformers_override=xformers_override,
         )
         
         # Projection for next state
@@ -158,6 +162,7 @@ class StatefulCausalMHMA(nn.Module):
         diff_attn: bool,
         layer_num: int,
         position_embedders: List[Optional[RoPEEmbeddings]],
+        xformers_override: bool = False,
     ):
         """Initializes the module
 
@@ -175,6 +180,7 @@ class StatefulCausalMHMA(nn.Module):
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer.
             position_embedders (List[Optional[RoPEEmbeddings]]): The position embedder to use.
+            xformers_override (bool, optional): Whether to override the use of XFormers attention. Defaults to False.
         """
         super(StatefulCausalMHMA, self).__init__()
         
@@ -190,6 +196,8 @@ class StatefulCausalMHMA(nn.Module):
         self.scaling_factors = scaling_factors
         self.attn_proj_rank = attn_proj_rank
         self.position_embedders = position_embedders
+        self.xformers_override = xformers_override
+        self.cope = cope
         
         self.attn_heads = nn.ModuleList(
             [
@@ -206,6 +214,7 @@ class StatefulCausalMHMA(nn.Module):
                     diff_attn=diff_attn,
                     layer_num=layer_num,
                     position_embedders=position_embedders,
+                    xformers_override=xformers_override,
                 ) for _ in range(num_heads)
             ]
         )
@@ -245,6 +254,7 @@ class StatefulCausalMultiAttention(nn.Module):
         diff_attn: bool,
         layer_num: int,
         position_embedders: List[Optional[RoPEEmbeddings]],
+        xformers_override: bool = False,
     ):
         """Initializes the module
 
@@ -261,6 +271,7 @@ class StatefulCausalMultiAttention(nn.Module):
             diff_attn (bool): Whether to use diff attention.
             layer_num (int): The position of the layer. Only used if diff_attn is True.
             position_embedder (List[Optional[RoPEEmbeddings]]): The position embedder to use.
+            xformers_override (bool, optional): Whether to override the use of XFormers attention. Defaults to False.
         """
         super(StatefulCausalMultiAttention, self).__init__()
         
@@ -275,6 +286,7 @@ class StatefulCausalMultiAttention(nn.Module):
         self.diff_attn = diff_attn
         self.layer_num = layer_num
         self.position_embedders = position_embedders
+        self.xformers_override = xformers_override
         
         if dims_value[-1] != attn_proj_rank:
             diff_attn_mult = 2 if diff_attn else 1
@@ -349,7 +361,8 @@ class StatefulCausalMultiAttention(nn.Module):
                         dropout=dropout,
                         scaling_factor=scaling_factors[ix],
                         cope=cope,
-                        position_embedder=position_embedders[ix]
+                        position_embedder=position_embedders[ix],
+                        xformers_override=xformers_override
                     )
                 )
                     
@@ -427,6 +440,7 @@ class StatefulCausalAttentionHead(nn.Module):
         scaling_factor: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
+        xformers_override: bool = False
     ):
         """Initializes the module
 
@@ -440,6 +454,7 @@ class StatefulCausalAttentionHead(nn.Module):
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             cope (bool, optional): Whether to use CoPE. Defaults to False.
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            xformers_override (bool, optional): Whether to override the use of xformers attention. Defaults to False.
         """
         super(StatefulCausalAttentionHead, self).__init__()
         
@@ -451,6 +466,7 @@ class StatefulCausalAttentionHead(nn.Module):
         self.dropout = dropout
         self.cope = cope
         self.position_embedder = position_embedder
+        self.xformers_override = xformers_override
         
         self.init_scaling_factor = scaling_factor
         self.scaling_factor = nn.Parameter(
@@ -471,6 +487,40 @@ class StatefulCausalAttentionHead(nn.Module):
             self.cope_emb = nn.Parameter(
                 torch.randn(1, self.dim_key, self.seq_len + 2 * self.state_len)
             )
+            
+    def scaled_dot_product_attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        dropout_p: Optional[float] = None,
+        scale: Optional[float] = None,
+    ) -> torch.Tensor:
+        """
+        Computes scaled dot product attention.
+
+        Args:
+            q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_value).
+            attn_mask (Optional[torch.Tensor], optional): Attention mask tensor of shape (batch_size, seq_len, seq_len). Defaults to None.
+            dropout_p (Optional[float], optional): Dropout probability. Defaults to None.
+            scale (Optional[Union[float, torch.Tensor]], optional): Scaling factor. Defaults to None.
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_value).
+        """
+        attn_weights = (q @ k.transpose(-2, -1))
+        if scale is None:
+            scale = 1.0 / np.sqrt(self.dim_key)
+        attn_weights *= scale
+        if attn_mask is not None:
+            attn_weights += attn_mask
+        if dropout_p is not None and dropout_p > 0.0:
+            attn_weights = torch.nn.functional.dropout(attn_weights, p=dropout_p, training=self.training)
+        
+        return attn_weights.softmax(dim=-1) @ v
     
     def apply_attention(
         self, 
@@ -512,7 +562,7 @@ class StatefulCausalAttentionHead(nn.Module):
         seq_len = q.size(-2) - pad_tokens - state_len_mult * self.state_len
         
         # Check if xformers attention is available
-        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0
+        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0 and not self.xformers_override
         
         # If position embedder is specified, add positional embeddings to q and k
         if self.position_embedder is not None:
@@ -537,13 +587,10 @@ class StatefulCausalAttentionHead(nn.Module):
         
         # If xformers attention is available, use it
         if use_xformers_attn:
-            att = memory_efficient_attention(q, k, v, attn_bias=attn_bias, p=self.dropout, scale=self.scaling_factor[0])
+            att = memory_efficient_attention(self.scaling_factor[0] * q, k, v, attn_bias=attn_bias, p=self.dropout, scale=1.0)
         # Otherwise, use the standard attention
         else:
-            att = torch.softmax((q @ k.transpose(-2, -1)) * self.scaling_factor[0] + attn_bias, dim=-1)
-            if self.training and self.dropout > 0:
-                att = torch.dropout(att, p=self.dropout, train=True)
-            att = att @ v
+            att = self.scaled_dot_product_attention(q, k, v, attn_bias=attn_bias, dropout_p=self.dropout, scale=self.scaling_factor[0])
 
         # If padding tokens are present, remove them from the output
         if pad_tokens > 0:
@@ -646,6 +693,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         scaling_factor: Optional[float] = None,
         cope: bool = False,
         position_embedder: Optional[RoPEEmbeddings] = None,
+        xformers_override: bool = False
     ):
         """Initializes the module
 
@@ -659,6 +707,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             dropout (float, optional): The dropout rate. Defaults to 0.0.
             scaling_factor (Optional[float], optional): The scaling factor for attention calculations. Defaults to None (1 / sqrt(dim_key)).
             position_embedder (Optional[RoPEEmbeddings], optional): The position embedder to use. Defaults to None.
+            xformers_override (bool, optional): Whether to override the use of XFormers implementation of attention. Defaults to False.
         """
         super(StatefulCausalDiffAttentionHead, self).__init__()
         
@@ -671,6 +720,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         self.dropout = dropout
         self.cope = cope
         self.position_embedder = position_embedder
+        self.xformers_override = xformers_override
         
         self.init_scaling_factor = 1.0 / np.sqrt(dim_key) if scaling_factor is None else scaling_factor
         self.scaling_factor = nn.Parameter(
@@ -705,6 +755,40 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             )
             
         self.out_norm = nn.RMSNorm(2 * dim_value, eps=1e-5)
+        
+    def scaled_dot_product_attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        dropout_p: Optional[float] = None,
+        scale: Optional[float] = None,
+    ) -> torch.Tensor:
+        """
+        Computes scaled dot product attention.
+
+        Args:
+            q (torch.Tensor): Query tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            k (torch.Tensor): Key tensor of shape (batch_size, seq_len + 2 * state_len, dim_key) or (batch_size, seq_len + state_len, dim_key).
+            v (torch.Tensor): Value tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_value).
+            attn_mask (Optional[torch.Tensor], optional): Attention mask tensor of shape (batch_size, seq_len, seq_len). Defaults to None.
+            dropout_p (Optional[float], optional): Dropout probability. Defaults to None.
+            scale (Optional[Union[float, torch.Tensor]], optional): Scaling factor. Defaults to None.
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len + 2 * state_len, dim_value) or (batch_size, seq_len + state_len, dim_value).
+        """
+        attn_weights = (q @ k.transpose(-2, -1))
+        if scale is None:
+            scale = 1.0 / np.sqrt(self.dim_key)
+        attn_weights *= scale
+        if attn_mask is not None:
+            attn_weights += attn_mask
+        if dropout_p is not None and dropout_p > 0.0:
+            attn_weights = torch.nn.functional.dropout(attn_weights, p=dropout_p, training=self.training)
+        
+        return attn_weights.softmax(dim=-1) @ v
     
     def apply_attention(
         self, 
@@ -740,7 +824,7 @@ class StatefulCausalDiffAttentionHead(nn.Module):
             pad_tokens = 0
         
         # Check if xformers attention is available
-        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0
+        use_xformers_attn = check_if_linux() and "cuda" in str(device) and q.size(-2) % 8 == 0 and not self.xformers_override
         
         # Split q and k into q1, q2, k1, k2
         q1, q2 = split_last_dim(q)
@@ -795,14 +879,14 @@ class StatefulCausalDiffAttentionHead(nn.Module):
         
         # If xformers is available, use it for attention computation
         if use_xformers_attn:
-            att1 = memory_efficient_attention(q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=self.scaling_factor[0])
-            att2 = memory_efficient_attention(q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=self.scaling_factor[1])
+            att1 = memory_efficient_attention(self.scaling_factor[0] * q1, k1, v, attn_bias=attn_bias_1, p=self.dropout, scale=1.0)
+            att2 = memory_efficient_attention(self.scaling_factor[1] * q2, k2, v, attn_bias=attn_bias_2, p=self.dropout, scale=1.0)
         # Otherwise, use PyTorch's attention implementation
         else:
-            att1 = torch.nn.functional.scaled_dot_product_attention(
+            att1 = self.scaled_dot_product_attention(
                 q1, k1, v, attn_mask=attn_bias_1, dropout_p=self.dropout, scale=self.scaling_factor[0]
             )
-            att2 = torch.nn.functional.scaled_dot_product_attention(
+            att2 = self.scaled_dot_product_attention(
                 q2, k2, v, attn_mask=attn_bias_2, dropout_p=self.dropout, scale=self.scaling_factor[1]
             )
         
